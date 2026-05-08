@@ -1,5 +1,5 @@
 /**
- * Shared formatting utilities for SigmaERP.
+ * Shared formatting utilities for ByteSuite.
  * All monetary values are stored as integers (IDR).
  */
 

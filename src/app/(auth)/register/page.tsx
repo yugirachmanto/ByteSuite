@@ -62,7 +62,7 @@ export default function RegisterPage() {
       // ── Step 3: Route based on whether email confirmation is required ────
       if (authData.session) {
         // Email confirmation is disabled — user is already logged in
-        toast.success('Account created! Welcome to SigmaERP.')
+        toast.success('Account created! Welcome to ByteSuite.')
         router.push('/')
       } else {
         // Email confirmation is required — show the check-your-email screen

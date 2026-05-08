@@ -6,7 +6,7 @@ import { Toaster } from "@/components/ui/sonner";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "SigmaERP | F&B Management",
+  title: "ByteSuite | F&B Management",
   description: "Advanced ERP system for Restaurant and Café management",
 };
 
