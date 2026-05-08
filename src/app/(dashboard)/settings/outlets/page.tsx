@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useOutlet } from '@/lib/contexts/outlet-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -41,6 +42,7 @@ const emptyOutlet: Omit<Outlet, 'id' | 'created_at'> = {
 
 export default function OutletsSettingsPage() {
   const supabase = createClient()
+  const { reloadOutlets } = useOutlet()
   const [outlets, setOutlets] = useState<Outlet[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -71,11 +73,12 @@ export default function OutletsSettingsPage() {
       const { data: { user } } = await supabase.auth.getUser()
       const { data: profile } = await supabase
         .from('user_profiles')
-        .select('org_id')
+        .select('org_id, outlet_ids')
         .eq('id', user?.id)
         .single()
 
       if (editOutlet.id) {
+        // ── Edit existing outlet ────────────────────────────────────────────
         const { error } = await supabase
           .from('outlets')
           .update({
@@ -87,17 +90,36 @@ export default function OutletsSettingsPage() {
         if (error) throw error
         toast.success('Outlet updated')
       } else {
-        const { error } = await supabase.from('outlets').insert({
-          org_id: profile?.org_id,
-          name: editOutlet.name,
-          address: editOutlet.address,
-          timezone: editOutlet.timezone,
-        })
-        if (error) throw error
+        // ── Create new outlet ───────────────────────────────────────────────
+        const { data: newOutlet, error: insertError } = await supabase
+          .from('outlets')
+          .insert({
+            org_id: profile?.org_id,
+            name: editOutlet.name,
+            address: editOutlet.address,
+            timezone: editOutlet.timezone,
+          })
+          .select('id')
+          .single()
+        if (insertError) throw insertError
+
+        // Also add the new outlet to this user's outlet_ids so it
+        // immediately appears in the sidebar outlet switcher
+        const updatedIds = [...(profile?.outlet_ids ?? []), newOutlet.id]
+        const { error: profileError } = await supabase
+          .from('user_profiles')
+          .update({ outlet_ids: updatedIds })
+          .eq('id', user?.id)
+        if (profileError) {
+          console.error('Failed to update outlet_ids:', profileError.message)
+          // Non-fatal — outlet was created, just won't appear in switcher until refresh
+        }
+
         toast.success('Outlet created')
       }
       setDialogOpen(false)
       fetchOutlets()
+      reloadOutlets() // refresh sidebar outlet switcher immediately
     } catch (error: any) {
       toast.error(error.message || 'Failed to save outlet')
     } finally {

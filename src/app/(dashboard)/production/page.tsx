@@ -40,7 +40,16 @@ export default function ProductionPage() {
         .order('production_date', { ascending: false })
 
       if (!error && data) {
-        setLogs(data)
+        const userIds = [...new Set(data.map(l => l.created_by).filter(Boolean))]
+        let profileMap: Record<string, string> = {}
+        if (userIds.length > 0) {
+          const { data: profiles } = await supabase
+            .from('user_profiles')
+            .select('id, full_name')
+            .in('id', userIds)
+          profiles?.forEach(p => { profileMap[p.id] = p.full_name })
+        }
+        setLogs(data.map(l => ({ ...l, _author: profileMap[l.created_by] || 'Unknown' })))
       }
       setLoading(false)
     }
@@ -80,6 +89,7 @@ export default function ProductionPage() {
               <TableHead className="text-zinc-400 text-right">Qty Produced</TableHead>
               <TableHead className="text-zinc-400 text-right">Unit Cost</TableHead>
               <TableHead className="text-zinc-400 text-right">Total Batch Value</TableHead>
+              <TableHead className="text-zinc-400">Logged By</TableHead>
               <TableHead className="text-zinc-400">Notes</TableHead>
               <TableHead className="w-[50px]"></TableHead>
             </TableRow>
@@ -87,13 +97,13 @@ export default function ProductionPage() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={7} className="h-24 text-center text-zinc-500">
+                <TableCell colSpan={8} className="h-24 text-center text-zinc-500">
                   Loading production logs...
                 </TableCell>
               </TableRow>
             ) : logs.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="h-24 text-center text-zinc-500">
+                <TableCell colSpan={8} className="h-24 text-center text-zinc-500">
                   No production records found. Log your first batch!
                 </TableCell>
               </TableRow>
@@ -117,6 +127,14 @@ export default function ProductionPage() {
                   </TableCell>
                   <TableCell className="text-right text-emerald-400 font-medium">
                     {log.unit_cost ? new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(log.unit_cost * log.qty_produced) : '-'}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <div className="h-6 w-6 rounded-full bg-zinc-700 flex items-center justify-center text-[10px] text-zinc-300 font-medium">
+                        {(log._author || 'U').charAt(0).toUpperCase()}
+                      </div>
+                      <span className="text-xs text-zinc-400">{log._author || 'Unknown'}</span>
+                    </div>
                   </TableCell>
                   <TableCell className="text-zinc-500 text-sm italic max-w-[200px] truncate">
                     {log.notes || '-'}

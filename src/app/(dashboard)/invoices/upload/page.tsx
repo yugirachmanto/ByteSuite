@@ -14,7 +14,8 @@ export default function InvoiceUploadPage() {
   const [file, setFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
-  const { selectedOutletId } = useOutlet()
+  const [extracting, setExtracting] = useState(false)
+  const { selectedOutletId, outlets } = useOutlet()
   const router = useRouter()
   const supabase = createClient()
 
@@ -81,12 +82,32 @@ export default function InvoiceUploadPage() {
 
       if (dbError) throw dbError
 
-      toast.success('Invoice uploaded successfully! AI is now extracting data...')
-      router.push('/invoices')
+      setUploading(false)
+      setExtracting(true)
+
+      // 3. Trigger the AI extraction and wait for it
+      const outletName = outlets.find(o => o.id === selectedOutletId)?.name
+      const res = await fetch('/api/extract-invoice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          invoice_id: invoiceId,
+          image_url: publicUrl,
+          outlet_name: outletName || ''
+        })
+      })
+
+      if (!res.ok) {
+        throw new Error('AI extraction failed, but invoice was saved.')
+      }
+
+      toast.success('Invoice analyzed successfully!')
+      router.push(`/invoices/${invoiceId}/review`)
     } catch (error: any) {
       toast.error(error.message || 'Failed to upload invoice')
     } finally {
       setUploading(false)
+      setExtracting(false)
     }
   }
 
@@ -138,9 +159,14 @@ export default function InvoiceUploadPage() {
               <Button 
                 className="w-full bg-zinc-100 text-zinc-900 hover:bg-zinc-200" 
                 onClick={handleUpload}
-                disabled={uploading}
+                disabled={uploading || extracting}
               >
-                {uploading ? (
+                {extracting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Analyzing Invoice...
+                  </>
+                ) : uploading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Uploading...
@@ -169,7 +195,7 @@ export default function InvoiceUploadPage() {
           </li>
           <li className="flex gap-3">
             <span className="flex h-5 w-5 items-center justify-center rounded-full bg-zinc-800 text-[10px] font-bold text-zinc-100">2</span>
-            <span>Claude AI extracts line items, totals, and vendor details automatically.</span>
+            <span>AI extracts line items, totals, and vendor details automatically.</span>
           </li>
           <li className="flex gap-3">
             <span className="flex h-5 w-5 items-center justify-center rounded-full bg-zinc-800 text-[10px] font-bold text-zinc-100">3</span>

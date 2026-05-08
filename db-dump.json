@@ -1,0 +1,186 @@
+{
+  "rpcError": null,
+  "rpcResult": null,
+  "invoices": [
+    {
+      "id": "674d05fd-6b18-463e-9306-2c0b8bcdb8ab",
+      "outlet_id": "b8ceb9c2-5043-4ccd-b4e4-d0345f758230",
+      "image_url": "https://eawmdxrqhqiomplioppd.supabase.co/storage/v1/object/public/invoices/255c999f-6a7e-480b-be00-529625c92231/b8ceb9c2-5043-4ccd-b4e4-d0345f758230/674d05fd-6b18-463e-9306-2c0b8bcdb8ab.jpg",
+      "status": "posted",
+      "vendor": "Lebak Caringin",
+      "invoice_no": "A25000018573",
+      "invoice_date": "2023-06-01",
+      "currency": "IDR",
+      "subtotal": 36364,
+      "tax_total": 3636,
+      "grand_total": 40000,
+      "extracted_data": {
+        "vendor": "Lebak Caringin",
+        "currency": "IDR",
+        "subtotal": 36364,
+        "tax_total": 3636,
+        "invoice_no": "A25000018573",
+        "line_items": [
+          {
+            "id": 0,
+            "qty": 1,
+            "unit": "item",
+            "total": 36364,
+            "coa_id": null,
+            "unit_price": 36364,
+            "description": "Classic white",
+            "is_inventory": true,
+            "item_master_id": "25db9c42-b0ca-41db-84ed-57cf261e6a7c"
+          }
+        ],
+        "grand_total": 42000,
+        "invoice_date": "2023-06-01"
+      },
+      "approved_by": null,
+      "approved_at": null,
+      "created_by": "1aded9cd-365e-4d48-aee5-9127a73cbcf9",
+      "created_at": "2026-05-08T08:10:19.475166+00:00",
+      "updated_at": "2026-05-08T09:20:51.815496+00:00"
+    }
+  ],
+  "batches": [
+    {
+      "id": "eb75dfb9-393f-4d13-8ce3-aab3d3b4d0c8",
+      "outlet_id": "b8ceb9c2-5043-4ccd-b4e4-d0345f758230",
+      "item_id": "7f8f0274-f004-4eba-b247-3efd3e76e5bd",
+      "purchase_date": "2023-06-01",
+      "original_qty": 1,
+      "qty_remaining": 1,
+      "unit_cost": 36364,
+      "invoice_line_id": null,
+      "created_at": "2026-05-08T08:59:00.554687+00:00"
+    },
+    {
+      "id": "edf78744-7ad6-42de-b4f6-a28ff6f4c7e5",
+      "outlet_id": "b8ceb9c2-5043-4ccd-b4e4-d0345f758230",
+      "item_id": "25db9c42-b0ca-41db-84ed-57cf261e6a7c",
+      "purchase_date": "2026-05-08",
+      "original_qty": 1,
+      "qty_remaining": 1,
+      "unit_cost": 30000,
+      "invoice_line_id": "19964532-3987-44e9-a719-6b5ab21c2e83",
+      "created_at": "2026-05-08T08:59:03.59372+00:00"
+    },
+    {
+      "id": "f1842b76-2879-4e49-98a0-37894d62c394",
+      "outlet_id": "b8ceb9c2-5043-4ccd-b4e4-d0345f758230",
+      "item_id": "25db9c42-b0ca-41db-84ed-57cf261e6a7c",
+      "purchase_date": "2026-05-08",
+      "original_qty": 1,
+      "qty_remaining": 1,
+      "unit_cost": 30000,
+      "invoice_line_id": "a0dda4e3-6ae7-4bad-b9b4-b050a4e3b87e",
+      "created_at": "2026-05-08T08:59:04.682406+00:00"
+    },
+    {
+      "id": "84c095ee-9ca8-4f52-bf9c-bffca081a790",
+      "outlet_id": "b8ceb9c2-5043-4ccd-b4e4-d0345f758230",
+      "item_id": "7f8f0274-f004-4eba-b247-3efd3e76e5bd",
+      "purchase_date": "2023-06-01",
+      "original_qty": 1,
+      "qty_remaining": 1,
+      "unit_cost": 36364,
+      "invoice_line_id": null,
+      "created_at": "2026-05-08T08:59:33.110051+00:00"
+    },
+    {
+      "id": "1e606b42-6894-4d5b-bd34-56693c197ce2",
+      "outlet_id": "b8ceb9c2-5043-4ccd-b4e4-d0345f758230",
+      "item_id": "25db9c42-b0ca-41db-84ed-57cf261e6a7c",
+      "purchase_date": "2026-05-08",
+      "original_qty": 1,
+      "qty_remaining": 1,
+      "unit_cost": 30000,
+      "invoice_line_id": "b5ac1df2-7375-4e58-8dcc-8d9ef434c8bf",
+      "created_at": "2026-05-08T08:59:36.252742+00:00"
+    }
+  ],
+  "ledger": [
+    {
+      "id": "f0e69f3b-22bf-45ac-8e25-19d2ee9f9844",
+      "outlet_id": "b8ceb9c2-5043-4ccd-b4e4-d0345f758230",
+      "item_id": "7f8f0274-f004-4eba-b247-3efd3e76e5bd",
+      "txn_type": "IN",
+      "qty": 1,
+      "unit_cost": 36364,
+      "total_value": 36364,
+      "reference_id": "674d05fd-6b18-463e-9306-2c0b8bcdb8ab",
+      "reference_type": "invoice",
+      "notes": null,
+      "created_at": "2026-05-08T08:59:00.401487+00:00"
+    },
+    {
+      "id": "24130efd-63ed-4076-adc3-c4e079569eab",
+      "outlet_id": "b8ceb9c2-5043-4ccd-b4e4-d0345f758230",
+      "item_id": "25db9c42-b0ca-41db-84ed-57cf261e6a7c",
+      "txn_type": "IN",
+      "qty": 1,
+      "unit_cost": 30000,
+      "total_value": 30000,
+      "reference_id": "674d05fd-6b18-463e-9306-2c0b8bcdb8ab",
+      "reference_type": "invoice",
+      "notes": null,
+      "created_at": "2026-05-08T08:59:03.59372+00:00"
+    },
+    {
+      "id": "cc71e8f1-1ddc-43e1-ac56-945c65d0041a",
+      "outlet_id": "b8ceb9c2-5043-4ccd-b4e4-d0345f758230",
+      "item_id": "25db9c42-b0ca-41db-84ed-57cf261e6a7c",
+      "txn_type": "IN",
+      "qty": 1,
+      "unit_cost": 30000,
+      "total_value": 30000,
+      "reference_id": "674d05fd-6b18-463e-9306-2c0b8bcdb8ab",
+      "reference_type": "invoice",
+      "notes": null,
+      "created_at": "2026-05-08T08:59:04.682406+00:00"
+    },
+    {
+      "id": "2bd26bad-dee0-4757-9344-8b2e370a4dca",
+      "outlet_id": "b8ceb9c2-5043-4ccd-b4e4-d0345f758230",
+      "item_id": "7f8f0274-f004-4eba-b247-3efd3e76e5bd",
+      "txn_type": "IN",
+      "qty": 1,
+      "unit_cost": 36364,
+      "total_value": 36364,
+      "reference_id": "674d05fd-6b18-463e-9306-2c0b8bcdb8ab",
+      "reference_type": "invoice",
+      "notes": null,
+      "created_at": "2026-05-08T08:59:32.98439+00:00"
+    },
+    {
+      "id": "6cb82935-aa12-4d75-b1d5-7b4c0d9125be",
+      "outlet_id": "b8ceb9c2-5043-4ccd-b4e4-d0345f758230",
+      "item_id": "25db9c42-b0ca-41db-84ed-57cf261e6a7c",
+      "txn_type": "IN",
+      "qty": 1,
+      "unit_cost": 30000,
+      "total_value": 30000,
+      "reference_id": "674d05fd-6b18-463e-9306-2c0b8bcdb8ab",
+      "reference_type": "invoice",
+      "notes": null,
+      "created_at": "2026-05-08T08:59:36.252742+00:00"
+    }
+  ],
+  "balance": [
+    {
+      "outlet_id": "b8ceb9c2-5043-4ccd-b4e4-d0345f758230",
+      "item_id": "7f8f0274-f004-4eba-b247-3efd3e76e5bd",
+      "qty_on_hand": 1,
+      "inventory_value": 36364,
+      "updated_at": "2026-05-08T09:11:07.09+00:00"
+    },
+    {
+      "outlet_id": "b8ceb9c2-5043-4ccd-b4e4-d0345f758230",
+      "item_id": "25db9c42-b0ca-41db-84ed-57cf261e6a7c",
+      "qty_on_hand": 7,
+      "inventory_value": 210000,
+      "updated_at": "2026-05-08T09:20:51.815496+00:00"
+    }
+  ]
+}

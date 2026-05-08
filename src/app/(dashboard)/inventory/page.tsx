@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useOutlet } from '@/lib/contexts/outlet-context'
+import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { 
   Table, 
@@ -32,6 +33,7 @@ export default function InventoryPage() {
   const [loading, setLoading] = useState(true)
   const { selectedOutletId } = useOutlet()
   const supabase = createClient()
+  const router = useRouter()
 
   useEffect(() => {
     if (!selectedOutletId) return
@@ -55,7 +57,9 @@ export default function InventoryPage() {
         `)
         .eq('outlet_id', selectedOutletId)
 
-      if (!error && data) {
+      if (error) {
+        console.error('Inventory fetch error:', error)
+      } else if (data) {
         setItems(data)
       }
       setLoading(false)
@@ -171,7 +175,11 @@ export default function InventoryPage() {
               </TableRow>
             ) : (
               items.map((item, idx) => (
-                <TableRow key={idx} className="border-zinc-800 hover:bg-zinc-800/30 cursor-pointer">
+                <TableRow
+                  key={idx}
+                  className="border-zinc-800 hover:bg-zinc-800/30 cursor-pointer transition-colors"
+                  onClick={() => router.push(`/inventory/${item.item_master?.id}`)}
+                >
                   <TableCell>
                     <div className="flex flex-col">
                       <span className="font-medium text-zinc-100">{item.item_master?.name}</span>

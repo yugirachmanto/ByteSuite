@@ -38,6 +38,7 @@ export default function NewOpnamePage() {
         .from('inventory_balance')
         .select(`
           qty_on_hand,
+          inventory_value,
           item_id,
           item_master (
             id,
@@ -70,20 +71,62 @@ export default function NewOpnamePage() {
     if (!selectedOutletId) return
     setSubmitting(true)
     try {
-      // In a real app, this should be a bulk RPC
       const entries = items.map(item => ({
         outlet_id: selectedOutletId,
         item_id: item.item_id,
         system_qty: item.qty_on_hand,
         physical_qty: item.physical_qty,
-        variance: item.physical_qty - item.qty_on_hand,
         opname_date: opnameDate
       }))
 
-      const { error } = await supabase.from('opname_log').insert(entries)
+      const { data: insertedLogs, error } = await supabase
+        .from('opname_log')
+        .insert(entries)
+        .select('id, item_id, physical_qty, system_qty')
       if (error) throw error
 
-      toast.success('Stock opname posted! Inventory adjusted.')
+      // Apply adjustments for items with variance
+      const adjustedItems = items.filter(item => item.physical_qty !== item.qty_on_hand)
+
+      for (const item of adjustedItems) {
+        const variance = item.physical_qty - item.qty_on_hand
+        const logId = insertedLogs?.find(l => l.item_id === item.item_id)?.id
+
+        // Calculate value adjustment based on average cost
+        const avgCost = item.qty_on_hand > 0 ? (item.inventory_value / item.qty_on_hand) : 0
+        const valueAdjustment = variance * avgCost
+        const newInventoryValue = item.inventory_value + valueAdjustment
+
+        // Update inventory_balance to match physical count and new value
+        await supabase
+          .from('inventory_balance')
+          .update({
+            qty_on_hand: item.physical_qty,
+            inventory_value: Math.max(0, newInventoryValue), // prevent negative value
+            updated_at: new Date().toISOString()
+          })
+          .eq('outlet_id', selectedOutletId)
+          .eq('item_id', item.item_id)
+
+        // Write stock_ledger entry for the adjustment
+        await supabase.from('stock_ledger').insert({
+          outlet_id: selectedOutletId,
+          item_id: item.item_id,
+          txn_type: 'OPNAME_ADJ',
+          qty: variance,
+          unit_cost: avgCost,
+          total_value: Math.abs(valueAdjustment),
+          reference_type: 'opname',
+          reference_id: logId || null
+        })
+      }
+
+      const adjCount = adjustedItems.length
+      toast.success(
+        adjCount > 0
+          ? `Opname posted! ${adjCount} item(s) adjusted to match physical count.`
+          : 'Opname posted. All items matched — no adjustments needed.'
+      )
       router.push('/opname')
     } catch (error: any) {
       toast.error(error.message || 'Failed to post opname')
@@ -133,7 +176,10 @@ export default function NewOpnamePage() {
             <TableRow className="hover:bg-transparent">
               <TableHead className="text-zinc-500 text-xs font-bold uppercase">Item Name</TableHead>
               <TableHead className="text-zinc-500 text-xs font-bold uppercase text-right">System Qty</TableHead>
-              <TableHead className="text-zinc-500 text-xs font-bold uppercase text-right w-[200px]">Physical Qty</TableHead>
+              <TableHead className="text-blue-400 text-xs font-bold uppercase text-right w-[200px]">
+                Physical Qty
+                <span className="block text-[9px] font-normal text-zinc-500 normal-case">enter actual count ↓</span>
+              </TableHead>
               <TableHead className="text-zinc-500 text-xs font-bold uppercase text-right">Variance</TableHead>
               <TableHead className="text-zinc-500 text-xs font-bold uppercase">Status</TableHead>
             </TableRow>
@@ -166,11 +212,12 @@ export default function NewOpnamePage() {
                     <TableCell className="text-right text-zinc-500 font-mono">
                       {item.qty_on_hand}
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right bg-blue-950/10">
                       <Input
                         type="number"
-                        className="bg-zinc-950 border-zinc-800 h-9 text-right font-mono"
+                        className="bg-zinc-950 border-blue-800/50 h-9 text-right font-mono focus:border-blue-500"
                         value={item.physical_qty}
+                        placeholder="Count..."
                         onChange={(e) => handleQtyChange(item.item_id, e.target.value)}
                       />
                     </TableCell>

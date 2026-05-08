@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useOutlet } from '@/lib/contexts/outlet-context'
 import { Button } from '@/components/ui/button'
@@ -13,14 +14,16 @@ import {
   TableRow 
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
-import { Plus, Upload, Search, Filter, MoreHorizontal } from 'lucide-react'
+import { Plus, Upload, Search, Filter, Trash2 } from 'lucide-react'
 import Link from 'next/link'
 import { format } from 'date-fns'
+import { toast } from 'sonner'
 
 export default function InvoicesPage() {
   const [invoices, setInvoices] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const { selectedOutletId } = useOutlet()
+  const router = useRouter()
   const supabase = createClient()
 
   useEffect(() => {
@@ -35,7 +38,17 @@ export default function InvoicesPage() {
         .order('created_at', { ascending: false })
 
       if (!error && data) {
-        setInvoices(data)
+        // Fetch user profiles for all unique created_by IDs
+        const userIds = [...new Set(data.map(inv => inv.created_by).filter(Boolean))]
+        let profileMap: Record<string, string> = {}
+        if (userIds.length > 0) {
+          const { data: profiles } = await supabase
+            .from('user_profiles')
+            .select('id, full_name')
+            .in('id', userIds)
+          profiles?.forEach(p => { profileMap[p.id] = p.full_name })
+        }
+        setInvoices(data.map(inv => ({ ...inv, _author: profileMap[inv.created_by] || 'Unknown' })))
       }
       setLoading(false)
     }
@@ -63,6 +76,29 @@ export default function InvoicesPage() {
       supabase.removeChannel(channel)
     }
   }, [selectedOutletId, supabase])
+
+  const deleteInvoice = async (invoiceId: string, e: React.MouseEvent) => {
+    e.stopPropagation() // Prevent row click navigation
+    if (!confirm('Are you sure you want to permanently delete this invoice and all related inventory data? This cannot be undone.')) return
+
+    try {
+      // Delete in FK dependency order
+      await supabase.from('stock_batches').delete().eq('outlet_id', selectedOutletId)
+        .in('invoice_line_id', 
+          (await supabase.from('invoice_lines').select('id').eq('invoice_id', invoiceId)).data?.map(l => l.id) || []
+        )
+      await supabase.from('stock_ledger').delete().eq('reference_id', invoiceId).eq('reference_type', 'invoice')
+      await supabase.from('inventory_balance') // Only remove if we need to reverse — skip for safety
+      await supabase.from('invoice_lines').delete().eq('invoice_id', invoiceId)
+      const { error } = await supabase.from('invoices').delete().eq('id', invoiceId)
+      if (error) throw error
+
+      setInvoices(prev => prev.filter(inv => inv.id !== invoiceId))
+      toast.success('Invoice deleted successfully.')
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete invoice')
+    }
+  }
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -113,6 +149,7 @@ export default function InvoicesPage() {
               <TableHead className="text-zinc-400">Vendor</TableHead>
               <TableHead className="text-zinc-400">Invoice No</TableHead>
               <TableHead className="text-zinc-400">Grand Total</TableHead>
+              <TableHead className="text-zinc-400">Uploaded By</TableHead>
               <TableHead className="text-zinc-400">Status</TableHead>
               <TableHead className="text-right text-zinc-400">Actions</TableHead>
             </TableRow>
@@ -120,19 +157,23 @@ export default function InvoicesPage() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={6} className="h-24 text-center text-zinc-500">
+                <TableCell colSpan={7} className="h-24 text-center text-zinc-500">
                   Loading invoices...
                 </TableCell>
               </TableRow>
             ) : invoices.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="h-24 text-center text-zinc-500">
+                <TableCell colSpan={7} className="h-24 text-center text-zinc-500">
                   No invoices found. Start by uploading one.
                 </TableCell>
               </TableRow>
             ) : (
               invoices.map((invoice) => (
-                <TableRow key={invoice.id} className="border-zinc-800 hover:bg-zinc-800/30">
+                <TableRow 
+                  key={invoice.id} 
+                  className="border-zinc-800 hover:bg-zinc-800/30 cursor-pointer"
+                  onClick={() => router.push(`/invoices/${invoice.id}/review`)}
+                >
                   <TableCell className="text-zinc-300">
                     {invoice.invoice_date ? format(new Date(invoice.invoice_date), 'dd MMM yyyy') : format(new Date(invoice.created_at), 'dd MMM yyyy')}
                   </TableCell>
@@ -141,19 +182,33 @@ export default function InvoicesPage() {
                   <TableCell className="text-zinc-100 font-semibold">
                     {invoice.grand_total ? new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(invoice.grand_total) : '-'}
                   </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <div className="h-6 w-6 rounded-full bg-zinc-700 flex items-center justify-center text-[10px] text-zinc-300 font-medium">
+                        {(invoice._author || 'U').charAt(0).toUpperCase()}
+                      </div>
+                      <span className="text-xs text-zinc-400">{invoice._author || 'Unknown'}</span>
+                    </div>
+                  </TableCell>
                   <TableCell>{getStatusBadge(invoice.status)}</TableCell>
-                  <TableCell className="text-right">
-                    {invoice.status === 'extracted' || invoice.status === 'extraction_failed' ? (
-                      <Link href={`/invoices/${invoice.id}/review`}>
-                        <Button variant="ghost" size="sm" className="text-blue-400 hover:text-blue-300 hover:bg-blue-400/10">
-                          Review
-                        </Button>
-                      </Link>
-                    ) : (
-                      <Button variant="ghost" size="icon" className="text-zinc-500">
-                        <MoreHorizontal className="h-4 w-4" />
+                  <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center justify-end gap-1">
+                      {(invoice.status === 'extracted' || invoice.status === 'pending') && (
+                        <Link href={`/invoices/${invoice.id}/review`}>
+                          <Button variant="ghost" size="sm" className="text-blue-400 hover:text-blue-300 hover:bg-blue-400/10">
+                            Review
+                          </Button>
+                        </Link>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-zinc-600 hover:text-red-400 hover:bg-red-400/10"
+                        onClick={(e) => deleteInvoice(invoice.id, e)}
+                      >
+                        <Trash2 className="h-4 w-4" />
                       </Button>
-                    )}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))

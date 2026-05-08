@@ -6,9 +6,16 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
 import { toast } from 'sonner'
-import { Loader2 } from 'lucide-react'
+import { Loader2, MailCheck } from 'lucide-react'
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
@@ -16,9 +23,12 @@ export default function RegisterPage() {
     email: '',
     password: '',
     orgName: '',
-    outletName: ''
+    outletName: '',
   })
   const [loading, setLoading] = useState(false)
+  // null = form, 'email_confirm' = awaiting email, 'done' = logged in
+  const [step, setStep] = useState<'form' | 'email_confirm'>('form')
+
   const router = useRouter()
   const supabase = createClient()
 
@@ -27,80 +37,111 @@ export default function RegisterPage() {
     setLoading(true)
 
     try {
-      // 1. Sign up user
+      // ── Step 1: Create Supabase Auth user ───────────────────────────────
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
         options: {
-          data: {
-            full_name: formData.fullName
-          }
-        }
+          data: { full_name: formData.fullName },
+        },
       })
 
       if (authError) throw authError
-      if (!authData.user) throw new Error('Failed to create user')
+      if (!authData.user) throw new Error('Failed to create user account.')
 
-      // 2. Create organization
-      const { data: orgData, error: orgError } = await supabase
-        .from('organizations')
-        .insert({ name: formData.orgName })
-        .select()
-        .single()
+      // ── Step 2: Call atomic DB function (bypasses RLS) ──────────────────
+      const { error: rpcError } = await supabase.rpc('register_new_org', {
+        p_user_id:     authData.user.id,
+        p_full_name:   formData.fullName,
+        p_org_name:    formData.orgName,
+        p_outlet_name: formData.outletName,
+      })
 
-      if (orgError) throw orgError
+      if (rpcError) throw rpcError
 
-      // 3. Create outlet
-      const { data: outletData, error: outletError } = await supabase
-        .from('outlets')
-        .insert({ 
-          org_id: orgData.id,
-          name: formData.outletName 
-        })
-        .select()
-        .single()
-
-      if (outletError) throw outletError
-
-      // 4. Update user profile
-      const { error: profileError } = await supabase
-        .from('user_profiles')
-        .insert({
-          id: authData.user.id,
-          org_id: orgData.id,
-          full_name: formData.fullName,
-          role: 'owner',
-          outlet_ids: [outletData.id]
-        })
-
-      if (profileError) throw profileError
-
-      toast.success('Account created successfully!')
-      router.push('/login')
+      // ── Step 3: Route based on whether email confirmation is required ────
+      if (authData.session) {
+        // Email confirmation is disabled — user is already logged in
+        toast.success('Account created! Welcome to SigmaERP.')
+        router.push('/')
+      } else {
+        // Email confirmation is required — show the check-your-email screen
+        setStep('email_confirm')
+      }
     } catch (error: any) {
-      console.error("Registration error details:", error);
-      const errorMsg = error.message + (error.details ? ` (${error.details})` : '');
-      toast.error(errorMsg || 'Failed to register')
+      console.error('Registration error:', error)
+      const msg =
+        error?.message ||
+        (error?.details ? `${error.details}` : null) ||
+        'Registration failed. Please try again.'
+      toast.error(msg)
     } finally {
       setLoading(false)
     }
   }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData(prev => ({ ...prev, [e.target.id]: e.target.value }))
+    setFormData((prev) => ({ ...prev, [e.target.id]: e.target.value }))
   }
 
+  // ── Email confirmation pending screen ──────────────────────────────────────
+  if (step === 'email_confirm') {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-zinc-950 p-4">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_-20%,#3e3e3e,transparent)] pointer-events-none" />
+        <Card className="w-full max-w-md border-zinc-800 bg-zinc-900/50 backdrop-blur-xl text-zinc-100">
+          <CardHeader className="items-center space-y-3 pt-8">
+            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-zinc-800">
+              <MailCheck className="h-7 w-7 text-zinc-100" />
+            </div>
+            <CardTitle className="text-2xl font-bold tracking-tight text-center">
+              Check your email
+            </CardTitle>
+            <CardDescription className="text-center text-zinc-400">
+              We sent a confirmation link to{' '}
+              <span className="font-medium text-zinc-200">{formData.email}</span>.
+              Click it to activate your account, then come back and sign in.
+            </CardDescription>
+          </CardHeader>
+          <CardFooter className="flex flex-col gap-3 pb-8">
+            <Button
+              className="w-full bg-zinc-100 text-zinc-900 hover:bg-zinc-200"
+              onClick={() => router.push('/login')}
+            >
+              Go to Sign In
+            </Button>
+            <p className="text-center text-xs text-zinc-500">
+              Didn&apos;t receive it? Check your spam folder or{' '}
+              <button
+                type="button"
+                className="text-zinc-400 underline hover:text-zinc-200"
+                onClick={() => setStep('form')}
+              >
+                try again
+              </button>
+              .
+            </p>
+          </CardFooter>
+        </Card>
+      </div>
+    )
+  }
+
+  // ── Registration form ──────────────────────────────────────────────────────
   return (
     <div className="flex min-h-screen items-center justify-center bg-zinc-950 p-4">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_-20%,#3e3e3e,transparent)] pointer-events-none" />
-      
+
       <Card className="w-full max-w-lg border-zinc-800 bg-zinc-900/50 backdrop-blur-xl text-zinc-100">
         <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold tracking-tight">Create an account</CardTitle>
+          <CardTitle className="text-2xl font-bold tracking-tight">
+            Create an account
+          </CardTitle>
           <CardDescription className="text-zinc-400">
             Set up your organization and first outlet to get started
           </CardDescription>
         </CardHeader>
+
         <form onSubmit={handleRegister}>
           <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2 md:col-span-2">
@@ -114,6 +155,7 @@ export default function RegisterPage() {
                 className="bg-zinc-950 border-zinc-800 focus-visible:ring-zinc-700"
               />
             </div>
+
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input
@@ -126,17 +168,21 @@ export default function RegisterPage() {
                 className="bg-zinc-950 border-zinc-800 focus-visible:ring-zinc-700"
               />
             </div>
+
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
               <Input
                 id="password"
                 type="password"
+                placeholder="Min. 6 characters"
+                minLength={6}
                 required
                 value={formData.password}
                 onChange={handleChange}
                 className="bg-zinc-950 border-zinc-800 focus-visible:ring-zinc-700"
               />
             </div>
+
             <div className="space-y-2">
               <Label htmlFor="orgName">Organization Name</Label>
               <Input
@@ -148,6 +194,7 @@ export default function RegisterPage() {
                 className="bg-zinc-950 border-zinc-800 focus-visible:ring-zinc-700"
               />
             </div>
+
             <div className="space-y-2">
               <Label htmlFor="outletName">First Outlet Name</Label>
               <Input
@@ -160,9 +207,10 @@ export default function RegisterPage() {
               />
             </div>
           </CardContent>
+
           <CardFooter className="flex flex-col space-y-4">
-            <Button 
-              type="submit" 
+            <Button
+              type="submit"
               className="w-full bg-zinc-100 text-zinc-900 hover:bg-zinc-200"
               disabled={loading}
             >
