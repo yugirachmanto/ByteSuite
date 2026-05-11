@@ -115,33 +115,23 @@ export default function BomSettingsPage() {
     if (!selectedOutputId) return
     setSaving(true)
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      const { data: profile } = await supabase
-        .from('user_profiles')
-        .select('org_id')
-        .eq('id', user?.id)
-        .single()
+      // Use RPC to save BOM (bypasses RLS issues and ensures atomicity)
+      const { error } = await supabase.rpc('save_bom', {
+        p_output_item_id: selectedOutputId,
+        p_lines: bomLines
+          .filter(l => l.input_item_id && l.qty_per_unit > 0)
+          .map(line => ({
+            input_item_id: line.input_item_id,
+            qty_per_unit: line.qty_per_unit,
+            unit: line.unit || 'pcs'
+          }))
+      })
 
-      // 1. Delete existing BOM for this item
-      await supabase.from('bom').delete().eq('output_item_id', selectedOutputId)
-      
-      // 2. Insert new lines
-      const linesToInsert = bomLines
-        .filter(l => l.input_item_id && l.qty_per_unit > 0)
-        .map(line => ({
-          org_id: profile?.org_id,
-          output_item_id: selectedOutputId,
-          input_item_id: line.input_item_id,
-          qty_per_unit: line.qty_per_unit
-        }))
-
-      if (linesToInsert.length > 0) {
-        const { error } = await supabase.from('bom').insert(linesToInsert)
-        if (error) throw error
-      }
+      if (error) throw error
 
       toast.success('BOM updated successfully!')
     } catch (error: any) {
+      console.error('Save error:', error)
       toast.error(error.message || 'Failed to save BOM')
     } finally {
       setSaving(false)

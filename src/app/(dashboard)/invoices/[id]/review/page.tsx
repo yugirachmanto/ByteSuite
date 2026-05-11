@@ -461,15 +461,15 @@ export default function InvoiceReviewPage() {
             <CardContent className="p-4 grid grid-cols-2 md:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <label className="text-[10px] text-zinc-500 uppercase font-bold">Vendor</label>
-                <Input value={invoice.vendor || ''} onChange={(e) => setInvoice({...invoice, vendor: e.target.value})} className="bg-zinc-950 border-zinc-800 h-8 text-sm" />
+                <Input value={invoice.vendor ?? ''} onChange={(e) => setInvoice({...invoice, vendor: e.target.value})} className="bg-zinc-950 border-zinc-800 h-8 text-sm" />
               </div>
               <div className="space-y-2">
                 <label className="text-[10px] text-zinc-500 uppercase font-bold">Invoice No</label>
-                <Input value={invoice.invoice_no || ''} onChange={(e) => setInvoice({...invoice, invoice_no: e.target.value})} className="bg-zinc-950 border-zinc-800 h-8 text-sm" />
+                <Input value={invoice.invoice_no ?? ''} onChange={(e) => setInvoice({...invoice, invoice_no: e.target.value})} className="bg-zinc-950 border-zinc-800 h-8 text-sm" />
               </div>
               <div className="space-y-2">
                 <label className="text-[10px] text-zinc-500 uppercase font-bold">Invoice Date</label>
-                <Input type="date" value={invoice.invoice_date || ''} onChange={(e) => setInvoice({...invoice, invoice_date: e.target.value})} className="bg-zinc-950 border-zinc-800 h-8 text-sm" />
+                <Input type="date" value={invoice.invoice_date ?? ''} onChange={(e) => setInvoice({...invoice, invoice_date: e.target.value})} className="bg-zinc-950 border-zinc-800 h-8 text-sm" />
               </div>
             </CardContent>
           </Card>
@@ -504,7 +504,7 @@ export default function InvoiceReviewPage() {
                       <TableCell className="py-4">
                         <div className="space-y-2">
                           <Input 
-                            value={item.description || ''}
+                            value={item.description ?? ''}
                             onChange={(e) => updateLineItem(item.id, 'description', e.target.value)}
                             className="bg-zinc-950 border-zinc-800 h-8 text-xs font-medium"
                           />
@@ -557,7 +557,7 @@ export default function InvoiceReviewPage() {
                       <TableCell className="text-right">
                         <Input 
                           type="number" 
-                          value={item.qty} 
+                          value={isNaN(item.qty) ? 0 : (item.qty ?? 0)} 
                           onChange={(e) => updateLineItem(item.id, 'qty', parseFloat(e.target.value) || 0)}
                           className="bg-zinc-950 border-zinc-800 h-7 text-xs w-16 ml-auto text-right font-mono"
                         />
@@ -573,13 +573,13 @@ export default function InvoiceReviewPage() {
                         <div className="flex flex-col items-end gap-1">
                           <Input 
                             type="number" 
-                            value={item.unit_price} 
+                            value={isNaN(item.unit_price) ? 0 : (item.unit_price ?? 0)} 
                             onChange={(e) => updateLineItem(item.id, 'unit_price', parseFloat(e.target.value) || 0)}
                             className="bg-zinc-950 border-zinc-800 h-7 text-xs w-24 text-right font-mono"
                           />
                           <Input 
                             type="number" 
-                            value={item.total} 
+                            value={isNaN(item.total) ? 0 : (item.total ?? 0)} 
                             onChange={(e) => updateLineItem(item.id, 'total', parseFloat(e.target.value) || 0)}
                             className="bg-zinc-950 border-zinc-800 h-7 text-xs w-28 text-right font-mono font-bold text-zinc-100"
                           />
@@ -607,15 +607,15 @@ export default function InvoiceReviewPage() {
                 </div>
                 <div className="flex justify-between items-center text-red-400 text-sm">
                   <span>Discount</span>
-                  <Input type="number" value={invoice.discount || ''} onChange={(e) => setInvoice({...invoice, discount: parseFloat(e.target.value) || 0})} className="bg-zinc-950 border-zinc-800 h-7 w-24 text-right font-mono text-red-400" />
+                  <Input type="number" value={isNaN(invoice.discount) ? 0 : (invoice.discount ?? 0)} onChange={(e) => setInvoice({...invoice, discount: parseFloat(e.target.value) || 0})} className="bg-zinc-950 border-zinc-800 h-7 w-24 text-right font-mono text-red-400" />
                 </div>
                 <div className="flex justify-between items-center text-zinc-400 text-sm">
                   <span>Tax (PPN/PB1)</span>
-                  <Input type="number" value={invoice.tax_total || ''} onChange={(e) => setInvoice({...invoice, tax_total: parseFloat(e.target.value) || 0})} className="bg-zinc-950 border-zinc-800 h-7 w-24 text-right font-mono" />
+                  <Input type="number" value={isNaN(invoice.tax_total) ? 0 : (invoice.tax_total ?? 0)} onChange={(e) => setInvoice({...invoice, tax_total: parseFloat(e.target.value) || 0})} className="bg-zinc-950 border-zinc-800 h-7 w-24 text-right font-mono" />
                 </div>
                 <div className="flex justify-between items-center text-amber-400/80 text-sm">
                   <span>Transport (Ongkir)</span>
-                  <Input type="number" value={transportFee || ''} onChange={(e) => setTransportFee(parseFloat(e.target.value) || 0)} className="bg-zinc-950 border-zinc-800 h-7 w-24 text-right font-mono" />
+                  <Input type="number" value={isNaN(transportFee) ? 0 : (transportFee ?? 0)} onChange={(e) => setTransportFee(parseFloat(e.target.value) || 0)} className="bg-zinc-950 border-zinc-800 h-7 w-24 text-right font-mono" />
                 </div>
                 <div className="flex justify-between items-center pt-4 border-t border-zinc-800">
                   <span className="text-lg font-bold text-zinc-100">Grand Total</span>
@@ -709,7 +709,7 @@ export default function InvoiceReviewPage() {
             <div className="space-y-2">
               <label className="text-xs text-zinc-500 font-medium uppercase">Item Name</label>
               <Input 
-                value={newItemData.name}
+                value={newItemData.name ?? ''}
                 onChange={e => setNewItemData({...newItemData, name: e.target.value})}
                 className="bg-zinc-900 border-zinc-800 h-9"
               />
@@ -748,7 +748,7 @@ export default function InvoiceReviewPage() {
                 <span className="text-zinc-500 font-mono text-sm pl-1">1</span>
                 <div className="flex-1">
                   <Input 
-                    value={newItemData.purchase_unit}
+                    value={newItemData.purchase_unit ?? ''}
                     onChange={e => setNewItemData({...newItemData, purchase_unit: e.target.value})}
                     className="bg-zinc-900 border-zinc-800 h-8 text-xs"
                     placeholder="Purchase Unit"
@@ -758,7 +758,7 @@ export default function InvoiceReviewPage() {
                 <div className="flex-1">
                   <Input 
                     type="number"
-                    value={newItemData.conversion_factor}
+                    value={isNaN(newItemData.conversion_factor) ? 1 : (newItemData.conversion_factor ?? 1)}
                     onChange={e => setNewItemData({...newItemData, conversion_factor: parseFloat(e.target.value) || 1})}
                     className="bg-zinc-900 border-zinc-800 h-8 text-xs text-center"
                   />
