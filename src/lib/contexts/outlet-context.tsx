@@ -11,6 +11,7 @@ interface Outlet {
 interface OutletContextType {
   selectedOutletId: string | null
   setSelectedOutletId: (id: string) => void
+  userRole: string | null
   outlets: Outlet[]
   loading: boolean
   reloadOutlets: () => void
@@ -20,6 +21,7 @@ const OutletContext = createContext<OutletContextType | undefined>(undefined)
 
 export function OutletProvider({ children }: { children: React.ReactNode }) {
   const [selectedOutletId, setSelectedOutletId] = useState<string | null>(null)
+  const [userRole, setUserRole] = useState<string | null>(null)
   const [outlets, setOutlets] = useState<Outlet[]>([])
   const [loading, setLoading] = useState(true)
   const supabase = createClient()
@@ -44,6 +46,8 @@ export function OutletProvider({ children }: { children: React.ReactNode }) {
       setLoading(false)
       return
     }
+
+    setUserRole(profile?.role || 'viewer')
 
     // Owners see ALL outlets in the org; other roles see only their assigned outlets
     let query = supabase.from('outlets').select('id, name').order('name')
@@ -94,6 +98,7 @@ export function OutletProvider({ children }: { children: React.ReactNode }) {
     <OutletContext.Provider value={{
       selectedOutletId,
       setSelectedOutletId: handleSetSelectedOutletId,
+      userRole,
       outlets,
       loading,
       reloadOutlets: fetchOutlets,

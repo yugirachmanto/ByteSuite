@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useOutlet } from '@/lib/contexts/outlet-context'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { Upload, X, FileImage, Loader2, ArrowLeft } from 'lucide-react'
+import { Upload, X, FileImage, FileText, Loader2, ArrowLeft } from 'lucide-react'
 import { toast } from 'sonner'
 import Link from 'next/link'
 
@@ -22,12 +22,19 @@ export default function InvoiceUploadPage() {
   const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0]
     if (selectedFile) {
-      if (!selectedFile.type.startsWith('image/')) {
-        toast.error('Please upload an image file')
+      const isImage = selectedFile.type.startsWith('image/')
+      const isPdf = selectedFile.type === 'application/pdf'
+      
+      if (!isImage && !isPdf) {
+        toast.error('Please upload an image or PDF file')
         return
       }
       setFile(selectedFile)
-      setPreview(URL.createObjectURL(selectedFile))
+      if (isImage) {
+        setPreview(URL.createObjectURL(selectedFile))
+      } else {
+        setPreview('pdf') // Placeholder for PDF
+      }
     }
   }
 
@@ -134,19 +141,31 @@ export default function InvoiceUploadPage() {
               </div>
               <div className="space-y-1">
                 <p className="text-lg font-medium text-zinc-200">Drop your invoice here</p>
-                <p className="text-sm text-zinc-500">Supports JPG, PNG, WEBP</p>
+                <p className="text-sm text-zinc-500">Supports JPG, PNG, WEBP, PDF</p>
               </div>
               <label htmlFor="file-upload" className="cursor-pointer">
                 <span className="inline-flex h-9 items-center justify-center rounded-md border border-zinc-800 bg-zinc-900 px-4 py-2 text-sm font-medium text-zinc-100 hover:bg-zinc-800">
                   Select File
                 </span>
-                <input id="file-upload" type="file" className="hidden" accept="image/*" onChange={onFileChange} />
+                <input id="file-upload" type="file" className="hidden" accept="image/*,.pdf" onChange={onFileChange} />
               </label>
             </div>
           ) : (
             <div className="space-y-6">
-              <div className="relative aspect-[3/4] w-full overflow-hidden rounded-lg border border-zinc-800">
-                <img src={preview} alt="Preview" className="h-full w-full object-contain" />
+              <div className="relative aspect-[3/4] w-full overflow-hidden rounded-lg border border-zinc-800 bg-zinc-950 flex items-center justify-center">
+                {preview === 'pdf' ? (
+                  <div className="flex flex-col items-center gap-4 text-zinc-400">
+                    <div className="h-20 w-20 rounded-2xl bg-red-500/10 flex items-center justify-center">
+                      <FileText className="h-10 w-10 text-red-500" />
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm font-medium text-zinc-200 max-w-[200px] truncate">{file?.name}</p>
+                      <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold">PDF Document</p>
+                    </div>
+                  </div>
+                ) : (
+                  <img src={preview!} alt="Preview" className="h-full w-full object-contain" />
+                )}
                 <Button 
                   variant="destructive" 
                   size="icon" 
@@ -173,7 +192,7 @@ export default function InvoiceUploadPage() {
                   </>
                 ) : (
                   <>
-                    <FileImage className="mr-2 h-4 w-4" />
+                    {file?.type === 'application/pdf' ? <FileText className="mr-2 h-4 w-4" /> : <FileImage className="mr-2 h-4 w-4" />}
                     Process Invoice
                   </>
                 )}
@@ -191,7 +210,7 @@ export default function InvoiceUploadPage() {
         <ul className="space-y-3 text-sm text-zinc-400">
           <li className="flex gap-3">
             <span className="flex h-5 w-5 items-center justify-center rounded-full bg-zinc-800 text-[10px] font-bold text-zinc-100">1</span>
-            <span>Upload a clear photo of your vendor invoice.</span>
+            <span>Upload a clear photo or PDF of your vendor invoice.</span>
           </li>
           <li className="flex gap-3">
             <span className="flex h-5 w-5 items-center justify-center rounded-full bg-zinc-800 text-[10px] font-bold text-zinc-100">2</span>

@@ -7,6 +7,7 @@ const settingsTabs = [
   { value: 'items', label: 'Items', href: '/settings' },
   { value: 'bom', label: 'BOM', href: '/settings/bom' },
   { value: 'coa', label: 'Chart of Accounts', href: '/settings/coa' },
+  { value: 'accounting', label: 'Accounting Rules', href: '/settings/accounting' },
   { value: 'outlets', label: 'Outlets', href: '/settings/outlets' },
   { value: 'users', label: 'Users', href: '/settings/users' },
 ]

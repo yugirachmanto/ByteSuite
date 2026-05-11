@@ -2,7 +2,7 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
@@ -20,6 +20,9 @@ import {
   Check,
   User,
   Wallet,
+  BookOpen,
+  CreditCard,
+  Tag
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button, buttonVariants } from '@/components/ui/button'
@@ -38,25 +41,56 @@ import {
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 
-const sidebarItems = [
-  { name: 'Dashboard',   href: '/',            icon: LayoutDashboard },
-  { name: 'Invoices',    href: '/invoices',     icon: FileText },
-  { name: 'Inventory',   href: '/inventory',    icon: Package },
-  { name: 'Production',  href: '/production',   icon: Hammer },
-  { name: 'Opname',      href: '/opname',       icon: ClipboardList },
-  { name: 'Reports',     href: '/reports',      icon: BarChart3 },
-  { name: 'Accounting',  href: '/accounting',   icon: Wallet },
-  { name: 'Integrations',href: '/integrations', icon: Share2 },
-  { name: 'Settings',    href: '/settings',     icon: Settings },
+const sidebarGroups = [
+  {
+    name: 'Main',
+    roles: ['owner', 'finance', 'cashier', 'kitchen'],
+    items: [
+      { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+    ]
+  },
+  {
+    name: 'Finance & Procurement',
+    roles: ['owner', 'finance'],
+    items: [
+      { name: 'Invoices', href: '/invoices', icon: FileText },
+      { name: 'Accounting', href: '/accounting', icon: BookOpen },
+      { name: 'Accounts Payable', href: '/accounting/ap', icon: CreditCard },
+      { name: 'Reports', href: '/reports', icon: BarChart3 },
+    ]
+  },
+  {
+    name: 'Operations',
+    roles: ['owner', 'kitchen', 'finance'],
+    items: [
+      { name: 'Inventory', href: '/inventory', icon: Package },
+      { name: 'Products', href: '/products', icon: Tag },
+      { name: 'Production', href: '/production', icon: Hammer },
+      { name: 'Opname', href: '/opname', icon: ClipboardList },
+    ]
+  },
+  {
+    name: 'Administration',
+    roles: ['owner'],
+    items: [
+      { name: 'Integrations', href: '/integrations', icon: Share2 },
+      { name: 'Settings', href: '/settings', icon: Settings },
+    ]
+  }
 ]
 
 // ── Inner shell (consumes OutletProvider context) ────────────────────────────
 function DashboardShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
-  const { selectedOutletId, setSelectedOutletId, outlets, loading: outletLoading } = useOutlet()
+  const { selectedOutletId, setSelectedOutletId, userRole, outlets, loading: outletLoading } = useOutlet()
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
+  const [mounted, setMounted] = useState(false)
   const supabase = createClient()
   const router = useRouter()
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   const selectedOutlet = outlets.find((o) => o.id === selectedOutletId)
 
@@ -128,28 +162,42 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         </div>
 
         <ScrollArea className="flex-1 px-4 py-4">
-          <nav className="space-y-1">
-            {sidebarItems.map((item) => {
-              const isActive =
-                pathname === item.href ||
-                (item.href !== '/' && pathname?.startsWith(item.href))
-              return (
-                <Link
-                  key={item.name}
-                  href={item.href}
-                  className={cn(
-                    'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-                    isActive
-                      ? 'bg-zinc-800 text-zinc-100'
-                      : 'text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-100',
-                    !isSidebarOpen && 'justify-center'
+          <nav className="space-y-6">
+            {sidebarGroups
+              .filter(group => !userRole || group.roles.includes(userRole))
+              .map((group) => (
+                <div key={group.name} className="space-y-2">
+                  {isSidebarOpen && (
+                    <h3 className="px-3 text-[10px] font-bold uppercase tracking-widest text-zinc-500">
+                      {group.name}
+                    </h3>
                   )}
-                >
-                  <item.icon className="h-5 w-5" />
-                  {isSidebarOpen && <span>{item.name}</span>}
-                </Link>
-              )
-            })}
+                  <div className="space-y-1">
+                    {mounted && group.items.map((item) => {
+                      const isActive =
+                        pathname === item.href ||
+                        (item.href !== '/' && pathname?.startsWith(item.href))
+                      return (
+                        <Link
+                          key={item.name}
+                          href={item.href}
+                          className={cn(
+                            'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                            isActive
+                              ? 'bg-zinc-800 text-zinc-100'
+                              : 'text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-100',
+                            !isSidebarOpen && 'justify-center'
+                          )}
+                        >
+                          <item.icon className="h-5 w-5" />
+                          {isSidebarOpen && <span>{item.name}</span>}
+                        </Link>
+                      )
+                    })}
+                    {!mounted && <div className="h-10 w-full animate-pulse rounded-lg bg-zinc-800/50" />}
+                  </div>
+                </div>
+              ))}
           </nav>
         </ScrollArea>
 
@@ -196,9 +244,10 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           </Button>
           <div className="ml-4 h-4 w-[1px] bg-zinc-800" />
           <h1 className="ml-6 text-sm font-medium text-zinc-400">
-            {sidebarItems.find(
-              (i) => pathname === i.href || (i.href !== '/' && pathname?.startsWith(i.href))
-            )?.name || 'Dashboard'}
+            {sidebarGroups
+              .flatMap(g => g.items)
+              .find((i) => pathname === i.href || (i.href !== '/' && pathname?.startsWith(i.href)))
+              ?.name || 'Dashboard'}
           </h1>
         </header>
         <div className="flex-1 overflow-auto bg-zinc-950 p-8">

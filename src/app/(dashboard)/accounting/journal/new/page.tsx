@@ -72,6 +72,15 @@ export default function NewJournalPage() {
       toast.error('Description is required')
       return
     }
+    if (!selectedOutletId) {
+      toast.error('No outlet selected. Please check your outlet context.')
+      return
+    }
+    const missingCoa = lines.find(l => !l.coa_id || l.coa_id === '')
+    if (missingCoa) {
+      toast.error('Please select an account for all lines.')
+      return
+    }
 
     setSaving(true)
     try {
@@ -88,7 +97,10 @@ export default function NewJournalPage() {
       }))
 
       const { error } = await supabase.from('gl_entries').insert(entriesToInsert)
-      if (error) throw error
+      if (error) {
+        console.error('Insert error:', error)
+        throw error
+      }
 
       toast.success('Journal entry recorded successfully!')
       router.push('/accounting/journal')

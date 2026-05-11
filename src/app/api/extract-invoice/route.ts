@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { extractInvoice } from '@/lib/ai/extract-invoice'
+import { extractInvoice } from '../../../lib/ai/invoice-parser'
 
 export async function POST(request: NextRequest) {
   try {
@@ -34,12 +34,30 @@ export async function POST(request: NextRequest) {
     const base64 = Buffer.from(arrayBuffer).toString('base64')
 
     // Determine media type
-    let mediaType: 'image/jpeg' | 'image/png' | 'image/webp' = 'image/jpeg'
+    let mediaType: 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf' = 'image/jpeg'
     if (contentType.includes('png')) mediaType = 'image/png'
     else if (contentType.includes('webp')) mediaType = 'image/webp'
+    else if (contentType.includes('pdf')) mediaType = 'application/pdf'
 
-    // Call Claude API
-    const extracted = await extractInvoice(base64, mediaType, outlet_name || '')
+    // Fetch OpenAI API key if available with graceful fallback
+    let userApiKey = null
+    try {
+      const { data: integration } = await supabase
+        .from('user_integrations')
+        .select('credentials')
+        .eq('user_id', user.id)
+        .eq('provider', 'openai')
+        .eq('is_active', true)
+        .single()
+
+      userApiKey = (integration?.credentials as any)?.api_key
+    } catch (dbError) {
+      // Silently fallback to env key if integration table is not ready
+      console.log('Using environment API key (integration table fallback)')
+    }
+
+    // Call OpenAI API
+    const extracted = await extractInvoice(base64, mediaType, outlet_name || '', userApiKey)
 
     // Update invoice with extracted data
     const { error: updateError } = await supabase
@@ -66,7 +84,10 @@ export async function POST(request: NextRequest) {
       extracted_data: extracted,
     })
   } catch (error: any) {
-    console.error('Extract invoice error:', error)
+    console.error('=== Extract invoice error ===')
+    console.error('Message:', error.message)
+    console.error('Stack:', error.stack)
+    console.error('============================')
 
     // Try to reset status to pending so user can retry
     try {

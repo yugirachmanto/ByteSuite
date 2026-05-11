@@ -39,7 +39,12 @@ export default function JournalPage() {
         .order('entry_date', { ascending: false })
         .order('created_at', { ascending: false })
 
+      if (error) {
+        console.error('[JournalPage] Fetch error:', error.message, error.details)
+      }
+
       if (data) {
+        console.log('[JournalPage] Fetched entries:', data.length)
         setEntries(data)
       }
       setLoading(false)
