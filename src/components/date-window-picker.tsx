@@ -28,11 +28,20 @@ const PERIOD_LABELS: Record<DatePeriod, string> = {
 
 export function DateWindowPicker() {
   const { period, setPeriod, customDateRange, setCustomDateRange, startDate, endDate } = useDateWindow()
-  const [open, setOpen] = React.useState(false)
+  const [showCalendar, setShowCalendar] = React.useState(false)
+
+  // Sync showCalendar with period
+  React.useEffect(() => {
+    if (period !== 'CUSTOM') setShowCalendar(false)
+  }, [period])
 
   return (
     <div className="flex items-center gap-2">
-      <DropdownMenu open={open} onOpenChange={setOpen}>
+      <DropdownMenu
+        onOpenChange={(open) => {
+          if (!open) setShowCalendar(false)
+        }}
+      >
         <DropdownMenuTrigger
           render={
             <button
@@ -57,28 +66,26 @@ export function DateWindowPicker() {
               <DropdownMenuItem
                 key={key}
                 className={`cursor-pointer ${period === key ? 'bg-zinc-800 text-zinc-100' : 'hover:bg-zinc-900'}`}
-                onClick={() => {
-                  setPeriod(key)
-                  setOpen(false)
-                }}
+                onClick={() => setPeriod(key)}
               >
                 {label}
               </DropdownMenuItem>
             )
           })}
           <DropdownMenuSeparator className="bg-zinc-800" />
-          <DropdownMenuItem
-            className={`cursor-pointer ${period === 'CUSTOM' ? 'bg-zinc-800 text-zinc-100' : 'hover:bg-zinc-900'}`}
-            onSelect={(e) => {
-               e.preventDefault()
-               setPeriod('CUSTOM')
+          {/* Use a plain div instead of DropdownMenuItem so the menu stays open */}
+          <div
+            className={`relative flex cursor-pointer items-center gap-1.5 rounded-md px-1.5 py-1 text-sm select-none hover:bg-accent hover:text-accent-foreground ${showCalendar ? 'bg-zinc-800 text-zinc-100' : ''}`}
+            onClick={() => {
+              setPeriod('CUSTOM')
+              setShowCalendar(true)
             }}
           >
             Custom Range...
-          </DropdownMenuItem>
+          </div>
           
-          {period === 'CUSTOM' && (
-            <div className="p-3 border-t border-zinc-800 mt-2" onClick={(e) => e.stopPropagation()} onSelect={(e: any) => e.preventDefault()}>
+          {showCalendar && (
+            <div className="p-3 border-t border-zinc-800 mt-2">
               <Calendar
                 mode="range"
                 selected={{
