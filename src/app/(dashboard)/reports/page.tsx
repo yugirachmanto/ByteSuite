@@ -30,10 +30,10 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(true)
   const [exporting, setExporting] = useState(false)
   const [orgName, setOrgName] = useState('ByteSuite ERP')
-  const [userName, setUserName] = useState('â€”')
+  const [userName, setUserName] = useState('—')
   const [orgId, setOrgId] = useState<string | null>(null)
 
-  // â”€â”€ Helper: Render Visual Tree Connection Lines â”€â”€
+  // ── Helper: Render Visual Tree Connection Lines ──
   const renderTreeGuides = (depth: number) => {
     if (depth === 0) return null
     return (
@@ -41,23 +41,23 @@ export default function ReportsPage() {
         {Array.from({ length: depth - 1 }).map((_, i) => (
           <span key={i} className="inline-block w-3.5 border-r border-zinc-800/80 h-3 mr-1" />
         ))}
-        <span className="text-zinc-600">â””â”€</span>
+        <span className="text-zinc-600">└─</span>
       </span>
     )
   }
 
-  // â”€â”€ Helper: Depth-based fade config for Buku Besar â”€â”€
-  // Row opacity is NOT used â€” we fade only text/number colors per depth
+  // ── Helper: Depth-based fade config for Buku Besar ──
+  // Row opacity is NOT used — we fade only text/number colors per depth
   // so tree guides and borders stay sharp. Backgrounds fade via getSubRowBg.
   const getDepthFade = (depth: number) => {
     const configs = [
-      // depth 0 â€“ main COA: bright, bold, large
+      // depth 0 — main COA: bright, bold, large
       { nameCls: 'font-bold text-zinc-100 text-xs',         codeCls: 'font-bold text-xs',   numCls: 'text-zinc-200', py: 'py-3.5' },
-      // depth 1 â€“ first sub
+      // depth 1 — first sub
       { nameCls: 'font-medium text-zinc-350 text-xs',       codeCls: 'font-normal text-[10px]', numCls: 'text-zinc-400', py: 'py-2.5' },
-      // depth 2 â€“ second sub
+      // depth 2 — second sub
       { nameCls: 'font-normal text-zinc-500 text-[11px]',   codeCls: 'font-normal text-[10px]', numCls: 'text-zinc-500', py: 'py-2' },
-      // depth 3+ â€“ deep sub
+      // depth 3+ — deep sub
       { nameCls: 'font-normal text-zinc-600 text-[10px]',   codeCls: 'font-normal text-[10px]', numCls: 'text-zinc-600', py: 'py-1.5' },
     ]
     return configs[Math.min(depth, configs.length - 1)]
@@ -70,7 +70,7 @@ export default function ReportsPage() {
     return '' // depth 2+ : no background
   }
 
-  // â”€â”€ Helper: Distinct Root Account Row Styles â”€â”€
+  // ── Helper: Distinct Root Account Row Styles ──
   const getRootRowStyle = (row: any) => {
     if (row.depth !== 0) return ''
 
@@ -106,7 +106,7 @@ export default function ReportsPage() {
   const [glSummary, setGlSummary] = useState<any[]>([])
 
   const selectedOutlet = outlets.find(o => o.id === selectedOutletId)
-  const periodLabel = `${format(startDate, 'd MMM yyyy', { locale: localeId })} â€“ ${format(endDate, 'd MMM yyyy', { locale: localeId })}`
+  const periodLabel = `${format(startDate, 'd MMM yyyy', { locale: localeId })} — ${format(endDate, 'd MMM yyyy', { locale: localeId })}`
 
   // Fetch org & user info
   useEffect(() => {
@@ -181,7 +181,7 @@ export default function ReportsPage() {
       // Ledger
       setRecentLedger(ledger || [])
 
-      // â”€â”€ GL Summary â€” seeded from ALL COAs (including headers from DB) â”€â”€
+      // ── GL Summary — seeded from ALL COAs (including headers from DB) ──
       const glMap: Record<string, any> = {}
       allCoas?.forEach((c: any) => {
         glMap[c.id] = {
@@ -254,7 +254,7 @@ export default function ReportsPage() {
 
       roots.forEach(root => rollUp(root))
 
-      // â”€â”€ Flatten Tree for Render (depth = level - 1 for CSS classes) â”€â”€
+      // ── Flatten Tree for Render (depth = level - 1 for CSS classes) ──
       function flatten(nodes: any[], result: any[] = []) {
         nodes
           .slice()
@@ -278,7 +278,7 @@ export default function ReportsPage() {
     fetchReports()
   }, [selectedOutletId, orgId, supabase, startDate, endDate])
 
-  // â”€â”€ PDF Export â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── PDF Export ────────────────────────────────────────────────────────────
   const handleExportPDF = async () => {
     setExporting(true)
     try {
@@ -310,7 +310,7 @@ export default function ReportsPage() {
   const totalCredits = glSummary.filter(r => r.parent_id === null).reduce((s, r) => s + r.totalCredit, 0)
   const isBalanced = Math.abs(totalDebits - totalCredits) < 1
 
-  // â”€â”€ Profitability & EBITDA Calculations â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Profitability & EBITDA Calculations ────────────────────────────────────
   // Use level-1 headers as top-level rollup anchors; leaves for D&A detection.
   const incomeEntries = glSummary.filter(c => c.type === 'income' || c.code.startsWith('4'))
   const cogsEntries   = glSummary.filter(c => c.code.startsWith('5'))
@@ -378,12 +378,12 @@ export default function ReportsPage() {
 
   return (
     <div className="space-y-6">
-      {/* â”€â”€ Page Header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── Page Header ───────────────────────────────────────────── */}
       <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-zinc-100">Laporan Keuangan</h2>
           <p className="text-zinc-400 text-sm mt-0.5">
-            {selectedOutlet?.name || 'â€”'} · <span className="text-zinc-300">{periodLabel}</span>
+            {selectedOutlet?.name || '—'} · <span className="text-zinc-300">{periodLabel}</span>
           </p>
         </div>
         <button
@@ -396,7 +396,7 @@ export default function ReportsPage() {
         </button>
       </div>
 
-      {/* â”€â”€ KPI Cards â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── KPI Cards ─────────────────────────────────────────────── */}
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-5">
         {[
           { label: 'Total Pembelian', value: formatRp(totalPurchases), icon: FileText,      color: 'text-indigo-400',  bg: 'bg-indigo-500/10',  border: 'border-indigo-500/20'  },
@@ -417,7 +417,7 @@ export default function ReportsPage() {
         ))}
       </div>
 
-      {/* â”€â”€ Tab Bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── Tab Bar ───────────────────────────────────────────────── */}
       <div className="flex gap-1 rounded-xl border border-zinc-800 bg-zinc-900/60 p-1 w-fit">
         {tabs.map(tab => (
           <button key={tab.id} onClick={() => setActiveTab(tab.id as any)}
@@ -436,7 +436,7 @@ export default function ReportsPage() {
         </div>
       )}
 
-      {/* â”€â”€ Executive Summary â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── Executive Summary ──────────────────────────────────────── */}
       {!loading && activeTab === 'summary' && (
         <div className="grid gap-5 md:grid-cols-2">
           <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 p-5">
@@ -470,7 +470,7 @@ export default function ReportsPage() {
         </div>
       )}
 
-      {/* â”€â”€ Profit & EBITDA Analysis â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── Profit & EBITDA Analysis ────────────────────────────────── */}
       {!loading && activeTab === 'profitability' && (
         <div className="space-y-6">
           {/* Summary Cards */}
@@ -561,16 +561,16 @@ export default function ReportsPage() {
                             </span>
                           </span>
                         </td>
-                        <td className="px-6 py-2.5 text-right font-mono text-xs text-zinc-500">{row.totalDebit > 0 ? formatRp(row.totalDebit) : 'â€”'}</td>
-                        <td className="px-6 py-2.5 text-right font-mono text-xs text-zinc-300">{row.totalCredit > 0 ? formatRp(row.totalCredit) : 'â€”'}</td>
+                        <td className="px-6 py-2.5 text-right font-mono text-xs text-zinc-500">{row.totalDebit > 0 ? formatRp(row.totalDebit) : '—'}</td>
+                        <td className="px-6 py-2.5 text-right font-mono text-xs text-zinc-300">{row.totalCredit > 0 ? formatRp(row.totalCredit) : '—'}</td>
                         <td className="px-6 py-2.5 text-right font-mono text-xs font-bold text-zinc-200">{formatRp(row.totalCredit - row.totalDebit)}</td>
                       </tr>
                     )
                   })}
                   <tr className="bg-indigo-950/20 font-bold border-b-2 border-zinc-800">
                     <td className="px-6 py-3 text-xs text-indigo-300">Total Pendapatan Bersih</td>
-                    <td className="px-6 py-3 text-right font-mono text-xs text-zinc-500">â€”</td>
-                    <td className="px-6 py-3 text-right font-mono text-xs text-zinc-500">â€”</td>
+                    <td className="px-6 py-3 text-right font-mono text-xs text-zinc-500">—</td>
+                    <td className="px-6 py-3 text-right font-mono text-xs text-zinc-500">—</td>
                     <td className="px-6 py-3 text-right font-mono text-sm text-indigo-400">{formatRp(totalRevenue)}</td>
                   </tr>
 
@@ -594,24 +594,24 @@ export default function ReportsPage() {
                             </span>
                           </span>
                         </td>
-                        <td className="px-6 py-2.5 text-right font-mono text-xs text-zinc-300">{row.totalDebit > 0 ? formatRp(row.totalDebit) : 'â€”'}</td>
-                        <td className="px-6 py-2.5 text-right font-mono text-xs text-zinc-500">{row.totalCredit > 0 ? formatRp(row.totalCredit) : 'â€”'}</td>
+                        <td className="px-6 py-2.5 text-right font-mono text-xs text-zinc-300">{row.totalDebit > 0 ? formatRp(row.totalDebit) : '—'}</td>
+                        <td className="px-6 py-2.5 text-right font-mono text-xs text-zinc-500">{row.totalCredit > 0 ? formatRp(row.totalCredit) : '—'}</td>
                         <td className="px-6 py-2.5 text-right font-mono text-xs font-bold text-zinc-200">{formatRp(row.totalDebit - row.totalCredit)}</td>
                       </tr>
                     )
                   })}
                   <tr className="bg-amber-950/20 font-bold border-b-2 border-zinc-800">
                     <td className="px-6 py-3 text-xs text-amber-300">Total Harga Pokok Penjualan (COGS)</td>
-                    <td className="px-6 py-3 text-right font-mono text-xs text-zinc-500">â€”</td>
-                    <td className="px-6 py-3 text-right font-mono text-xs text-zinc-500">â€”</td>
+                    <td className="px-6 py-3 text-right font-mono text-xs text-zinc-500">—</td>
+                    <td className="px-6 py-3 text-right font-mono text-xs text-zinc-500">—</td>
                     <td className="px-6 py-3 text-right font-mono text-sm text-amber-400">{formatRp(totalCogs)}</td>
                   </tr>
 
                   {/* LABA KOTOR */}
                   <tr className="bg-zinc-900/60 font-black border-b-2 border-zinc-700 text-zinc-100">
                     <td className="px-6 py-3.5 text-sm uppercase tracking-wide">LABA KOTOR (Gross Profit)</td>
-                    <td className="px-6 py-3.5 text-right font-mono text-xs text-zinc-500">â€”</td>
-                    <td className="px-6 py-3.5 text-right font-mono text-xs text-zinc-500">â€”</td>
+                    <td className="px-6 py-3.5 text-right font-mono text-xs text-zinc-500">—</td>
+                    <td className="px-6 py-3.5 text-right font-mono text-xs text-zinc-500">—</td>
                     <td className="px-6 py-3.5 text-right font-mono text-base text-zinc-100">{formatRp(grossProfit)}</td>
                   </tr>
 
@@ -635,24 +635,24 @@ export default function ReportsPage() {
                             </span>
                           </span>
                         </td>
-                        <td className="px-6 py-2.5 text-right font-mono text-xs text-zinc-300">{row.totalDebit > 0 ? formatRp(row.totalDebit) : 'â€”'}</td>
-                        <td className="px-6 py-2.5 text-right font-mono text-xs text-zinc-500">{row.totalCredit > 0 ? formatRp(row.totalCredit) : 'â€”'}</td>
+                        <td className="px-6 py-2.5 text-right font-mono text-xs text-zinc-300">{row.totalDebit > 0 ? formatRp(row.totalDebit) : '—'}</td>
+                        <td className="px-6 py-2.5 text-right font-mono text-xs text-zinc-500">{row.totalCredit > 0 ? formatRp(row.totalCredit) : '—'}</td>
                         <td className="px-6 py-2.5 text-right font-mono text-xs font-bold text-zinc-200">{formatRp(row.totalDebit - row.totalCredit)}</td>
                       </tr>
                     )
                   })}
                   <tr className="bg-purple-950/20 font-bold border-b-2 border-zinc-850">
                     <td className="px-6 py-2.5 text-xs text-purple-300">Total Beban Operasional (OPEX)</td>
-                    <td className="px-6 py-2.5 text-right font-mono text-xs text-zinc-500">â€”</td>
-                    <td className="px-6 py-2.5 text-right font-mono text-xs text-zinc-500">â€”</td>
+                    <td className="px-6 py-2.5 text-right font-mono text-xs text-zinc-500">—</td>
+                    <td className="px-6 py-2.5 text-right font-mono text-xs text-zinc-500">—</td>
                     <td className="px-6 py-2.5 text-right font-mono text-xs text-purple-400">{formatRp(totalOpex)}</td>
                   </tr>
 
                   {/* EBITDA */}
                   <tr className="bg-purple-950/40 font-bold border-b-2 border-zinc-700 text-purple-200">
                     <td className="px-6 py-3.5 text-xs uppercase tracking-wide">EBITDA</td>
-                    <td className="px-6 py-3.5 text-right font-mono text-xs text-zinc-500">â€”</td>
-                    <td className="px-6 py-3.5 text-right font-mono text-xs text-zinc-500">â€”</td>
+                    <td className="px-6 py-3.5 text-right font-mono text-xs text-zinc-500">—</td>
+                    <td className="px-6 py-3.5 text-right font-mono text-xs text-zinc-500">—</td>
                     <td className="px-6 py-3.5 text-right font-mono text-sm text-purple-300">{formatRp(ebitda)}</td>
                   </tr>
 
@@ -663,8 +663,8 @@ export default function ReportsPage() {
                   {daEntries.length === 0 ? (
                     <tr className="border-b border-zinc-850">
                       <td className="px-8 py-2 text-zinc-500 italic text-xs">Tidak ada alokasi penyusutan (D&A) dalam periode ini.</td>
-                      <td className="px-6 py-2 text-right font-mono text-xs text-zinc-500">â€”</td>
-                      <td className="px-6 py-2 text-right font-mono text-xs text-zinc-500">â€”</td>
+                      <td className="px-6 py-2 text-right font-mono text-xs text-zinc-500">—</td>
+                      <td className="px-6 py-2 text-right font-mono text-xs text-zinc-500">—</td>
                       <td className="px-6 py-2 text-right font-mono text-xs font-bold text-zinc-500">Rp 0</td>
                     </tr>
                   ) : daEntries.map((row: any) => {
@@ -683,24 +683,24 @@ export default function ReportsPage() {
                             </span>
                           </span>
                         </td>
-                        <td className="px-6 py-2.5 text-right font-mono text-xs text-zinc-300">{row.totalDebit > 0 ? formatRp(row.totalDebit) : 'â€”'}</td>
-                        <td className="px-6 py-2.5 text-right font-mono text-xs text-zinc-500">{row.totalCredit > 0 ? formatRp(row.totalCredit) : 'â€”'}</td>
+                        <td className="px-6 py-2.5 text-right font-mono text-xs text-zinc-300">{row.totalDebit > 0 ? formatRp(row.totalDebit) : '—'}</td>
+                        <td className="px-6 py-2.5 text-right font-mono text-xs text-zinc-500">{row.totalCredit > 0 ? formatRp(row.totalCredit) : '—'}</td>
                         <td className="px-6 py-2.5 text-right font-mono text-xs font-bold text-zinc-200">{formatRp(row.totalDebit - row.totalCredit)}</td>
                       </tr>
                     )
                   })}
                   <tr className="bg-cyan-950/20 font-bold border-b-2 border-zinc-850">
                     <td className="px-6 py-2.5 text-xs text-cyan-300">Total Penyusutan & Amortisasi</td>
-                    <td className="px-6 py-2.5 text-right font-mono text-xs text-zinc-500">â€”</td>
-                    <td className="px-6 py-2.5 text-right font-mono text-xs text-zinc-500">â€”</td>
+                    <td className="px-6 py-2.5 text-right font-mono text-xs text-zinc-500">—</td>
+                    <td className="px-6 py-2.5 text-right font-mono text-xs text-zinc-500">—</td>
                     <td className="px-6 py-2.5 text-right font-mono text-xs text-cyan-400">{formatRp(totalDa)}</td>
                   </tr>
 
                   {/* EBIT */}
                   <tr className="bg-cyan-950/40 font-bold border-b-2 border-zinc-700 text-cyan-200">
                     <td className="px-6 py-3.5 text-xs uppercase tracking-wide font-bold">EBIT (Laba Operasional)</td>
-                    <td className="px-6 py-3.5 text-right font-mono text-xs text-zinc-500">â€”</td>
-                    <td className="px-6 py-3.5 text-right font-mono text-xs text-zinc-500">â€”</td>
+                    <td className="px-6 py-3.5 text-right font-mono text-xs text-zinc-500">—</td>
+                    <td className="px-6 py-3.5 text-right font-mono text-xs text-zinc-500">—</td>
                     <td className="px-6 py-3.5 text-right font-mono text-sm text-cyan-300">{formatRp(ebit)}</td>
                   </tr>
 
@@ -711,8 +711,8 @@ export default function ReportsPage() {
                   {interestTaxEntries.length === 0 ? (
                     <tr className="border-b border-zinc-850">
                       <td className="px-8 py-2 text-zinc-500 italic text-xs">Tidak ada alokasi bunga & pajak dalam periode ini.</td>
-                      <td className="px-6 py-2 text-right font-mono text-xs text-zinc-500">â€”</td>
-                      <td className="px-6 py-2 text-right font-mono text-xs text-zinc-500">â€”</td>
+                      <td className="px-6 py-2 text-right font-mono text-xs text-zinc-500">—</td>
+                      <td className="px-6 py-2 text-right font-mono text-xs text-zinc-500">—</td>
                       <td className="px-6 py-2 text-right font-mono text-xs font-bold text-zinc-500">Rp 0</td>
                     </tr>
                   ) : interestTaxEntries.map((row: any) => {
@@ -731,24 +731,24 @@ export default function ReportsPage() {
                             </span>
                           </span>
                         </td>
-                        <td className="px-6 py-2.5 text-right font-mono text-xs text-zinc-300">{row.totalDebit > 0 ? formatRp(row.totalDebit) : 'â€”'}</td>
-                        <td className="px-6 py-2.5 text-right font-mono text-xs text-zinc-500">{row.totalCredit > 0 ? formatRp(row.totalCredit) : 'â€”'}</td>
+                        <td className="px-6 py-2.5 text-right font-mono text-xs text-zinc-300">{row.totalDebit > 0 ? formatRp(row.totalDebit) : '—'}</td>
+                        <td className="px-6 py-2.5 text-right font-mono text-xs text-zinc-500">{row.totalCredit > 0 ? formatRp(row.totalCredit) : '—'}</td>
                         <td className="px-6 py-2.5 text-right font-mono text-xs font-bold text-zinc-200">{formatRp(row.totalDebit - row.totalCredit)}</td>
                       </tr>
                     )
                   })}
                   <tr className="bg-red-950/20 font-bold border-b-2 border-zinc-850">
                     <td className="px-6 py-2.5 text-xs text-red-300">Total Bunga & Pajak</td>
-                    <td className="px-6 py-2.5 text-right font-mono text-xs text-zinc-500">â€”</td>
-                    <td className="px-6 py-2.5 text-right font-mono text-xs text-zinc-500">â€”</td>
+                    <td className="px-6 py-2.5 text-right font-mono text-xs text-zinc-500">—</td>
+                    <td className="px-6 py-2.5 text-right font-mono text-xs text-zinc-500">—</td>
                     <td className="px-6 py-2.5 text-right font-mono text-xs text-red-400">{formatRp(totalInterestTax)}</td>
                   </tr>
 
                   {/* LABA BERSIH */}
                   <tr className={`font-black border-t-4 border-zinc-600 bg-zinc-900 ${netIncome >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                     <td className="px-6 py-4 text-sm uppercase tracking-wide">LABA BERSIH (Net Income)</td>
-                    <td className="px-6 py-4 text-right font-mono text-xs text-zinc-500">â€”</td>
-                    <td className="px-6 py-4 text-right font-mono text-xs text-zinc-500">â€”</td>
+                    <td className="px-6 py-4 text-right font-mono text-xs text-zinc-500">—</td>
+                    <td className="px-6 py-4 text-right font-mono text-xs text-zinc-500">—</td>
                     <td className="px-6 py-4 text-right font-mono text-lg font-bold">{formatRp(netIncome)}</td>
                   </tr>
                 </tbody>
@@ -758,7 +758,7 @@ export default function ReportsPage() {
         </div>
       )}
 
-      {/* â”€â”€ Purchases â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── Purchases ─────────────────────────────────────────────── */}
       {!loading && activeTab === 'purchases' && (
         <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 overflow-hidden">
           <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800/60">
@@ -786,9 +786,9 @@ export default function ReportsPage() {
                 ) : invoices.map((inv: any, i: number) => (
                   <tr key={i} className="border-b border-zinc-800/30 hover:bg-zinc-800/20 transition-colors">
                     <td className="px-4 py-3 text-zinc-500 text-xs">{i + 1}</td>
-                    <td className="px-4 py-3 font-medium text-zinc-100">{inv.vendor || 'â€”'}</td>
+                    <td className="px-4 py-3 font-medium text-zinc-100">{inv.vendor || '—'}</td>
                     <td className="px-4 py-3 font-mono text-xs text-zinc-400">{inv.invoice_no || 'DRAFT'}</td>
-                    <td className="px-4 py-3 text-zinc-400 text-xs whitespace-nowrap">{inv.invoice_date ? format(new Date(inv.invoice_date), 'dd MMM yyyy') : 'â€”'}</td>
+                    <td className="px-4 py-3 text-zinc-400 text-xs whitespace-nowrap">{inv.invoice_date ? format(new Date(inv.invoice_date), 'dd MMM yyyy') : '—'}</td>
                     <td className="px-4 py-3 text-right font-mono text-zinc-300">{formatRp((inv.grand_total || 0) - (inv.tax_total || 0))}</td>
                     <td className="px-4 py-3 text-right font-mono text-amber-400">{formatRp(inv.tax_total || 0)}</td>
                     <td className="px-4 py-3 text-right font-mono font-bold text-zinc-100">{formatRp(inv.grand_total || 0)}</td>
@@ -816,7 +816,7 @@ export default function ReportsPage() {
         </div>
       )}
 
-      {/* â”€â”€ Inventory â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── Inventory ─────────────────────────────────────────────── */}
       {!loading && activeTab === 'inventory' && (
         <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 overflow-hidden">
           <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800/60">
@@ -865,7 +865,7 @@ export default function ReportsPage() {
         </div>
       )}
 
-      {/* â”€â”€ GL Ledger â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── GL Ledger ─────────────────────────────────────────────── */}
       {!loading && activeTab === 'ledger' && (
         <div className="space-y-5">
           <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 overflow-hidden">
