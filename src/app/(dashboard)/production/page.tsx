@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useOutlet } from '@/lib/contexts/outlet-context'
+import { useDateWindow } from '@/lib/contexts/date-window-context'
 import { Button } from '@/components/ui/button'
 import { 
   Table, 
@@ -20,6 +21,7 @@ export default function ProductionPage() {
   const [logs, setLogs] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const { selectedOutletId } = useOutlet()
+  const { startDate, endDate } = useDateWindow()
   const supabase = createClient()
 
   useEffect(() => {
@@ -37,6 +39,8 @@ export default function ProductionPage() {
           )
         `)
         .eq('outlet_id', selectedOutletId)
+        .gte('production_date', startDate.toISOString())
+        .lte('production_date', endDate.toISOString())
         .order('production_date', { ascending: false })
 
       if (!error && data) {
@@ -55,7 +59,7 @@ export default function ProductionPage() {
     }
 
     fetchLogs()
-  }, [selectedOutletId, supabase])
+  }, [selectedOutletId, supabase, startDate, endDate])
 
   return (
     <div className="space-y-6">

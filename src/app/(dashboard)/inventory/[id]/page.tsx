@@ -145,7 +145,7 @@ export default function ItemDetailPage() {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold text-zinc-100">
-              {balance?.qty_on_hand ?? 0}
+              {Number(balance?.qty_on_hand ?? 0).toLocaleString()}
               <span className="text-sm font-normal text-zinc-500 ml-2">{item.unit}</span>
             </div>
             {item.reorder_level > 0 && (
@@ -223,7 +223,7 @@ export default function ItemDetailPage() {
                           : <ArrowUp className="h-3 w-3 text-red-500" />
                         }
                         <span className={entry.qty > 0 ? 'text-emerald-400 font-semibold' : 'text-red-400 font-semibold'}>
-                          {Math.abs(entry.qty)} {item.unit}
+                          {Number(Math.abs(entry.qty)).toLocaleString()} {item.unit}
                         </span>
                       </div>
                     </TableCell>

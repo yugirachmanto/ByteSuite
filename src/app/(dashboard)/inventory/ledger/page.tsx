@@ -133,7 +133,7 @@ export default function StockLedgerPage() {
                     <div className="flex items-center justify-end gap-1">
                       {entry.qty > 0 ? <ArrowDown className="h-3 w-3 text-emerald-500" /> : <ArrowUp className="h-3 w-3 text-red-500" />}
                       <span className={entry.qty > 0 ? "text-emerald-500" : "text-red-500"}>
-                        {Math.abs(entry.qty)}
+                        {Number(Math.abs(entry.qty)).toLocaleString()}
                       </span>
                     </div>
                   </TableCell>

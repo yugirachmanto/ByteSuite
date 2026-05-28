@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useOutlet } from '@/lib/contexts/outlet-context'
+import { useDateWindow } from '@/lib/contexts/date-window-context'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -39,12 +40,13 @@ import { formatRp } from '@/lib/format'
 export default function APDashboardPage() {
   const supabase = createClient()
   const { selectedOutletId } = useOutlet()
+  const { startDate, endDate } = useDateWindow()
   const [loading, setLoading] = useState(true)
-  const [invoices, setInvoices] = useState<any[]>([])
+  const [invoices, setInvoices] = useState<any[]>([])         // date-windowed (for table)
+  const [allOutstanding, setAllOutstanding] = useState<any[]>([]) // all-time unpaid (for header total)
   const [coa, setCoa] = useState<any[]>([])
   const [search, setSearch] = useState('')
   const [orgId, setOrgId] = useState<string | null>(null)
-  const [glApTotal, setGlApTotal] = useState(0)
   const [activeTab, setActiveTab] = useState<'outstanding' | 'paid'>('outstanding')
 
   // Payment Modal State
@@ -80,46 +82,57 @@ export default function APDashboardPage() {
       setOrgId(currentOrgId)
 
       if (currentOrgId) {
-        // Fetch All Posted Invoices for the SELECTED outlet
-        const { data: invData } = await supabase
+        const startIso = startDate.toISOString()
+        const endIso   = endDate.toISOString()
+
+        // ── 1. ALL-TIME outstanding invoices (no date filter) ─────────────────
+        // Used for the header "Total Outstanding" card.
+        const { data: allInvData } = await supabase
+          .from('invoices')
+          .select('grand_total, paid_amount, payment_status, due_date')
+          .eq('outlet_id', selectedOutletId)
+          .eq('status', 'posted')
+        setAllOutstanding(allInvData || [])
+
+        // ── 2. Combined Outstanding (All-Time) & Paid (Date-Windowed) Invoices for Table ──
+        const { data: outstandingData } = await supabase
           .from('invoices')
           .select('*')
           .eq('outlet_id', selectedOutletId)
           .eq('status', 'posted')
+          .neq('payment_status', 'paid')
           .order('invoice_date', { ascending: false })
-        
-        setInvoices(invData || [])
 
-        // Fetch GL-based AP total (same logic as /accounting dashboard)
-        const { data: glEntries } = await supabase
-          .from('gl_entries')
-          .select('debit, credit, chart_of_accounts (code)')
+        const { data: paidData } = await supabase
+          .from('invoices')
+          .select('*')
           .eq('outlet_id', selectedOutletId)
-        
-        let apSum = 0
-        glEntries?.forEach((entry: any) => {
-          const code = entry.chart_of_accounts?.code || ''
-          if (code.startsWith('2-1-001')) {
-            apSum += (entry.credit || 0) - (entry.debit || 0)
-          }
-        })
-        setGlApTotal(apSum)
+          .eq('status', 'posted')
+          .eq('payment_status', 'paid')
+          .gte('invoice_date', startIso)
+          .lte('invoice_date', endIso)
+          .order('invoice_date', { ascending: false })
 
-        // Fetch Cash/Bank accounts
+        const combined = [
+          ...(outstandingData || []),
+          ...(paidData || [])
+        ]
+        setInvoices(combined)
+
+        // ── 3. Cash/Bank accounts for payment modal ───────────────────────────
         const { data: coaData } = await supabase
           .from('chart_of_accounts')
           .select('id, code, name')
           .eq('org_id', currentOrgId)
           .eq('is_active', true)
-          .in('type', ['asset']) // Usually cash/bank are assets
+          .in('type', ['asset'])
           .order('code')
-        
         setCoa(coaData || [])
       }
       setLoading(false)
     }
     fetchData()
-  }, [supabase, selectedOutletId])
+  }, [supabase, selectedOutletId, startDate, endDate])
 
   const openPaymentModal = (invoice: any) => {
     setSelectedInvoice(invoice)
@@ -175,14 +188,39 @@ export default function APDashboardPage() {
       toast.success('Payment recorded successfully')
       setPaymentModalOpen(false)
       
-      // Refresh invoices for the current outlet
-      const { data: invData } = await supabase
+      // Refresh outstanding total and invoice lists for the current outlet
+      const { data: allInvData } = await supabase
+        .from('invoices')
+        .select('grand_total, paid_amount, payment_status, due_date')
+        .eq('outlet_id', selectedOutletId)
+        .eq('status', 'posted')
+      setAllOutstanding(allInvData || [])
+
+      const startIso = startDate.toISOString()
+      const endIso = endDate.toISOString()
+      const { data: outstandingData } = await supabase
         .from('invoices')
         .select('*')
         .eq('outlet_id', selectedOutletId)
         .eq('status', 'posted')
+        .neq('payment_status', 'paid')
         .order('invoice_date', { ascending: false })
-      setInvoices(invData || [])
+
+      const { data: paidData } = await supabase
+        .from('invoices')
+        .select('*')
+        .eq('outlet_id', selectedOutletId)
+        .eq('status', 'posted')
+        .eq('payment_status', 'paid')
+        .gte('invoice_date', startIso)
+        .lte('invoice_date', endIso)
+        .order('invoice_date', { ascending: false })
+
+      const combined = [
+        ...(outstandingData || []),
+        ...(paidData || [])
+      ]
+      setInvoices(combined)
     } catch (err: any) {
       toast.error(err.message || 'Failed to record payment')
     } finally {
@@ -193,15 +231,43 @@ export default function APDashboardPage() {
   const filteredInvoices = invoices.filter(inv => {
     const matchesSearch = (inv.vendor || '').toLowerCase().includes(search.toLowerCase()) ||
                          (inv.invoice_no || '').toLowerCase().includes(search.toLowerCase())
-    
-    if (activeTab === 'outstanding') {
-      return matchesSearch && (inv.payment_status !== 'paid')
-    } else {
-      return matchesSearch && (inv.payment_status === 'paid')
-    }
+    if (activeTab === 'outstanding') return matchesSearch && (inv.payment_status !== 'paid')
+    else                             return matchesSearch && (inv.payment_status === 'paid')
   })
 
-  const totalOutstanding = glApTotal
+  // Total Outstanding = sum of all-time unpaid balances (source of truth)
+  const totalOutstanding = allOutstanding
+    .filter(i => i.payment_status !== 'paid')
+    .reduce((sum, i) => sum + ((i.grand_total || 0) - (i.paid_amount || 0)), 0)
+
+  // Footer sums for the visible (date-windowed + filtered) rows
+  const visibleGrandTotal = filteredInvoices.reduce((s, i) => s + (i.grand_total || 0), 0)
+  const visiblePaidTotal  = filteredInvoices.reduce((s, i) => s + (i.paid_amount || 0), 0)
+  const visibleBalance    = visibleGrandTotal - visiblePaidTotal
+
+  const isOverdue = (dueDate: string | null) => {
+    if (!dueDate) return false
+    const due = new Date(dueDate)
+    due.setHours(0,0,0,0)
+    const today = new Date()
+    today.setHours(0,0,0,0)
+    return due < today
+  }
+
+  const getDueDays = (dueDate: string | null) => {
+    if (!dueDate) return null
+    const due = new Date(dueDate)
+    due.setHours(0,0,0,0)
+    const today = new Date()
+    today.setHours(0,0,0,0)
+    const diffTime = due.getTime() - today.getTime()
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+  }
+
+  const overdueCount = allOutstanding.filter(i => i.payment_status !== 'paid' && i.due_date && isOverdue(i.due_date)).length
+  const overdueAmount = allOutstanding
+    .filter(i => i.payment_status !== 'paid' && i.due_date && isOverdue(i.due_date))
+    .reduce((sum, i) => sum + ((i.grand_total || 0) - (i.paid_amount || 0)), 0)
 
   if (loading) return <div className="flex h-48 items-center justify-center text-zinc-500"><Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading AP Dashboard...</div>
 
@@ -217,10 +283,24 @@ export default function APDashboardPage() {
             <AlertCircle className="h-5 w-5" />
           </div>
           <div>
-            <p className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider">Total Outstanding</p>
+            <p className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider">Total Outstanding (All Time)</p>
             <p className="text-xl font-bold text-zinc-100 font-mono">{formatRp(totalOutstanding)}</p>
+            <p className="text-[10px] text-zinc-600 mt-0.5">Across all invoices, unpaid balance</p>
           </div>
         </div>
+
+        {overdueCount > 0 && (
+          <div className="flex items-center gap-3 bg-red-950/30 border border-red-900/50 p-4 rounded-xl backdrop-blur-sm animate-pulse-slow">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-500/20 text-red-500">
+              <AlertCircle className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-[10px] uppercase font-bold text-red-400 tracking-wider">{overdueCount} Overdue Invoice{overdueCount > 1 ? 's' : ''}</p>
+              <p className="text-xl font-bold text-red-100 font-mono">{formatRp(overdueAmount)}</p>
+              <p className="text-[10px] text-red-400/70 mt-0.5">Past due date, needs attention</p>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="flex flex-col sm:flex-row sm:items-center gap-4 justify-between">
@@ -287,9 +367,17 @@ export default function APDashboardPage() {
                   <TableRow key={inv.id} className="border-zinc-800 hover:bg-zinc-800/30 transition-colors group">
                     <TableCell>
                       <div className="space-y-1">
-                        <p className="font-medium text-zinc-100">{inv.invoice_no || 'No Number'}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-zinc-100">{inv.invoice_no || 'No Number'}</p>
+                          {inv.payment_status !== 'paid' && inv.due_date && isOverdue(inv.due_date) && (
+                            <Badge variant="outline" className="bg-red-500/10 text-red-400 border-red-500/20 text-[9px] px-1.5 py-0 uppercase">Overdue</Badge>
+                          )}
+                          {inv.payment_status !== 'paid' && inv.due_date && !isOverdue(inv.due_date) && getDueDays(inv.due_date)! <= 7 && (
+                            <Badge variant="outline" className="bg-amber-500/10 text-amber-400 border-amber-500/20 text-[9px] px-1.5 py-0 uppercase">Due in {getDueDays(inv.due_date)}d</Badge>
+                          )}
+                        </div>
                         <p className="text-[10px] text-zinc-500 flex items-center gap-1">
-                          <Calendar className="h-3 w-3" /> {inv.invoice_date}
+                          <Calendar className="h-3 w-3" /> Inv: {inv.invoice_date} {inv.due_date && `| Due: ${inv.due_date}`}
                         </p>
                       </div>
                     </TableCell>
@@ -340,6 +428,27 @@ export default function APDashboardPage() {
               })
             )}
           </TableBody>
+
+          {/* Footer totals for visible rows */}
+          {filteredInvoices.length > 0 && (
+            <tfoot>
+              <tr className="border-t-2 border-zinc-700 bg-zinc-900/70">
+                <td colSpan={2} className="px-4 py-3 text-xs font-bold uppercase tracking-widest text-zinc-500">
+                  {filteredInvoices.length} invoice{filteredInvoices.length !== 1 ? 's' : ''} shown
+                </td>
+                <td className="px-4 py-3 text-right font-mono text-sm font-semibold text-zinc-400">
+                  {formatRp(visibleGrandTotal)}
+                </td>
+                <td className="px-4 py-3 text-right font-mono text-sm font-semibold text-emerald-400">
+                  {formatRp(visiblePaidTotal)}
+                </td>
+                <td className="px-4 py-3 text-right font-mono text-sm font-bold text-zinc-100">
+                  {formatRp(visibleBalance)}
+                </td>
+                <td colSpan={2} />
+              </tr>
+            </tfoot>
+          )}
         </Table>
       </div>
 

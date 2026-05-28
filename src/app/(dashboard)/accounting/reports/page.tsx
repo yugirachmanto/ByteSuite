@@ -67,11 +67,11 @@ export default function AccountingReportsPage() {
   const income = coaBalances.filter(b => b.type === 'income' && b.balance !== 0)
   const expenses = coaBalances.filter(b => b.type === 'expense' && b.balance !== 0)
 
-  const totalAssets = assets.reduce((sum, b) => sum + b.balance, 0)
-  const totalLiabilities = liabilities.reduce((sum, b) => sum + b.balance, 0)
-  const totalEquity = equity.reduce((sum, b) => sum + b.balance, 0)
-  const totalIncome = income.reduce((sum, b) => sum + b.balance, 0)
-  const totalExpenses = expenses.reduce((sum, b) => sum + b.balance, 0)
+  const totalAssets = assets.filter(b => !b.is_header).reduce((sum, b) => sum + b.balance, 0)
+  const totalLiabilities = liabilities.filter(b => !b.is_header).reduce((sum, b) => sum + b.balance, 0)
+  const totalEquity = equity.filter(b => !b.is_header).reduce((sum, b) => sum + b.balance, 0)
+  const totalIncome = income.filter(b => !b.is_header).reduce((sum, b) => sum + b.balance, 0)
+  const totalExpenses = expenses.filter(b => !b.is_header).reduce((sum, b) => sum + b.balance, 0)
   const netProfit = totalIncome - totalExpenses
 
   if (loading) return <div className="flex h-[60vh] items-center justify-center text-zinc-500"><Loader2 className="h-8 w-8 animate-spin" /></div>

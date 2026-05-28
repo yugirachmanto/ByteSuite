@@ -55,6 +55,7 @@ interface Item {
   default_coa_id: string | null
   purchase_unit: string | null
   conversion_factor: number
+  image_url?: string | null
 }
 
 const emptyItem: Omit<Item, 'id'> = {
@@ -67,6 +68,15 @@ const emptyItem: Omit<Item, 'id'> = {
   default_coa_id: null,
   purchase_unit: '',
   conversion_factor: 1,
+}
+
+// Auto-fill purchase unit & conversion factor when a known base unit is selected
+const UOM_AUTO_CONVERSIONS: Record<string, { purchase_unit: string; conversion_factor: number }> = {
+  GR:  { purchase_unit: 'KG',   conversion_factor: 0.001 },
+  KG:  { purchase_unit: 'KG',   conversion_factor: 1000 },
+  ML:  { purchase_unit: 'L',    conversion_factor: 0.001 },
+  L:   { purchase_unit: 'L',    conversion_factor: 1000 },
+  MG:  { purchase_unit: 'KG',   conversion_factor: 0.000001 },
 }
 
 export default function ItemsSettingsPage() {
@@ -495,7 +505,15 @@ export default function ItemsSettingsPage() {
                 <div className="flex-1">
                   <select
                     value={editItem.unit}
-                    onChange={(e) => setEditItem({ ...editItem, unit: e.target.value })}
+                    onChange={(e) => {
+                      const newUnit = e.target.value
+                      const auto = UOM_AUTO_CONVERSIONS[newUnit]
+                      setEditItem({
+                        ...editItem,
+                        unit: newUnit,
+                        ...(auto ? { purchase_unit: auto.purchase_unit, conversion_factor: auto.conversion_factor } : {}),
+                      })
+                    }}
                     className="w-full bg-zinc-900 border border-zinc-800 rounded-md px-2 h-8 text-[10px] text-zinc-100 focus:outline-none"
                   >
                     {STANDARD_UOMS.map((u) => (

@@ -48,6 +48,8 @@ interface PphRule {
 const SYSTEM_ROLES = [
   { value: 'accounts_payable', label: 'Accounts Payable' },
   { value: 'ppn_masukan', label: 'PPN Masukan (Input Tax)' },
+  { value: 'ppn_keluaran', label: 'PPN Keluaran (Output Tax)' },
+  { value: 'freight_expense', label: 'Freight/Transport Expense' },
   { value: 'pph23_payable', label: 'PPH 23 Payable' },
   { value: 'pph4ayat2_payable', label: 'PPH 4(2) Payable' }
 ]
@@ -215,8 +217,8 @@ export default function AccountingSettingsPage() {
                   <Label className="text-zinc-200">{role.label}</Label>
                   <p className="text-xs text-zinc-500 mt-1">Used for automatic posting of {role.label.toLowerCase()}.</p>
                 </div>
-                <Select value={currentVal || undefined} onValueChange={(val) => updateMapping(role.value, val)}>
-                  <SelectTrigger className="bg-zinc-950 border-zinc-800 text-zinc-100">
+                <Select value={currentVal || ""} onValueChange={(val) => updateMapping(role.value, val || '')}>
+                  <SelectTrigger className="w-full bg-zinc-950 border-zinc-800 text-zinc-100">
                     <SelectValue placeholder="Select Account...">
                       {currentVal ? (
                         accounts.find(a => a.id === currentVal) 
@@ -272,7 +274,7 @@ export default function AccountingSettingsPage() {
                 <TableRow key={idx} className="border-zinc-800 hover:bg-zinc-800/20">
                   <TableCell>
                     <Select value={rule.pasal} onValueChange={(val) => updatePphRule(idx, 'pasal', val)}>
-                      <SelectTrigger className="bg-zinc-950 border-zinc-800">
+                      <SelectTrigger className="w-full bg-zinc-950 border-zinc-800">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent className="bg-zinc-900 border-zinc-800">
@@ -301,7 +303,7 @@ export default function AccountingSettingsPage() {
                   </TableCell>
                   <TableCell>
                     <Select value={rule.coa_role} onValueChange={(val) => updatePphRule(idx, 'coa_role', val)}>
-                      <SelectTrigger className="bg-zinc-950 border-zinc-800">
+                      <SelectTrigger className="w-full bg-zinc-950 border-zinc-800">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent className="bg-zinc-900 border-zinc-800">

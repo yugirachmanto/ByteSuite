@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useOutlet } from '@/lib/contexts/outlet-context'
+import { useDateWindow } from '@/lib/contexts/date-window-context'
 import { 
   Table, 
   TableBody, 
@@ -12,7 +13,7 @@ import {
   TableRow 
 } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
-import { Plus, Search, Filter, ArrowRightLeft, FileText } from 'lucide-react'
+import { Plus, Search, Filter, ArrowRightLeft, FileText, Upload } from 'lucide-react'
 import { format } from 'date-fns'
 import { formatRp } from '@/lib/format'
 import { Badge } from '@/components/ui/badge'
@@ -21,6 +22,7 @@ import Link from 'next/link'
 export default function JournalPage() {
   const supabase = createClient()
   const { selectedOutletId } = useOutlet()
+  const { startDate, endDate } = useDateWindow()
   const [loading, setLoading] = useState(true)
   const [entries, setEntries] = useState<any[]>([])
 
@@ -36,6 +38,8 @@ export default function JournalPage() {
           chart_of_accounts (code, name)
         `)
         .eq('outlet_id', selectedOutletId)
+        .gte('entry_date', startDate.toISOString())
+        .lte('entry_date', endDate.toISOString())
         .order('entry_date', { ascending: false })
         .order('created_at', { ascending: false })
 
@@ -51,7 +55,7 @@ export default function JournalPage() {
     }
 
     fetchEntries()
-  }, [selectedOutletId, supabase])
+  }, [selectedOutletId, supabase, startDate, endDate])
 
   return (
     <div className="space-y-6">
@@ -60,12 +64,20 @@ export default function JournalPage() {
           <h2 className="text-2xl font-bold tracking-tight text-zinc-100">Journal Entries</h2>
           <p className="text-zinc-400 text-sm">Review all financial transactions recorded in the ledger.</p>
         </div>
-        <Link href="/accounting/journal/new">
-          <Button className="bg-zinc-100 text-zinc-900 hover:bg-zinc-200">
-            <Plus className="mr-2 h-4 w-4" />
-            New Entry
-          </Button>
-        </Link>
+        <div className="flex gap-2">
+          <Link href="/accounting/journal/import-pos">
+            <Button variant="outline" className="border-zinc-800 text-zinc-300 hover:bg-zinc-800">
+              <Upload className="mr-2 h-4 w-4" />
+              Import POS Sales
+            </Button>
+          </Link>
+          <Link href="/accounting/journal/new">
+            <Button className="bg-zinc-100 text-zinc-900 hover:bg-zinc-200">
+              <Plus className="mr-2 h-4 w-4" />
+              New Entry
+            </Button>
+          </Link>
+        </div>
       </div>
 
       <div className="flex items-center gap-4 py-4">

@@ -44,17 +44,26 @@ export default function ProductsPage() {
         // Fetch items with category 'finished'
         const { data: items, error: itemsError } = await supabase
           .from('item_master')
-          .select('*, product_prices!left(*)')
+          .select('*')
           .eq('category', 'finished')
-          .eq('product_prices.outlet_id', selectedOutletId)
           .order('name')
         
         if (itemsError) throw itemsError
 
+        // Fetch prices for this outlet
+        const { data: prices, error: pricesError } = await supabase
+          .from('product_prices')
+          .select('item_id, selling_price')
+          .eq('outlet_id', selectedOutletId)
+
+        if (pricesError) throw pricesError
+
+        const priceMap = new Map(prices?.map(p => [p.item_id, p.selling_price]) || [])
+
         // Flatten data (item_master with its price for THIS outlet)
         const flattened = (items || []).map(item => ({
           ...item,
-          price: item.product_prices?.[0]?.selling_price || 0
+          price: priceMap.get(item.id) || 0
         }))
 
         setProducts(flattened)
@@ -70,8 +79,8 @@ export default function ProductsPage() {
   }, [supabase, selectedOutletId])
 
   const filteredProducts = products.filter(p => 
-    p.name.toLowerCase().includes(search.toLowerCase()) || 
-    p.code?.toLowerCase().includes(search.toLowerCase())
+    (p.name?.toLowerCase()?.includes(search.toLowerCase()) ?? false) || 
+    (p.code?.toLowerCase()?.includes(search.toLowerCase()) ?? false)
   )
 
   if (loading) {

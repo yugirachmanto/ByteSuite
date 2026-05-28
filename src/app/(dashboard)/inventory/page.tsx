@@ -189,7 +189,7 @@ export default function InventoryPage() {
                   <TableCell>{getCategoryBadge(item.item_master?.category)}</TableCell>
                   <TableCell className="text-right">
                     <div className={item.qty_on_hand <= (item.item_master?.reorder_level || 0) ? "text-amber-500 font-bold" : "text-zinc-100"}>
-                      {item.qty_on_hand}
+                      {Number(item.qty_on_hand).toLocaleString()}
                     </div>
                   </TableCell>
                   <TableCell className="text-right text-zinc-300 font-medium">

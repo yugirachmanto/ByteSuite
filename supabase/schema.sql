@@ -71,6 +71,8 @@ CREATE TABLE item_master (
   code TEXT,
   name TEXT NOT NULL,
   unit TEXT NOT NULL,
+  purchase_unit TEXT,
+  conversion_factor NUMERIC DEFAULT 1,
   category item_category NOT NULL,
   is_inventory BOOLEAN DEFAULT true,
   default_coa_id UUID REFERENCES chart_of_accounts(id),

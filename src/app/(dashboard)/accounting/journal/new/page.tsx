@@ -38,7 +38,7 @@ export default function NewJournalPage() {
     async function fetchAccounts() {
       const { data } = await supabase
         .from('chart_of_accounts')
-        .select('id, code, name')
+        .select('id, code, name, is_header')
         .eq('is_active', true)
         .order('code')
       setAccounts(data || [])
@@ -176,9 +176,16 @@ export default function NewJournalPage() {
                       value={line.coa_id}
                       onChange={e => updateLine(line.id, 'coa_id', e.target.value)}
                     >
-                      <option value="">Select Account...</option>
+                      <option value="">Select Leaf Account...</option>
                       {accounts.map(acc => (
-                        <option key={acc.id} value={acc.id}>{acc.code} - {acc.name}</option>
+                        <option
+                          key={acc.id}
+                          value={acc.is_header ? '' : acc.id}
+                          disabled={acc.is_header}
+                          style={acc.is_header ? { color: '#52525b', fontStyle: 'italic', cursor: 'not-allowed' } : {}}
+                        >
+                          {acc.is_header ? `▸ ${acc.code} — ${acc.name}` : `   ${acc.code} — ${acc.name}`}
+                        </option>
                       ))}
                     </select>
                   </TableCell>

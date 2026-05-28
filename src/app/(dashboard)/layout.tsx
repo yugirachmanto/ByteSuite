@@ -29,6 +29,8 @@ import { Button, buttonVariants } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { useOutlet, OutletProvider } from '@/lib/contexts/outlet-context'
+import { DateWindowProvider } from '@/lib/contexts/date-window-context'
+import { DateWindowPicker } from '@/components/date-window-picker'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -40,13 +42,14 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import { ChatWidget } from '@/components/chat/ChatWidget'
 
 const sidebarGroups = [
   {
     name: 'Main',
     roles: ['owner', 'finance', 'cashier', 'kitchen'],
     items: [
-      { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+      { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     ]
   },
   {
@@ -54,8 +57,8 @@ const sidebarGroups = [
     roles: ['owner', 'finance'],
     items: [
       { name: 'Invoices', href: '/invoices', icon: FileText },
+      { name: 'Vendors', href: '/vendors', icon: Building2 },
       { name: 'Accounting', href: '/accounting', icon: BookOpen },
-      { name: 'Accounts Payable', href: '/accounting/ap', icon: CreditCard },
       { name: 'Reports', href: '/reports', icon: BarChart3 },
     ]
   },
@@ -176,7 +179,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                     {mounted && group.items.map((item) => {
                       const isActive =
                         pathname === item.href ||
-                        (item.href !== '/' && pathname?.startsWith(item.href))
+                        (item.href !== '/dashboard' && pathname?.startsWith(item.href))
                       return (
                         <Link
                           key={item.name}
@@ -246,9 +249,12 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           <h1 className="ml-6 text-sm font-medium text-zinc-400">
             {sidebarGroups
               .flatMap(g => g.items)
-              .find((i) => pathname === i.href || (i.href !== '/' && pathname?.startsWith(i.href)))
+              .find((i) => pathname === i.href || (i.href !== '/dashboard' && pathname?.startsWith(i.href)))
               ?.name || 'Dashboard'}
           </h1>
+          <div className="ml-auto flex items-center gap-4">
+            <DateWindowPicker />
+          </div>
         </header>
         <div className="flex-1 overflow-auto bg-zinc-950 p-8">
           <div className="mx-auto max-w-7xl">{children}</div>
@@ -262,7 +268,10 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
     <OutletProvider>
-      <DashboardShell>{children}</DashboardShell>
+      <DateWindowProvider>
+        <DashboardShell>{children}</DashboardShell>
+        <ChatWidget />
+      </DateWindowProvider>
     </OutletProvider>
   )
 }

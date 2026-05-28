@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useOutlet } from '@/lib/contexts/outlet-context'
+import { useDateWindow } from '@/lib/contexts/date-window-context'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { 
@@ -12,7 +13,8 @@ import {
   FileSpreadsheet, 
   TrendingUp, 
   Plus,
-  Loader2
+  Loader2,
+  CreditCard
 } from 'lucide-react'
 import Link from 'next/link'
 import { formatRp } from '@/lib/format'
@@ -20,6 +22,7 @@ import { formatRp } from '@/lib/format'
 export default function AccountingPage() {
   const supabase = createClient()
   const { selectedOutletId } = useOutlet()
+  const { startDate, endDate } = useDateWindow()
   const [loading, setLoading] = useState(true)
   const [summary, setSummary] = useState({
     cashBank: 0,
@@ -42,14 +45,19 @@ export default function AccountingPage() {
       // Revenue: starting with 4
       // Expenses: starting with 5 or 6
 
+      const startIso = startDate.toISOString()
+      const endIso = endDate.toISOString()
+
       const { data: entries } = await supabase
         .from('gl_entries')
         .select(`
+          entry_date,
           debit,
           credit,
           chart_of_accounts (code, type)
         `)
         .eq('outlet_id', selectedOutletId)
+        .lte('entry_date', endIso)
 
       const sums = {
         cashBank: 0,
@@ -63,22 +71,25 @@ export default function AccountingPage() {
         const coa = entry.chart_of_accounts as any
         const code = coa?.code || ''
         const type = coa?.type || ''
+        const entryDate = new Date(entry.entry_date)
         const amount = (entry.debit || 0) - (entry.credit || 0)
 
-        if (code.startsWith('1-1-001') || code.startsWith('1-1-002')) {
+        // Assets/Liabilities (Real accounts) - Cumulative Balance
+        if (code.startsWith('1-1-')) {
           sums.cashBank += amount
-        } else if (code.startsWith('1-1-003')) {
+        } else if (code.startsWith('1-2-')) {
           sums.ar += amount
-        } else if (code.startsWith('2-1-001')) {
-          // Liability usually has credit balance, so we negate for positive display
+        } else if (code.startsWith('2-1-10')) {
           sums.ap -= amount 
         }
 
-        if (type === 'income') {
-          // Income has credit balance
-          sums.revenue -= amount
-        } else if (type === 'expense') {
-          sums.expenses += amount
+        // Revenue/Expenses (Nominal accounts) - Period Total
+        if (entryDate >= startDate) {
+          if (type === 'income') {
+            sums.revenue -= amount
+          } else if (type === 'expense') {
+            sums.expenses += amount
+          }
         }
       })
 
@@ -87,7 +98,7 @@ export default function AccountingPage() {
     }
 
     fetchAccountingSummary()
-  }, [selectedOutletId, supabase])
+  }, [selectedOutletId, supabase, startDate, endDate])
 
   const modules = [
     {
@@ -121,6 +132,14 @@ export default function AccountingPage() {
       icon: FileSpreadsheet,
       color: 'text-amber-400',
       bg: 'bg-amber-400/10'
+    },
+    {
+      title: 'Accounts Payable',
+      desc: 'Manage and pay your vendor invoices.',
+      href: '/accounting/ap',
+      icon: CreditCard,
+      color: 'text-red-400',
+      bg: 'bg-red-400/10'
     }
   ]
 

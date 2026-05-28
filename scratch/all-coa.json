@@ -1,0 +1,367 @@
+[
+  {
+    "id": "fc0155e1-fac0-497e-a175-f5d574950957",
+    "code": "1-0-000",
+    "name": "Aset"
+  },
+  {
+    "id": "91bed862-46e5-4f66-bfdd-577919e146e8",
+    "code": "1-1-000",
+    "name": "Aset Lancar"
+  },
+  {
+    "id": "910e3a58-e296-4383-92e4-5dc93e3e8371",
+    "code": "1-1-001",
+    "name": "Kas"
+  },
+  {
+    "id": "8f470bfe-6a35-450f-b479-a5e1e80a4204",
+    "code": "1-1-002",
+    "name": "Bank"
+  },
+  {
+    "id": "74279ded-7085-45db-80ad-3a4184582d9b",
+    "code": "1-1-003",
+    "name": "Piutang Usaha"
+  },
+  {
+    "id": "fd0c6e21-a85a-4bc0-b6e1-e2cef6e83472",
+    "code": "1-1-004",
+    "name": "Persediaan Bahan Baku"
+  },
+  {
+    "id": "da5e9515-f434-445a-895f-abc01517d9b7",
+    "code": "1-1-005",
+    "name": "Persediaan WIP"
+  },
+  {
+    "id": "e100d327-363b-47f3-acfd-00ba62a302a9",
+    "code": "1-1-20-000",
+    "name": "Kas di Bank"
+  },
+  {
+    "id": "f9c11357-1993-4583-a24b-cba99cf461e8",
+    "code": "1-1-20-010",
+    "name": "Account 1-1-20-010"
+  },
+  {
+    "id": "1c467929-6d9c-43d9-8ae7-6be1b265b70a",
+    "code": "1-1-20-030",
+    "name": "Account 1-1-20-030"
+  },
+  {
+    "id": "197c5ce4-fa95-4344-ae2b-1f8cd5e5772e",
+    "code": "1-2-000",
+    "name": "Aset Tetap"
+  },
+  {
+    "id": "0d75b60b-943a-456d-983e-f3c60948d87d",
+    "code": "1-2-001",
+    "name": "Aset Tetap"
+  },
+  {
+    "id": "b808b36f-1498-4bbf-b7cb-fa8c6eeb4ce3",
+    "code": "1-4-000",
+    "name": "Beban Dibayar Dimuka"
+  },
+  {
+    "id": "658a328a-6536-463f-ba8f-71d10be3a96f",
+    "code": "1-4-10-000",
+    "name": "Beban Dibayar Dimuka"
+  },
+  {
+    "id": "f2134cc8-cd2a-4568-b0ab-edc3b09286b0",
+    "code": "1-4-10-020",
+    "name": "Account 1-4-10-020"
+  },
+  {
+    "id": "493ea460-cc09-49d5-be3d-7617aa5d650e",
+    "code": "1-4-10-050",
+    "name": "Account 1-4-10-050"
+  },
+  {
+    "id": "74ea02b3-dc0c-4eed-aa48-6c4802ffa6ed",
+    "code": "1-6-000",
+    "name": "Aset Tetap Lainnya"
+  },
+  {
+    "id": "23882e56-2d79-4b0c-a613-574f93bc6729",
+    "code": "1-6-20-000",
+    "name": "Gedung & Bangunan"
+  },
+  {
+    "id": "6921700f-1f32-4ce0-9710-351e227f58d9",
+    "code": "1-6-20-010",
+    "name": "Account 1-6-20-010"
+  },
+  {
+    "id": "7a20ddb5-b73f-4c88-aebd-6e30fbc3a569",
+    "code": "1-6-30-000",
+    "name": "Peralatan & Perlengkapan (FFE)"
+  },
+  {
+    "id": "2e736485-bfb1-460a-96fe-f1167374fa76",
+    "code": "1-6-30-010",
+    "name": "Account 1-6-30-010"
+  },
+  {
+    "id": "c7abc789-0170-4e05-9c8f-e54d622349a4",
+    "code": "1-6-30-020",
+    "name": "Account 1-6-30-020"
+  },
+  {
+    "id": "80ed00cc-4dd5-4f7a-b07a-c7a36bb6bb7c",
+    "code": "1-6-30-030",
+    "name": "Account 1-6-30-030"
+  },
+  {
+    "id": "c83ff573-cdfe-44f8-8586-14a059ec5130",
+    "code": "1-6-30-040",
+    "name": "Account 1-6-30-040"
+  },
+  {
+    "id": "a1d86a11-0513-4e46-80af-54f0d86dd645",
+    "code": "1-6-60-000",
+    "name": "Peralatan Operasional"
+  },
+  {
+    "id": "bc6e40b3-2bb7-47af-9a24-0880bec5b53e",
+    "code": "1-6-60-010",
+    "name": "Account 1-6-60-010"
+  },
+  {
+    "id": "74194576-d8e4-4402-9c7f-b6843ae20e57",
+    "code": "1-6-60-020",
+    "name": "Account 1-6-60-020"
+  },
+  {
+    "id": "5b80632c-a6a4-45a6-9f99-b57d7cd35bdb",
+    "code": "1-6-60-030",
+    "name": "Account 1-6-60-030"
+  },
+  {
+    "id": "86a1298f-ba6b-498c-80ed-84974cab3fc3",
+    "code": "1-6-60-040",
+    "name": "Account 1-6-60-040"
+  },
+  {
+    "id": "9200ef17-675f-4830-a892-7371cdd17525",
+    "code": "1-6-60-050",
+    "name": "Account 1-6-60-050"
+  },
+  {
+    "id": "bfbfb590-3692-4477-8f2f-6c3f8dd2411c",
+    "code": "2-0-000",
+    "name": "Kewajiban"
+  },
+  {
+    "id": "2f2560a7-c506-4797-b0c2-5e30d5cbd4db",
+    "code": "2-1-000",
+    "name": "Kewajiban Lancar"
+  },
+  {
+    "id": "fbf86af2-1e18-4717-8490-1c0c1a366e84",
+    "code": "2-1-001",
+    "name": "Hutang Usaha"
+  },
+  {
+    "id": "3c6c797b-8f12-458c-b6e0-3063d759b25e",
+    "code": "2-1-002",
+    "name": "Hutang Pajak"
+  },
+  {
+    "id": "fcc70113-5ec2-4b0a-8b9d-7a1750b241f8",
+    "code": "3-0-000",
+    "name": "Ekuitas"
+  },
+  {
+    "id": "78e3ba6e-604b-405a-a52e-cf2ac1b3c550",
+    "code": "3-1-000",
+    "name": "Modal Saham & Saldo Laba"
+  },
+  {
+    "id": "ab11e5db-992f-47b6-8f92-bd30d1b0cfaf",
+    "code": "3-1-001",
+    "name": "Modal Pemilik"
+  },
+  {
+    "id": "2412a350-fc84-4d9d-9649-2df799d8ac68",
+    "code": "4-0-000",
+    "name": "Pendapatan"
+  },
+  {
+    "id": "dddab18a-a2ed-41e7-a5d4-5bc1ad0fd666",
+    "code": "4-1-000",
+    "name": "Pendapatan Usaha"
+  },
+  {
+    "id": "d9c85c61-7d31-4575-9e15-c34cb754c799",
+    "code": "4-1-001",
+    "name": "Pendapatan Makanan"
+  },
+  {
+    "id": "9328bf2e-fdc6-40d1-a87a-5941a98adf56",
+    "code": "4-1-002",
+    "name": "Pendapatan Minuman"
+  },
+  {
+    "id": "2e958fb5-2f9b-4146-940e-1fde54f9f101",
+    "code": "5-0-000",
+    "name": "Harga Pokok Penjualan"
+  },
+  {
+    "id": "4a3448ff-4056-472a-9ff6-6f7f3f0efd2f",
+    "code": "5-1-000",
+    "name": "HPP Makanan & Minuman"
+  },
+  {
+    "id": "fbcc92d9-8208-487f-8d1f-54b9026b6514",
+    "code": "5-1-001",
+    "name": "HPP Bahan Baku"
+  },
+  {
+    "id": "8714034c-731d-43df-9b7e-3e933fc2c855",
+    "code": "5-1-002",
+    "name": "HPP WIP Terpakai"
+  },
+  {
+    "id": "1bc91437-ed38-439d-b0e1-a3f1c07d9616",
+    "code": "6-0-000",
+    "name": "Beban"
+  },
+  {
+    "id": "b0073f52-a443-4edd-ba6e-271832d157cf",
+    "code": "6-1-000",
+    "name": "Beban Gaji & Tunjangan"
+  },
+  {
+    "id": "2f15f04c-4406-4357-9dfe-c0810673aa8e",
+    "code": "6-1-001",
+    "name": "Beban Operasional"
+  },
+  {
+    "id": "68504cd3-5279-4d79-96d6-b487334c06a5",
+    "code": "6-1-002",
+    "name": "Beban Utilitas"
+  },
+  {
+    "id": "f1a7c29e-4e2d-4629-a7ac-0c36d8786f76",
+    "code": "6-1-003",
+    "name": "Beban Sewa"
+  },
+  {
+    "id": "42018702-9fa6-4efb-adba-cf8216b9d5eb",
+    "code": "6-1-004",
+    "name": "Beban Tenaga Kerja"
+  },
+  {
+    "id": "d82f458d-720e-42f8-b161-88c3fad68e58",
+    "code": "6-2-00-000",
+    "name": "Perlengkapan"
+  },
+  {
+    "id": "e63d0091-4b5b-4036-8b73-428a7e9972a9",
+    "code": "6-2-00-010",
+    "name": "Account 6-2-00-010"
+  },
+  {
+    "id": "3853c4f9-3493-4c1a-9041-b83a87035b89",
+    "code": "6-2-00-020",
+    "name": "Account 6-2-00-020"
+  },
+  {
+    "id": "34ca9bfe-bf83-4d1b-a6b2-9bdfc126f8cb",
+    "code": "6-2-00-030",
+    "name": "Account 6-2-00-030"
+  },
+  {
+    "id": "f5cd48b8-f186-433b-a1d2-25339f048539",
+    "code": "6-2-00-040",
+    "name": "Account 6-2-00-040"
+  },
+  {
+    "id": "737af6d2-a532-4829-a85e-dce9e7002287",
+    "code": "6-2-00-050",
+    "name": "Account 6-2-00-050"
+  },
+  {
+    "id": "90cc05e0-15eb-40c3-b8e9-458d65d35225",
+    "code": "6-2-000",
+    "name": "Beban Perlengkapan"
+  },
+  {
+    "id": "780a6bad-6798-4a96-8a0e-9be62ddeb87c",
+    "code": "6-4-00-000",
+    "name": "Premis"
+  },
+  {
+    "id": "0ca0c6e7-47b6-474d-95e1-f74a2ff296b5",
+    "code": "6-4-00-020",
+    "name": "Account 6-4-00-020"
+  },
+  {
+    "id": "d3eb88f4-b791-4aa7-b51a-c17b42df5b6b",
+    "code": "6-4-00-030",
+    "name": "Account 6-4-00-030"
+  },
+  {
+    "id": "7e2c1598-8cb6-4bd9-959c-69b2fc29c62f",
+    "code": "6-4-00-040",
+    "name": "Account 6-4-00-040"
+  },
+  {
+    "id": "a4f62996-92fb-4e1c-a80f-635021040fe7",
+    "code": "6-4-000",
+    "name": "Beban Premis"
+  },
+  {
+    "id": "ca305a6c-d6b7-457f-b070-0af191bf00a2",
+    "code": "6-5-00-000",
+    "name": "Umum & Administrasi"
+  },
+  {
+    "id": "c7e31575-5aa8-420b-9db5-de2c74857e10",
+    "code": "6-5-00-010",
+    "name": "Account 6-5-00-010"
+  },
+  {
+    "id": "3b276f3f-2dba-4c65-b66c-3d3b83387ef8",
+    "code": "6-5-00-020",
+    "name": "Account 6-5-00-020"
+  },
+  {
+    "id": "602340ec-1877-44b9-a59e-092ed17dbd55",
+    "code": "6-5-00-030",
+    "name": "Account 6-5-00-030"
+  },
+  {
+    "id": "d8065f9d-5333-4721-bf1d-fbedcc514598",
+    "code": "6-5-00-040",
+    "name": "Account 6-5-00-040"
+  },
+  {
+    "id": "68d22a2d-5c10-421d-9582-01dce08adc9f",
+    "code": "6-5-00-050",
+    "name": "Account 6-5-00-050"
+  },
+  {
+    "id": "a61e7695-7619-4567-b1b0-932b2a47cc8c",
+    "code": "6-5-00-080",
+    "name": "Account 6-5-00-080"
+  },
+  {
+    "id": "33c0e2ba-aa2f-4437-a28e-885b0c2e29e0",
+    "code": "6-5-00-090",
+    "name": "Account 6-5-00-090"
+  },
+  {
+    "id": "51b273ec-af6c-4510-8cc6-ac97e358da23",
+    "code": "6-5-00-100",
+    "name": "Account 6-5-00-100"
+  },
+  {
+    "id": "ce08a7d5-9616-43e9-95ca-3e973669c87c",
+    "code": "6-5-000",
+    "name": "Beban Umum & Administrasi"
+  }
+]

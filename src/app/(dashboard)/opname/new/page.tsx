@@ -210,7 +210,7 @@ export default function NewOpnamePage() {
                       </div>
                     </TableCell>
                     <TableCell className="text-right text-zinc-500 font-mono">
-                      {item.qty_on_hand}
+                      {Number(item.qty_on_hand).toLocaleString()}
                     </TableCell>
                     <TableCell className="text-right bg-blue-950/10">
                       <Input
@@ -223,9 +223,9 @@ export default function NewOpnamePage() {
                     </TableCell>
                     <TableCell className="text-right font-bold font-mono">
                       {variance > 0 ? (
-                        <span className="text-emerald-500">+{variance}</span>
+                        <span className="text-emerald-500">+{Number(variance).toLocaleString()}</span>
                       ) : variance < 0 ? (
-                        <span className="text-red-500">{variance}</span>
+                        <span className="text-red-500">{Number(variance).toLocaleString()}</span>
                       ) : (
                         <span className="text-zinc-500">0</span>
                       )}
