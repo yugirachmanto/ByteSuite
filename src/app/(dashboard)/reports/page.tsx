@@ -383,7 +383,7 @@ export default function ReportsPage() {
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-zinc-100">Laporan Keuangan</h2>
           <p className="text-zinc-400 text-sm mt-0.5">
-            {selectedOutlet?.name || 'â€”'} Â· <span className="text-zinc-300">{periodLabel}</span>
+            {selectedOutlet?.name || 'â€”'} · <span className="text-zinc-300">{periodLabel}</span>
           </p>
         </div>
         <button
@@ -528,7 +528,7 @@ export default function ReportsPage() {
           <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 overflow-hidden">
             <div className="px-6 py-4 border-b border-zinc-800/60">
               <p className="text-sm font-bold text-zinc-100">Laporan Laba Rugi (Income Statement)</p>
-              <p className="text-[11px] text-zinc-500">{periodLabel} Â· Berdasarkan Entri GL</p>
+              <p className="text-[11px] text-zinc-500">{periodLabel} · Berdasarkan Entri GL</p>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -764,7 +764,7 @@ export default function ReportsPage() {
           <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800/60">
             <div>
               <p className="text-sm font-bold text-zinc-100">Laporan Pembelian</p>
-              <p className="text-[11px] text-zinc-500">{invoices.length} invoice Â· {periodLabel}</p>
+              <p className="text-[11px] text-zinc-500">{invoices.length} invoice · {periodLabel}</p>
             </div>
             <div className="text-right">
               <p className="text-xs text-zinc-500">Total</p>
@@ -822,7 +822,7 @@ export default function ReportsPage() {
           <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800/60">
             <div>
               <p className="text-sm font-bold text-zinc-100">Penilaian Inventori</p>
-              <p className="text-[11px] text-zinc-500">{allItems.length} item Â· snapshot real-time</p>
+              <p className="text-[11px] text-zinc-500">{allItems.length} item · snapshot real-time</p>
             </div>
             <div className="text-right">
               <p className="text-xs text-zinc-500">Total Nilai</p>
@@ -907,7 +907,7 @@ export default function ReportsPage() {
           <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 overflow-hidden">
             <div className="px-6 py-4 border-b border-zinc-800/60">
               <p className="text-sm font-bold text-zinc-100">Detail Pergerakan Stok</p>
-              <p className="text-[11px] text-zinc-500">{recentLedger.length} entri Â· {periodLabel}</p>
+              <p className="text-[11px] text-zinc-500">{recentLedger.length} entri · {periodLabel}</p>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
