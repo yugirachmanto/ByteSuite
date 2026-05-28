@@ -28,10 +28,11 @@ const PERIOD_LABELS: Record<DatePeriod, string> = {
 
 export function DateWindowPicker() {
   const { period, setPeriod, customDateRange, setCustomDateRange, startDate, endDate } = useDateWindow()
+  const [open, setOpen] = React.useState(false)
 
   return (
     <div className="flex items-center gap-2">
-      <DropdownMenu>
+      <DropdownMenu open={open} onOpenChange={setOpen}>
         <DropdownMenuTrigger
           render={
             <button
@@ -56,7 +57,10 @@ export function DateWindowPicker() {
               <DropdownMenuItem
                 key={key}
                 className={`cursor-pointer ${period === key ? 'bg-zinc-800 text-zinc-100' : 'hover:bg-zinc-900'}`}
-                onClick={() => setPeriod(key)}
+                onClick={() => {
+                  setPeriod(key)
+                  setOpen(false)
+                }}
               >
                 {label}
               </DropdownMenuItem>
@@ -66,8 +70,7 @@ export function DateWindowPicker() {
           <DropdownMenuItem
             className={`cursor-pointer ${period === 'CUSTOM' ? 'bg-zinc-800 text-zinc-100' : 'hover:bg-zinc-900'}`}
             onSelect={(e) => {
-               // don't close if they are clicking custom range so they can use the inputs
-               e.preventDefault() 
+               e.preventDefault()
                setPeriod('CUSTOM')
             }}
           >
@@ -75,7 +78,7 @@ export function DateWindowPicker() {
           </DropdownMenuItem>
           
           {period === 'CUSTOM' && (
-            <div className="p-3 border-t border-zinc-800 mt-2" onClick={(e) => e.stopPropagation()}>
+            <div className="p-3 border-t border-zinc-800 mt-2" onClick={(e) => e.stopPropagation()} onSelect={(e: any) => e.preventDefault()}>
               <Calendar
                 mode="range"
                 selected={{
