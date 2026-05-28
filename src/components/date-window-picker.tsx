@@ -65,7 +65,7 @@ export function DateWindowPicker() {
           <DropdownMenuSeparator className="bg-zinc-800" />
           <DropdownMenuItem
             className={`cursor-pointer ${period === 'CUSTOM' ? 'bg-zinc-800 text-zinc-100' : 'hover:bg-zinc-900'}`}
-            onClick={(e) => {
+            onSelect={(e) => {
                // don't close if they are clicking custom range so they can use the inputs
                e.preventDefault() 
                setPeriod('CUSTOM')
