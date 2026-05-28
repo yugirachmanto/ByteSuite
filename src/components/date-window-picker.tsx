@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { Calendar, ChevronDown } from 'lucide-react'
+import { Calendar as CalendarIcon, ChevronDown } from 'lucide-react'
 import { format } from 'date-fns'
 import { useDateWindow, DatePeriod } from '@/lib/contexts/date-window-context'
 import {
@@ -14,6 +14,7 @@ import {
 import { buttonVariants } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Calendar } from '@/components/ui/calendar'
 import { cn } from '@/lib/utils'
 
 const PERIOD_LABELS: Record<DatePeriod, string> = {
@@ -39,7 +40,7 @@ export function DateWindowPicker() {
                 'h-8 border-zinc-800 bg-zinc-950 text-zinc-300 hover:bg-zinc-900 hover:text-zinc-100'
               )}
             >
-              <Calendar className="mr-2 h-4 w-4 text-zinc-500" />
+              <CalendarIcon className="mr-2 h-4 w-4 text-zinc-500" />
               <span className="mr-2 font-medium">{PERIOD_LABELS[period]}</span>
               <span className="text-xs text-zinc-500 hidden sm:inline-block">
                 ({format(startDate, 'MMM d, yyyy')} - {format(endDate, 'MMM d, yyyy')})
@@ -74,33 +75,22 @@ export function DateWindowPicker() {
           </DropdownMenuItem>
           
           {period === 'CUSTOM' && (
-            <div className="p-3 border-t border-zinc-800 mt-2 flex flex-col gap-3" onClick={(e) => e.stopPropagation()}>
-              <div className="space-y-1">
-                <Label htmlFor="start-date" className="text-xs text-zinc-400">Start Date</Label>
-                <Input
-                  id="start-date"
-                  type="date"
-                  className="h-8 text-xs border-zinc-800 bg-zinc-900 text-zinc-200"
-                  value={customDateRange.start ? format(customDateRange.start, 'yyyy-MM-dd') : ''}
-                  onChange={(e) => setCustomDateRange({
-                    ...customDateRange,
-                    start: e.target.value ? new Date(e.target.value) : null
-                  })}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="end-date" className="text-xs text-zinc-400">End Date</Label>
-                <Input
-                  id="end-date"
-                  type="date"
-                  className="h-8 text-xs border-zinc-800 bg-zinc-900 text-zinc-200"
-                  value={customDateRange.end ? format(customDateRange.end, 'yyyy-MM-dd') : ''}
-                  onChange={(e) => setCustomDateRange({
-                    ...customDateRange,
-                    end: e.target.value ? new Date(e.target.value) : null
-                  })}
-                />
-              </div>
+            <div className="p-3 border-t border-zinc-800 mt-2" onClick={(e) => e.stopPropagation()}>
+              <Calendar
+                mode="range"
+                selected={{
+                  from: customDateRange.start || undefined,
+                  to: customDateRange.end || undefined,
+                }}
+                onSelect={(range) => {
+                  setCustomDateRange({
+                    start: range?.from || null,
+                    end: range?.to || null
+                  })
+                }}
+                numberOfMonths={2}
+                className="bg-zinc-950 border-zinc-800 text-zinc-300 rounded-md"
+              />
             </div>
           )}
         </DropdownMenuContent>
