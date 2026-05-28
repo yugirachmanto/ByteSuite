@@ -49,7 +49,7 @@ export function DateWindowPicker() {
             </button>
           }
         />
-        <DropdownMenuContent align="end" className="w-56 border-zinc-800 bg-zinc-950 text-zinc-300">
+        <DropdownMenuContent align="end" className="w-auto min-w-[14rem] border-zinc-800 bg-zinc-950 text-zinc-300">
           {(Object.entries(PERIOD_LABELS) as [DatePeriod, string][]).map(([key, label]) => {
             if (key === 'CUSTOM') return null // Handle separately
             return (
