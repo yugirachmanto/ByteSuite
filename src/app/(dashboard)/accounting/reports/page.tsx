@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useOutlet } from '@/lib/contexts/outlet-context'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { useDateWindow } from '@/lib/contexts/date-window-context'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { 
   Table, 
@@ -14,21 +14,26 @@ import {
   TableRow 
 } from '@/components/ui/table'
 import { formatRp } from '@/lib/format'
-import { Loader2, Download, Printer } from 'lucide-react'
+import { Loader2, Download, Printer, Calculator } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 export default function AccountingReportsPage() {
   const supabase = createClient()
   const { selectedOutletId } = useOutlet()
+  const { startDate, endDate } = useDateWindow()
   const [loading, setLoading] = useState(true)
   
   const [coaBalances, setCoaBalances] = useState<any[]>([])
+  const [inputTax, setInputTax] = useState<any[]>([])
+  const [outputTax, setOutputTax] = useState<any[]>([])
 
   useEffect(() => {
     if (!selectedOutletId) return
 
     async function fetchBalances() {
       setLoading(true)
+      const startStr = startDate.toISOString()
+      const endStr = endDate.toISOString()
       const { data: coa } = await supabase
         .from('chart_of_accounts')
         .select('id, code, name, type')
@@ -38,6 +43,47 @@ export default function AccountingReportsPage() {
         .from('gl_entries')
         .select('coa_id, debit, credit')
         .eq('outlet_id', selectedOutletId)
+        .gte('created_at', startStr)
+        .lte('created_at', endStr)
+
+      // Tax Data Fetching
+      const startIsoDate = startDate.toISOString().split('T')[0]
+      const endIsoDate = endDate.toISOString().split('T')[0]
+
+      const { data: invData } = await supabase
+        .from('invoices')
+        .select('invoice_date, invoice_no, vendor, subtotal, tax_total')
+        .eq('outlet_id', selectedOutletId)
+        .eq('status', 'posted')
+        .gt('tax_total', 0)
+        .gte('invoice_date', startIsoDate)
+        .lte('invoice_date', endIsoDate)
+        .order('invoice_date', { ascending: true })
+      
+      setInputTax(invData || [])
+
+      const { data: posData } = await supabase
+        .from('pos_imports')
+        .select(`
+          import_date,
+          source_file,
+          pos_import_lines (
+            product_name,
+            subtotal,
+            discount_amount,
+            tax_amount
+          )
+        `)
+        .eq('outlet_id', selectedOutletId)
+        .eq('status', 'posted')
+        .gte('import_date', startIsoDate)
+        .lte('import_date', endIsoDate)
+        .order('import_date', { ascending: true })
+      
+      const filteredPosData = (posData || []).filter(p => 
+        p.pos_import_lines.some((l: any) => l.tax_amount > 0)
+      )
+      setOutputTax(filteredPosData)
 
       const balances = coa?.map(acc => {
         const accEntries = entries?.filter(e => e.coa_id === acc.id) || []
@@ -59,7 +105,7 @@ export default function AccountingReportsPage() {
     }
 
     fetchBalances()
-  }, [selectedOutletId, supabase])
+  }, [selectedOutletId, supabase, startDate, endDate])
 
   const assets = coaBalances.filter(b => b.type === 'asset' && b.balance !== 0)
   const liabilities = coaBalances.filter(b => b.type === 'liability' && b.balance !== 0)
@@ -95,17 +141,9 @@ export default function AccountingReportsPage() {
         </div>
       </div>
 
-      <Tabs defaultValue="pl" className="space-y-6">
-        <TabsList className="bg-zinc-900 border border-zinc-800">
-          <TabsTrigger value="pl" className="data-[state=active]:bg-zinc-800 text-zinc-400 data-[state=active]:text-zinc-100">
-            Profit & Loss
-          </TabsTrigger>
-          <TabsTrigger value="bs" className="data-[state=active]:bg-zinc-800 text-zinc-400 data-[state=active]:text-zinc-100">
-            Balance Sheet
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="pl">
+      <div className="space-y-12 pb-12">
+        {/* 1. Profit & Loss Section */}
+        <div id="pl" className="scroll-mt-8">
           <Card className="border-zinc-800 bg-zinc-900/50">
             <CardHeader className="text-center border-b border-zinc-800">
               <CardTitle className="text-xl font-bold text-zinc-100">Statement of Profit & Loss</CardTitle>
@@ -157,9 +195,12 @@ export default function AccountingReportsPage() {
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
+        </div>
 
-        <TabsContent value="bs">
+        <hr className="border-zinc-800" />
+
+        {/* 2. Balance Sheet Section */}
+        <div id="bs" className="scroll-mt-8">
           <Card className="border-zinc-800 bg-zinc-900/50">
             <CardHeader className="text-center border-b border-zinc-800">
               <CardTitle className="text-xl font-bold text-zinc-100">Balance Sheet</CardTitle>
@@ -234,8 +275,121 @@ export default function AccountingReportsPage() {
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
-      </Tabs>
+        </div>
+
+        <hr className="border-zinc-800" />
+
+        {/* 3. Tax Report Section */}
+        <div id="tax" className="scroll-mt-8">
+          <Card className="border-zinc-800 bg-zinc-900/50">
+            <CardHeader className="text-center border-b border-zinc-800">
+              <CardTitle className="text-xl font-bold text-zinc-100">Tax Report (PPN)</CardTitle>
+              <p className="text-zinc-500 text-sm italic">Masa Pajak / Tax Period</p>
+            </CardHeader>
+            <CardContent className="pt-6">
+              <div className="max-w-4xl mx-auto space-y-8">
+                {/* Tax Summary Widget */}
+                {(() => {
+                  const totalInput = inputTax.reduce((sum, inv) => sum + (inv.tax_total || 0), 0)
+                  const totalOutput = outputTax.reduce((sum, pos) => {
+                    const posTotalTax = pos.pos_import_lines.reduce((s: number, l: any) => s + (l.tax_amount || 0), 0)
+                    return sum + posTotalTax
+                  }, 0)
+                  const payable = totalOutput - totalInput
+
+                  return (
+                    <div className="grid grid-cols-3 gap-4 mb-8">
+                      <div className="bg-zinc-950 p-4 rounded-xl border border-zinc-800 text-center">
+                        <p className="text-xs uppercase font-bold text-zinc-500 mb-1">PPN Masukan (Input Tax)</p>
+                        <p className="text-xl font-mono text-emerald-400">{formatRp(totalInput)}</p>
+                      </div>
+                      <div className="bg-zinc-950 p-4 rounded-xl border border-zinc-800 text-center">
+                        <p className="text-xs uppercase font-bold text-zinc-500 mb-1">PPN Keluaran (Output Tax)</p>
+                        <p className="text-xl font-mono text-blue-400">{formatRp(totalOutput)}</p>
+                      </div>
+                      <div className={`bg-zinc-950 p-4 rounded-xl border ${payable > 0 ? 'border-amber-500/30' : 'border-emerald-500/30'} text-center`}>
+                        <p className="text-xs uppercase font-bold text-zinc-500 mb-1">{payable > 0 ? 'Kurang Bayar (Payable)' : 'Lebih Bayar (Overpayment)'}</p>
+                        <p className={`text-xl font-mono ${payable > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>{formatRp(Math.abs(payable))}</p>
+                      </div>
+                    </div>
+                  )
+                })()}
+
+                {/* Output Tax Details */}
+                <section>
+                  <h4 className="text-blue-400 font-bold uppercase text-xs tracking-widest mb-4">PPN Keluaran / Output Tax (Sales)</h4>
+                  <div className="border border-zinc-800 rounded-lg overflow-hidden bg-zinc-950">
+                    <Table>
+                      <TableHeader className="bg-zinc-900/50">
+                        <TableRow>
+                          <TableHead className="text-zinc-400">Date</TableHead>
+                          <TableHead className="text-zinc-400">POS Source</TableHead>
+                          <TableHead className="text-zinc-400 text-right">DPP (Tax Base)</TableHead>
+                          <TableHead className="text-zinc-400 text-right">PPN (Tax Amount)</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {outputTax.map((pos, idx) => {
+                          const dpp = pos.pos_import_lines.reduce((s: number, l: any) => s + (l.subtotal - l.discount_amount), 0)
+                          const tax = pos.pos_import_lines.reduce((s: number, l: any) => s + l.tax_amount, 0)
+                          return (
+                            <TableRow key={idx} className="border-zinc-800">
+                              <TableCell className="text-zinc-300">{pos.import_date}</TableCell>
+                              <TableCell className="text-zinc-400">{pos.source_file}</TableCell>
+                              <TableCell className="text-right font-mono text-zinc-400">{formatRp(dpp)}</TableCell>
+                              <TableCell className="text-right font-mono text-blue-400">{formatRp(tax)}</TableCell>
+                            </TableRow>
+                          )
+                        })}
+                        {outputTax.length === 0 && (
+                          <TableRow>
+                            <TableCell colSpan={4} className="text-center text-zinc-500 py-4 italic">No output tax data for this period.</TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </section>
+
+                {/* Input Tax Details */}
+                <section>
+                  <h4 className="text-emerald-400 font-bold uppercase text-xs tracking-widest mb-4">PPN Masukan / Input Tax (Purchases)</h4>
+                  <div className="border border-zinc-800 rounded-lg overflow-hidden bg-zinc-950">
+                    <Table>
+                      <TableHeader className="bg-zinc-900/50">
+                        <TableRow>
+                          <TableHead className="text-zinc-400">Date</TableHead>
+                          <TableHead className="text-zinc-400">Invoice No</TableHead>
+                          <TableHead className="text-zinc-400">Vendor</TableHead>
+                          <TableHead className="text-zinc-400 text-right">DPP (Tax Base)</TableHead>
+                          <TableHead className="text-zinc-400 text-right">PPN (Tax Amount)</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {inputTax.map((inv, idx) => (
+                          <TableRow key={idx} className="border-zinc-800">
+                            <TableCell className="text-zinc-300">{inv.invoice_date}</TableCell>
+                            <TableCell className="text-zinc-300">{inv.invoice_no || '-'}</TableCell>
+                            <TableCell className="text-zinc-400">{inv.vendor}</TableCell>
+                            <TableCell className="text-right font-mono text-zinc-400">{formatRp(inv.subtotal)}</TableCell>
+                            <TableCell className="text-right font-mono text-emerald-400">{formatRp(inv.tax_total)}</TableCell>
+                          </TableRow>
+                        ))}
+                        {inputTax.length === 0 && (
+                          <TableRow>
+                            <TableCell colSpan={5} className="text-center text-zinc-500 py-4 italic">No input tax data for this period.</TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </section>
+
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   )
 }

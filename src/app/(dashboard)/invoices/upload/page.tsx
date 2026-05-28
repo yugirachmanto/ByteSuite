@@ -146,7 +146,7 @@ export default function InvoiceUploadPage() {
 
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
-        // API key not configured — guide user to integrations
+        // API key not configured — guide user to settings
         if (res.status === 402 && body.setup_required) {
           toast.error('OpenAI API key required. Redirecting to Integrations…', { duration: 4000 })
           setTimeout(() => router.push('/integrations'), 1500)

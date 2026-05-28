@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { 
   Package, 
   TrendingDown, 
@@ -31,6 +32,8 @@ import { format } from 'date-fns'
 export default function InventoryPage() {
   const [items, setItems] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [categoryFilter, setCategoryFilter] = useState('all')
   const { selectedOutletId } = useOutlet()
   const supabase = createClient()
   const router = useRouter()
@@ -81,6 +84,13 @@ export default function InventoryPage() {
       default: return <Badge variant="outline">{category}</Badge>
     }
   }
+
+  const filteredItems = items.filter(item => {
+    const matchesSearch = item.item_master?.name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          item.item_master?.category?.toLowerCase().includes(searchQuery.toLowerCase())
+    const matchesCategory = categoryFilter === 'all' || item.item_master?.category === categoryFilter
+    return matchesSearch && matchesCategory
+  })
 
   return (
     <div className="space-y-8">
@@ -140,12 +150,25 @@ export default function InventoryPage() {
           <input 
             className="w-full rounded-md border border-zinc-800 bg-zinc-950 py-2 pl-10 pr-4 text-sm text-zinc-100 focus:border-zinc-700 focus:outline-none"
             placeholder="Search items by name or category..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
-        <Button variant="outline" className="border-zinc-800 bg-zinc-900 text-zinc-400">
-          <Filter className="mr-2 h-4 w-4" />
-          Category
-        </Button>
+        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+          <SelectTrigger className="w-[180px] bg-zinc-900 border-zinc-800 text-zinc-300 h-[38px]">
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4" />
+              <SelectValue placeholder="Category" />
+            </div>
+          </SelectTrigger>
+          <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-300">
+            <SelectItem value="all">All Categories</SelectItem>
+            <SelectItem value="raw">Raw Material</SelectItem>
+            <SelectItem value="wip">WIP</SelectItem>
+            <SelectItem value="packaging">Packaging</SelectItem>
+            <SelectItem value="finished">Finished Goods</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="rounded-md border border-zinc-800 bg-zinc-900/50 backdrop-blur-sm">
@@ -167,14 +190,14 @@ export default function InventoryPage() {
                   Loading inventory data...
                 </TableCell>
               </TableRow>
-            ) : items.length === 0 ? (
+            ) : filteredItems.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} className="h-24 text-center text-zinc-500">
-                  No inventory records found.
+                  No inventory records found matching your filters.
                 </TableCell>
               </TableRow>
             ) : (
-              items.map((item, idx) => (
+              filteredItems.map((item, idx) => (
                 <TableRow
                   key={idx}
                   className="border-zinc-800 hover:bg-zinc-800/30 cursor-pointer transition-colors"

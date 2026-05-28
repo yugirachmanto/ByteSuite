@@ -16,7 +16,8 @@ import {
   EyeOff,
   ExternalLink,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Mail
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -192,6 +193,22 @@ export default function IntegrationsPage() {
             </div>
             <div className="p-3 rounded-xl bg-zinc-800 text-zinc-500">
               <AlertCircle className="h-6 w-6" />
+            </div>
+          </CardHeader>
+          <CardContent className="pt-4">
+            <p className="text-xs font-medium uppercase tracking-wider text-zinc-600">Coming Soon</p>
+          </CardContent>
+        </Card>
+        <Card className="border-zinc-800 bg-zinc-900/50 opacity-60 grayscale cursor-not-allowed">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <div className="space-y-1">
+              <CardTitle className="text-zinc-100">Email Integration</CardTitle>
+              <CardDescription className="text-zinc-400">
+                Send automated invoices, reports, and alerts via email.
+              </CardDescription>
+            </div>
+            <div className="p-3 rounded-xl bg-zinc-800 text-zinc-500">
+              <Mail className="h-6 w-6" />
             </div>
           </CardHeader>
           <CardContent className="pt-4">

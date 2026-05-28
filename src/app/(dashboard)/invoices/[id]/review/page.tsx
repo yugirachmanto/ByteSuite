@@ -29,7 +29,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from 'sonner'
-import { Search, Loader2, Plus, ArrowLeft, ArrowRight, ArrowRightLeft, BookOpen, Check, Save, Trash2, Edit2, AlertCircle, Package, Receipt, Calculator, ChevronRight, Layers, LayoutGrid, Tag, FileText, CheckCircle2, History, TrendingUp, AlertTriangle, FileSpreadsheet, Download } from 'lucide-react'
+import { Search, Loader2, Plus, ArrowLeft, ArrowRight, ArrowRightLeft, BookOpen, Check, Save, Trash2, Edit2, AlertCircle, Package, Receipt, Calculator, ChevronRight, Layers, LayoutGrid, Tag, FileText, CheckCircle2, History, TrendingUp, AlertTriangle, FileSpreadsheet, Download, Bot } from 'lucide-react'
 import { STANDARD_UOMS } from '@/lib/constants'
 import { formatRp } from '@/lib/format'
 
@@ -51,6 +51,7 @@ export default function InvoiceReviewPage() {
   const [posting, setPosting] = useState(false)
   const [approving, setApproving] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [retrying, setRetrying] = useState(false)
   const [invoice, setInvoice] = useState<any>(null)
   const [lineItems, setLineItems] = useState<any[]>([])
   const [itemMaster, setItemMaster] = useState<any[]>([])
@@ -698,6 +699,40 @@ export default function InvoiceReviewPage() {
     }
   }
 
+  const handleRetryExtraction = async () => {
+    if (!invoice?.id || !invoice?.image_url) return
+    setRetrying(true)
+    const toastId = toast.loading('Retrying AI Extraction...')
+    try {
+      const { data: profile } = await supabase.from('user_profiles').select('org_id').single()
+      const { data: outlets } = await supabase.from('outlets').select('id, name').eq('org_id', profile?.org_id)
+      const outletName = outlets?.find(o => o.id === selectedOutletId)?.name || ''
+
+      const res = await fetch('/api/extract-invoice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ invoice_id: invoice.id, image_url: invoice.image_url, outlet_name: outletName })
+      })
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        if (res.status === 402 && body.setup_required) {
+          toast.error('OpenAI API key required. Redirecting to Integrations…', { id: toastId, duration: 4000 })
+          setTimeout(() => router.push('/integrations'), 1500)
+          return
+        }
+        throw new Error(body.error || 'AI extraction failed.')
+      }
+
+      toast.success('Invoice extracted successfully! Reloading data...', { id: toastId })
+      setTimeout(() => window.location.reload(), 1000)
+    } catch (err: any) {
+      toast.error(err.message || 'Extraction failed', { id: toastId })
+    } finally {
+      setRetrying(false)
+    }
+  }
+
   const handleSaveDraft = async () => {
     setSaving(true)
     try {
@@ -823,19 +858,19 @@ export default function InvoiceReviewPage() {
             </div>
           )}
           {!isPosted && (
-            <Button variant="outline" className="border-zinc-800 bg-zinc-900 text-zinc-300" onClick={handleSaveDraft} disabled={saving || approving || posting}>
+            <Button variant="outline" className="border-zinc-800 bg-zinc-900 text-zinc-300" onClick={handleSaveDraft} disabled={retrying || saving || approving || posting}>
               {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
               Save / Pending
             </Button>
           )}
           {!isPosted && invoice?.status !== 'reviewed' && (
-            <Button className="bg-indigo-600 hover:bg-indigo-700 text-white" onClick={handleApprove} disabled={saving || approving || posting}>
+            <Button className="bg-indigo-600 hover:bg-indigo-700 text-white" onClick={handleApprove} disabled={retrying || saving || approving || posting}>
               {approving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
               Approve
             </Button>
           )}
           {!isPosted && invoice?.status === 'reviewed' && (
-            <Button className="bg-zinc-100 text-zinc-900 hover:bg-zinc-200" onClick={handlePost} disabled={saving || approving || posting}>
+            <Button className="bg-zinc-100 text-zinc-900 hover:bg-zinc-200" onClick={handlePost} disabled={retrying || saving || approving || posting}>
               {posting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BookOpen className="mr-2 h-4 w-4" />}
               Post
             </Button>
@@ -856,14 +891,26 @@ export default function InvoiceReviewPage() {
                 )}
                 Digital Copy
               </CardTitle>
-              <a
-                href={invoice.image_url}
-                target="_blank"
-                rel="noreferrer"
-                className="text-[10px] text-blue-400 hover:text-blue-300 flex items-center gap-1 transition-colors"
-              >
-                Open <ArrowRight className="h-3 w-3" />
-              </a>
+              <div className="flex items-center gap-4">
+                {!isPosted && (
+                  <button 
+                    onClick={handleRetryExtraction} 
+                    disabled={retrying || saving || approving || posting}
+                    className="text-[11px] text-indigo-400 hover:text-indigo-300 flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                  >
+                    {retrying ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Bot className="h-3.5 w-3.5" />}
+                    Retry AI
+                  </button>
+                )}
+                <a
+                  href={invoice.image_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-[11px] text-blue-400 hover:text-blue-300 flex items-center gap-1.5 transition-colors"
+                >
+                  Open <ArrowRight className="h-3.5 w-3.5" />
+                </a>
+              </div>
             </CardHeader>
             <CardContent className="p-0 bg-black" style={{ height: '75vh' }}>
               {invoice.image_url?.includes('drive.google.com') ? (

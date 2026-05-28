@@ -90,7 +90,7 @@ Use this exact schema:
 }
 Rules:
 - All monetary values are plain integers (Rupiah), no currency symbols or decimals.
-- Dates must be YYYY-MM-DD. If the invoice date is not visible, use today's date: ${todayISO}.
+- Dates must be YYYY-MM-DD. Look carefully for any date on the invoice (often labeled "Tanggal", "Tgl", "Tanggal Pembelian", "Tanggal Transaksi", "Date", or similar). ONLY use today's date (${todayISO}) if absolutely no date is found anywhere on the invoice.
 - "discount" is the total discount amount shown on the invoice. Use 0 if there is no discount.
 - "subtotal" is the sum of line item totals BEFORE discount, shipping, and tax.
 - "shipping_cost" is the delivery / transport / ongkos kirim / ongkir / biaya pengiriman / freight charge shown on the invoice. Use 0 if none. Do NOT include this amount inside line_items – it must ONLY appear as shipping_cost.
@@ -100,8 +100,8 @@ Rules:
 - "unit" must be extracted as the Unit of Measure (UOM) for the item. Normalize common units to uppercase (e.g. "KG", "GR", "PCS", "L", "ML", "PACK", "BOX").
 - "vendor.id": Check the "Available Vendors" list below. If the vendor name perfectly or closely matches an existing vendor, output its ID here. Otherwise, output null.
 - "vendor": Extract as much detail as you can find for the vendor (bank details, address, email, phone). Do NOT hallucinate. Only extract what is clearly written on the invoice.
-- "item_master_id": For each line item, try to find a semantic match from the "Available Item Master" list below. If there is a good match, set this to the item's ID.
-- "coa_id": If you matched an item master, set this to that item's "default_coa_id" (if it has one). If you couldn't match an item master, try to match it directly to the "Available COA Accounts" list below. (Note: Only select leaf accounts, not parent categories like 'CURRENT ASSETS').
+- "item_master_id": For each line item, try to find a semantic match from the "Available Item Master" list below. If there is a good match, set this to the item's exact UUID.
+- "coa_id": If you matched an item master, set this to that item's "default_coa_id". If you couldn't match an item master, match it to the "Available COA Accounts" list below and output the exact UUID from the "ID" field (e.g. "123e4567-e89b-12d3..."). DO NOT output the "Code" (like "5-3-00-030"). Only select leaf accounts.
 
 ${vendors && vendors.length > 0 ? `
 Available Vendors:

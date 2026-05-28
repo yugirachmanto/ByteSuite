@@ -189,11 +189,9 @@ export async function POST(req: NextRequest) {
       .single();
 
     let apiKey = (integration?.credentials as any)?.api_key ?? null;
-    if (!apiKey && process.env.OPENAI_API_KEY) {
-      apiKey = process.env.OPENAI_API_KEY;
-    }
+    
     if (!apiKey) {
-      return new Response('OpenAI API key not configured in Settings.', { status: 402 });
+      return new Response('OpenAI API key not configured in Integrations.', { status: 402 });
     }
 
     const openai = new OpenAI({ apiKey });

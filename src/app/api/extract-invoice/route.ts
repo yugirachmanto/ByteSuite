@@ -52,15 +52,10 @@ export async function POST(request: NextRequest) {
       // user_integrations row simply doesn't exist yet
     }
 
-    // Fall back to platform key only if explicitly configured in the environment
-    if (!apiKey && process.env.OPENAI_API_KEY) {
-      apiKey = process.env.OPENAI_API_KEY
-    }
-
     if (!apiKey) {
       return NextResponse.json(
         {
-          error: 'OpenAI API key not configured. Please add your API key in Settings → Integrations before using AI extraction.',
+          error: 'OpenAI API key not configured. Please add your API key in Integrations before using AI extraction.',
           setup_required: true,
           setup_url: '/integrations',
         },
@@ -128,6 +123,22 @@ export async function POST(request: NextRequest) {
         vendor_id = newVendor.id
         extracted.vendor.id = newVendor.id
       }
+    }
+
+    // Sanitize extracted COA IDs: if the AI accidentally returned the COA code or name instead of the UUID, map it back.
+    if (extracted.line_items && Array.isArray(extracted.line_items)) {
+      extracted.line_items = extracted.line_items.map(item => {
+        if (item.coa_id) {
+          const matchedByCode = coaAccounts.find(c => c.code === item.coa_id)
+          if (matchedByCode) {
+            item.coa_id = matchedByCode.id
+          } else {
+            const matchedByName = coaAccounts.find(c => c.name.toLowerCase() === item.coa_id?.toLowerCase())
+            if (matchedByName) item.coa_id = matchedByName.id
+          }
+        }
+        return item
+      })
     }
 
     // Update invoice with extracted data

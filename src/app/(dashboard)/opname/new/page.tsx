@@ -6,6 +6,8 @@ import { createClient } from '@/lib/supabase/client'
 import { useOutlet } from '@/lib/contexts/outlet-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Badge } from '@/components/ui/badge'
 import { 
   Table, 
   TableBody, 
@@ -52,7 +54,8 @@ export default function NewOpnamePage() {
       if (data) {
         setItems(data.map(d => ({
           ...d,
-          physical_qty: d.qty_on_hand // Default to system qty
+          physical_qty: d.qty_on_hand, // Default to system qty
+          variance_reason: null
         })))
       }
       setLoading(false)
@@ -61,9 +64,19 @@ export default function NewOpnamePage() {
   }, [selectedOutletId, supabase])
 
   const handleQtyChange = (itemId: string, val: string) => {
-    const num = parseFloat(val) || 0
-    setItems(prev => prev.map(item => 
-      item.item_id === itemId ? { ...item, physical_qty: num } : item
+    const num = parseInt(val)
+    setItems(items.map(item => 
+      item.item_id === itemId 
+        ? { ...item, physical_qty: isNaN(num) ? 0 : num }
+        : item
+    ))
+  }
+
+  const handleReasonChange = (itemId: string, reason: string) => {
+    setItems(items.map(item => 
+      item.item_id === itemId 
+        ? { ...item, variance_reason: reason }
+        : item
     ))
   }
 
@@ -71,12 +84,16 @@ export default function NewOpnamePage() {
     if (!selectedOutletId) return
     setSubmitting(true)
     try {
+      const { data: { user } } = await supabase.auth.getUser()
+      const { data: profile } = await supabase.from('user_profiles').select('org_id').eq('id', user?.id).single()
+
       const entries = items.map(item => ({
         outlet_id: selectedOutletId,
         item_id: item.item_id,
         system_qty: item.qty_on_hand,
         physical_qty: item.physical_qty,
-        opname_date: opnameDate
+        opname_date: opnameDate,
+        variance_reason: item.variance_reason
       }))
 
       const { data: insertedLogs, error } = await supabase
@@ -119,6 +136,56 @@ export default function NewOpnamePage() {
           reference_type: 'opname',
           reference_id: logId || null
         })
+
+        // If it's a negative variance (loss) with a reason, generate a GL Journal
+        if (variance < 0 && item.variance_reason) {
+          // Find correct expense COA
+          let expenseCoaCode = '5-3-00-050' // Default to Cost of Variance
+          if (item.variance_reason === 'spoilage' || item.variance_reason === 'waste') {
+            if (item.item_master?.category === 'raw' || item.item_master?.category === 'wip' || item.item_master?.category === 'finished') {
+              // Food or generic
+              expenseCoaCode = '5-1-10-030' // Cost of Food Spoil / Waste
+              // Note: If we had a clear way to distinguish Beverage vs Food here, we'd use '5-2-00-040'
+            }
+          }
+
+          // Fetch COAs
+          const { data: coas } = await supabase.from('chart_of_accounts').select('id, code').eq('org_id', profile?.org_id)
+          const inventoryCoa = coas?.find(c => c.code === '1-3-00-000') // INVENTORIES (Asset)
+          const expenseCoa = coas?.find(c => c.code === expenseCoaCode)
+
+          if (inventoryCoa && expenseCoa && Math.abs(valueAdjustment) > 0) {
+            // Create Journal
+            const { data: journal } = await supabase.from('gl_journals').insert({
+              org_id: profile?.org_id,
+              outlet_id: selectedOutletId,
+              journal_number: `OPJ-${Date.now()}-${item.item_id.substring(0,4)}`,
+              date: opnameDate,
+              description: `Opname Adjustment (${item.variance_reason}) for ${item.item_master?.name}`,
+              status: 'posted',
+              source_system: 'inventory'
+            }).select('id').single()
+
+            if (journal) {
+              await supabase.from('gl_journal_lines').insert([
+                {
+                  journal_id: journal.id,
+                  coa_id: expenseCoa.id,
+                  debit: Math.abs(valueAdjustment),
+                  credit: 0,
+                  description: `Spoilage/Waste Expense - ${item.item_master?.name}`
+                },
+                {
+                  journal_id: journal.id,
+                  coa_id: inventoryCoa.id,
+                  debit: 0,
+                  credit: Math.abs(valueAdjustment),
+                  description: `Inventory Asset Reduction - ${item.item_master?.name}`
+                }
+              ])
+            }
+          }
+        }
       }
 
       const adjCount = adjustedItems.length
@@ -180,21 +247,22 @@ export default function NewOpnamePage() {
                 Physical Qty
                 <span className="block text-[9px] font-normal text-zinc-500 normal-case">enter actual count ↓</span>
               </TableHead>
-              <TableHead className="text-zinc-500 text-xs font-bold uppercase text-right">Variance</TableHead>
-              <TableHead className="text-zinc-500 text-xs font-bold uppercase">Status</TableHead>
+              <TableHead className="text-zinc-500 text-xs font-bold uppercase text-right w-24">Variance</TableHead>
+              <TableHead className="text-zinc-500 text-xs font-bold uppercase w-[200px]">Reason</TableHead>
+              <TableHead className="text-zinc-500 text-xs font-bold uppercase w-24">Status</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={5} className="h-48 text-center text-zinc-500">
+                <TableCell colSpan={6} className="h-48 text-center text-zinc-500">
                   <Loader2 className="mx-auto h-6 w-6 animate-spin opacity-20 mb-2" />
                   Fetching current stock levels...
                 </TableCell>
               </TableRow>
             ) : items.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="h-48 text-center text-zinc-500">
+                <TableCell colSpan={6} className="h-48 text-center text-zinc-500">
                   No items in inventory to count.
                 </TableCell>
               </TableRow>
@@ -228,6 +296,25 @@ export default function NewOpnamePage() {
                         <span className="text-red-500">{Number(variance).toLocaleString()}</span>
                       ) : (
                         <span className="text-zinc-500">0</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {variance < 0 && (
+                        <Select value={item.variance_reason || ""} onValueChange={(val) => handleReasonChange(item.item_id, val)}>
+                          <SelectTrigger className="h-8 bg-zinc-950 border-zinc-800 text-xs text-zinc-300">
+                            <SelectValue placeholder="Select reason..." />
+                          </SelectTrigger>
+                          <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-300">
+                            <SelectItem value="spoilage">Spoilage</SelectItem>
+                            <SelectItem value="waste">Waste</SelectItem>
+                            <SelectItem value="theft">Theft/Loss</SelectItem>
+                            <SelectItem value="count_error">Count Error</SelectItem>
+                            <SelectItem value="other">Other</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      )}
+                      {variance > 0 && (
+                        <span className="text-[11px] text-zinc-500 px-2 py-1 bg-zinc-900 rounded">Found Stock</span>
                       )}
                     </TableCell>
                     <TableCell>
