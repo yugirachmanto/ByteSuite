@@ -77,6 +77,7 @@ const sidebarGroups = [
     roles: ['owner'],
     items: [
       { name: 'Integrations', href: '/integrations', icon: Share2 },
+      { name: 'Billing', href: '/billing', icon: CreditCard },
       { name: 'Settings', href: '/settings', icon: Settings },
     ]
   }
@@ -104,11 +105,11 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="flex h-screen bg-zinc-950">
+    <div className="flex h-screen bg-zinc-950 print:bg-white print:h-auto print:block">
       {/* Sidebar */}
       <aside
         className={cn(
-          'flex flex-col border-r border-zinc-800 bg-zinc-900 transition-all duration-300',
+          'flex flex-col border-r border-zinc-800 bg-zinc-900 transition-all duration-300 print:hidden',
           isSidebarOpen ? 'w-64' : 'w-20'
         )}
       >
@@ -233,8 +234,8 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col overflow-hidden">
-        <header className="flex h-16 items-center border-b border-zinc-800 bg-zinc-900/50 px-8 backdrop-blur-sm">
+      <main className="flex-1 flex flex-col overflow-hidden print:overflow-visible print:block">
+        <header className="flex h-16 items-center border-b border-zinc-800 bg-zinc-900/50 px-8 backdrop-blur-sm print:hidden">
           <Button
             variant="ghost"
             size="icon"
@@ -256,8 +257,8 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
             <DateWindowPicker />
           </div>
         </header>
-        <div className="flex-1 overflow-auto bg-zinc-950 p-8">
-          <div className="mx-auto max-w-7xl">{children}</div>
+        <div className="flex-1 overflow-auto bg-zinc-950 p-8 print:bg-white print:p-0 print:overflow-visible">
+          <div className="mx-auto max-w-7xl print:max-w-none">{children}</div>
         </div>
       </main>
     </div>
@@ -270,7 +271,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     <OutletProvider>
       <DateWindowProvider>
         <DashboardShell>{children}</DashboardShell>
-        <ChatWidget />
+        <div className="print:hidden"><ChatWidget /></div>
       </DateWindowProvider>
     </OutletProvider>
   )

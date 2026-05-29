@@ -15,6 +15,7 @@ import {
   TableHeader, 
   TableRow 
 } from '@/components/ui/table'
+import { CoaCombobox } from '@/components/ui/coa-combobox'
 import { Switch } from '@/components/ui/switch'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
 import {
@@ -1032,28 +1033,14 @@ export default function InvoiceReviewPage() {
                             disabled={isPosted}
                           />
                           <div className="grid grid-cols-2 gap-2">
-                            <Select value={item.coa_id || ''} onValueChange={(val) => updateLineItem(item.id, 'coa_id', val)} disabled={isPosted}>
-                              <SelectTrigger className="w-full bg-zinc-950 border border-zinc-800 rounded px-2 h-7 text-[10px] text-zinc-300 focus:outline-none">
-                                <span className="truncate text-left flex-1">
-                                  {item.coa_id ? (
-                                    coa.find(a => a.id === item.coa_id) 
-                                      ? `${coa.find(a => a.id === item.coa_id)?.code} - ${coa.find(a => a.id === item.coa_id)?.name}`
-                                      : item.coa_id
-                                  ) : 'Select Account...'}
-                                </span>
-                              </SelectTrigger>
-                              <SelectContent className="bg-zinc-900 border-zinc-800 w-max min-w-[250px]">
-                                {coa.map(acc => {
-                                  const isMain = disabledCoaIds.has(acc.id);
-                                  const indent = getCoaIndent(acc.code);
-                                  return (
-                                    <SelectItem key={acc.id} value={acc.id} disabled={isMain} className={isMain ? "font-bold text-zinc-500" : ""}>
-                                      {indent}{acc.code} - {acc.name} {isMain ? '(Main)' : ''}
-                                    </SelectItem>
-                                  );
-                                })}
-                              </SelectContent>
-                            </Select>
+                            <CoaCombobox
+                              coas={coa}
+                              value={item.coa_id || ''}
+                              onChange={(val) => updateLineItem(item.id, 'coa_id', val)}
+                              disabled={isPosted}
+                              placeholder="Select Account..."
+                              className="bg-zinc-950 border-zinc-800"
+                            />
                             
                             {item.is_inventory ? (
                               <div className="flex gap-1 items-center">
@@ -1171,7 +1158,7 @@ export default function InvoiceReviewPage() {
 
           <div className="grid md:grid-cols-2 gap-6">
             {/* Totals */}
-            <Card className="border-zinc-800 bg-zinc-900 border-l-4 border-l-zinc-100 h-fit">
+            <Card className="border-zinc-800 bg-zinc-900 border-l-4 border-l-zinc-100 h-fit overflow-visible">
               <CardContent className="p-6 space-y-3">
                 <div className="flex justify-between text-zinc-400 text-sm">
                   <span>Subtotal</span>
@@ -1259,28 +1246,15 @@ export default function InvoiceReviewPage() {
                     <label className="text-[10px] text-zinc-500 uppercase font-bold">Closing Account (Credit)</label>
                     <span className="text-[10px] text-zinc-600 italic">Usually Hutang or Cash</span>
                   </div>
-                  <Select value={selectedCreditCoaId || ""} onValueChange={(val) => setSelectedCreditCoaId(val || "")} disabled={isPosted}>
-                    <SelectTrigger className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 h-10 text-sm text-zinc-100 focus:outline-none focus:ring-1 focus:ring-zinc-700">
-                      <span className="truncate text-left flex-1">
-                        {selectedCreditCoaId ? (
-                          coa.find(a => a.id === selectedCreditCoaId) 
-                            ? `${coa.find(a => a.id === selectedCreditCoaId)?.code} - ${coa.find(a => a.id === selectedCreditCoaId)?.name}`
-                            : selectedCreditCoaId
-                        ) : 'Select Closing Account...'}
-                      </span>
-                    </SelectTrigger>
-                    <SelectContent className="bg-zinc-900 border-zinc-800 w-max min-w-[250px]">
-                      {coa.map(acc => {
-                        const isMain = disabledCoaIds.has(acc.id);
-                        const indent = getCoaIndent(acc.code);
-                        return (
-                          <SelectItem key={acc.id} value={acc.id} disabled={isMain} className={isMain ? "font-bold text-zinc-500" : ""}>
-                            {indent}{acc.code} - {acc.name} {isMain ? '(Main)' : ''}
-                          </SelectItem>
-                        );
-                      })}
-                    </SelectContent>
-                  </Select>
+                  <CoaCombobox
+                    coas={coa}
+                    value={selectedCreditCoaId || ""}
+                    onChange={(val) => setSelectedCreditCoaId(val)}
+                    disabled={isPosted}
+                    placeholder="Select Closing Account..."
+                    dropdownPosition="top"
+                    dropdownClassName="w-max min-w-[350px]"
+                  />
 
                   {/* Payment Due Date for AP Accounts */}
                   {selectedCreditCoaId && coa.find(a => a.id === selectedCreditCoaId)?.type === 'liability' && coa.find(a => a.id === selectedCreditCoaId)?.code.startsWith('2-1-10') && (
@@ -1379,28 +1353,12 @@ export default function InvoiceReviewPage() {
               </div>
               <div className="space-y-2">
                 <label className="text-xs text-zinc-500 font-medium uppercase">Default COA (Optional)</label>
-                <Select value={newItemData.default_coa_id || ""} onValueChange={(val) => setNewItemData({...newItemData, default_coa_id: val})}>
-                  <SelectTrigger className="w-full bg-zinc-950 border border-zinc-800 rounded-md px-3 h-9 text-sm text-zinc-100 focus:outline-none">
-                    <span className="truncate text-left flex-1">
-                      {newItemData.default_coa_id ? (
-                        coa.find(a => a.id === newItemData.default_coa_id) 
-                          ? `${coa.find(a => a.id === newItemData.default_coa_id)?.code} - ${coa.find(a => a.id === newItemData.default_coa_id)?.name}`
-                          : newItemData.default_coa_id
-                      ) : 'No Default Account'}
-                    </span>
-                  </SelectTrigger>
-                  <SelectContent className="bg-zinc-900 border-zinc-800 max-h-[300px] w-max min-w-[250px]">
-                    {coa.map(acc => {
-                      const isMain = disabledCoaIds.has(acc.id);
-                      const indent = getCoaIndent(acc.code);
-                      return (
-                        <SelectItem key={acc.id} value={acc.id} disabled={isMain} className={isMain ? "font-bold text-zinc-500" : ""}>
-                          {indent}{acc.code} - {acc.name} {isMain ? '(Main)' : ''}
-                        </SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
+                <CoaCombobox
+                  coas={coa}
+                  value={newItemData.default_coa_id || ""}
+                  onChange={(val) => setNewItemData({...newItemData, default_coa_id: val})}
+                  placeholder="No Default Account"
+                />
               </div>
             </div>
 

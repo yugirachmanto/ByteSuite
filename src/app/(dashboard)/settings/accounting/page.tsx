@@ -13,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { CoaCombobox } from '@/components/ui/coa-combobox'
 import {
   Table,
   TableBody,
@@ -217,24 +218,12 @@ export default function AccountingSettingsPage() {
                   <Label className="text-zinc-200">{role.label}</Label>
                   <p className="text-xs text-zinc-500 mt-1">Used for automatic posting of {role.label.toLowerCase()}.</p>
                 </div>
-                <Select value={currentVal || ""} onValueChange={(val) => updateMapping(role.value, val || '')}>
-                  <SelectTrigger className="w-full bg-zinc-950 border-zinc-800 text-zinc-100">
-                    <SelectValue placeholder="Select Account...">
-                      {currentVal ? (
-                        accounts.find(a => a.id === currentVal) 
-                          ? `${accounts.find(a => a.id === currentVal)?.code} - ${accounts.find(a => a.id === currentVal)?.name}`
-                          : currentVal
-                      ) : 'Select Account...'}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent className="bg-zinc-900 border-zinc-800">
-                    {accounts.map(acc => (
-                      <SelectItem key={acc.id} value={acc.id}>
-                        {acc.code} - {acc.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <CoaCombobox
+                  coas={accounts}
+                  value={currentVal || ""}
+                  onChange={(val) => updateMapping(role.value, val)}
+                  placeholder="Select Account..."
+                />
               </div>
             )
           })}

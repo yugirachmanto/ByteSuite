@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils'
 import Link from 'next/link'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Menu, X, Zap } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 
 const menuItems = [
     { name: 'Features', href: '#' },
@@ -15,6 +16,14 @@ const menuItems = [
 
 export default function HeroSection() {
     const [menuState, setMenuState] = React.useState(false)
+    const router = useRouter()
+
+    React.useEffect(() => {
+        if (typeof window !== 'undefined' && window.location.hash.includes('type=invite')) {
+            router.push('/setup-account' + window.location.hash)
+        }
+    }, [router])
+
     return (
         <div>
             <header>

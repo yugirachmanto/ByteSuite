@@ -6,11 +6,12 @@ import { useOutlet } from '@/lib/contexts/outlet-context'
 import { useDateWindow } from '@/lib/contexts/date-window-context'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
-  ResponsiveContainer, PieChart, Pie, Cell, Legend,
+  ResponsiveContainer, PieChart, Pie, Cell, Legend, AreaChart, Area,
 } from 'recharts'
 import {
   Loader2, Package, FileText, AlertTriangle,
   Download, BarChart3, BookOpen, ArrowUpRight, TrendingUp,
+  DollarSign, Activity, Wallet, Percent, Briefcase, Building2
 } from 'lucide-react'
 import { formatRp, tierColors, tierLabels } from '@/lib/format'
 import { format } from 'date-fns'
@@ -104,6 +105,9 @@ export default function ReportsPage() {
   const [recentLedger, setRecentLedger] = useState<any[]>([])
   const [invoices, setInvoices] = useState<any[]>([])
   const [glSummary, setGlSummary] = useState<any[]>([])
+
+  // Advanced Financial Metrics
+  const [financialTrend, setFinancialTrend] = useState<any[]>([])
 
   const selectedOutlet = outlets.find(o => o.id === selectedOutletId)
   const periodLabel = `${format(startDate, 'd MMM yyyy', { locale: localeId })} — ${format(endDate, 'd MMM yyyy', { locale: localeId })}`
@@ -254,6 +258,24 @@ export default function ReportsPage() {
 
       roots.forEach(root => rollUp(root))
 
+      // ── Aggregate Trend Data from GL Entries ──
+      const trendMap: Record<string, { rawDate: string, date: string, income: number, expense: number }> = {}
+      glData?.forEach(row => {
+        const d = row.entry_date.split('T')[0]
+        if (!trendMap[d]) trendMap[d] = { rawDate: d, date: format(new Date(d), 'dd MMM'), income: 0, expense: 0 }
+        
+        const coa = row.chart_of_accounts as any
+        if (!coa) return
+        
+        if (coa.type === 'income') {
+          trendMap[d].income += (row.credit || 0) - (row.debit || 0)
+        } else if (coa.type === 'expense') {
+          trendMap[d].expense += (row.debit || 0) - (row.credit || 0)
+        }
+      })
+      const trendArr = Object.values(trendMap).sort((a, b) => a.rawDate.localeCompare(b.rawDate))
+      setFinancialTrend(trendArr)
+
       // ── Flatten Tree for Render (depth = level - 1 for CSS classes) ──
       function flatten(nodes: any[], result: any[] = []) {
         nodes
@@ -315,6 +337,23 @@ export default function ReportsPage() {
   const incomeEntries = glSummary.filter(c => c.type === 'income' || c.code.startsWith('4'))
   const cogsEntries   = glSummary.filter(c => c.code.startsWith('5'))
   const opexEntries   = glSummary.filter(c => c.code.startsWith('6'))
+  
+  // Balance Sheet
+  const assetEntries = glSummary.filter(c => c.code.startsWith('1'))
+  const liabilityEntries = glSummary.filter(c => c.code.startsWith('2'))
+  const equityEntries = glSummary.filter(c => c.code.startsWith('3'))
+
+  const totalAssets = assetEntries
+    .filter(c => c.level === 1 && c.is_header)
+    .reduce((sum, c) => sum + (c.totalDebit - c.totalCredit), 0)
+
+  const totalLiabilities = liabilityEntries
+    .filter(c => c.level === 1 && c.is_header)
+    .reduce((sum, c) => sum + (c.totalCredit - c.totalDebit), 0)
+
+  const totalEquity = equityEntries
+    .filter(c => c.level === 1 && c.is_header)
+    .reduce((sum, c) => sum + (c.totalCredit - c.totalDebit), 0)
 
   // Revenue = sum of level-1 income headers (already rolled up)
   const totalRevenue = incomeEntries
@@ -438,9 +477,123 @@ export default function ReportsPage() {
 
       {/* ── Executive Summary ──────────────────────────────────────── */}
       {!loading && activeTab === 'summary' && (
-        <div className="grid gap-5 md:grid-cols-2">
+        <div className="space-y-6">
+          {/* Advanced Financial Performance KPIs */}
+          <div>
+            <h3 className="text-sm font-semibold text-zinc-100 mb-3 flex items-center gap-2">
+              <Activity className="h-4 w-4 text-indigo-400" />
+              Performa Keuangan (Laba Rugi)
+            </h3>
+            <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 relative overflow-hidden">
+                <div className="text-[10px] text-zinc-400 font-medium uppercase tracking-wider mb-1">Pendapatan (Revenue)</div>
+                <div className="text-xl font-bold font-mono text-emerald-400">{formatRp(totalRevenue)}</div>
+              </div>
+              <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 p-4 relative overflow-hidden">
+                <div className="text-[10px] text-zinc-400 font-medium uppercase tracking-wider mb-1">HPP (COGS)</div>
+                <div className="text-xl font-bold font-mono text-rose-400">{formatRp(totalCogs)}</div>
+              </div>
+              <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 relative overflow-hidden">
+                <div className="text-[10px] text-zinc-400 font-medium uppercase tracking-wider mb-1 flex justify-between">
+                  <span>Laba Kotor</span>
+                  <span className="text-amber-500">{totalRevenue ? ((totalRevenue - totalCogs)/totalRevenue*100).toFixed(1) : 0}%</span>
+                </div>
+                <div className="text-xl font-bold font-mono text-amber-400">{formatRp(totalRevenue - totalCogs)}</div>
+              </div>
+              <div className="rounded-xl border border-indigo-500/20 bg-indigo-500/5 p-4 relative overflow-hidden">
+                <div className="text-[10px] text-zinc-400 font-medium uppercase tracking-wider mb-1 flex justify-between">
+                  <span>Laba Bersih</span>
+                  <span className="text-indigo-500">{totalRevenue ? ((totalRevenue - totalCogs - totalOpex)/totalRevenue*100).toFixed(1) : 0}%</span>
+                </div>
+                <div className="text-xl font-bold font-mono text-indigo-400">{formatRp(totalRevenue - totalCogs - totalOpex)}</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Balance Sheet Snapshot */}
+          <div>
+            <h3 className="text-sm font-semibold text-zinc-100 mb-3 flex items-center gap-2">
+              <Building2 className="h-4 w-4 text-cyan-400" />
+              Posisi Keuangan (Neraca)
+            </h3>
+            <div className="grid gap-3 grid-cols-1 md:grid-cols-3">
+              <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-4 flex items-center justify-between">
+                <div>
+                  <div className="text-[10px] text-zinc-400 font-medium uppercase tracking-wider mb-1">Total Aset</div>
+                  <div className="text-lg font-bold font-mono text-cyan-400">{formatRp(totalAssets)}</div>
+                </div>
+                <Wallet className="h-8 w-8 text-cyan-500/20" />
+              </div>
+              <div className="rounded-xl border border-orange-500/20 bg-orange-500/5 p-4 flex items-center justify-between">
+                <div>
+                  <div className="text-[10px] text-zinc-400 font-medium uppercase tracking-wider mb-1">Total Kewajiban</div>
+                  <div className="text-lg font-bold font-mono text-orange-400">{formatRp(totalLiabilities)}</div>
+                </div>
+                <Briefcase className="h-8 w-8 text-orange-500/20" />
+              </div>
+              <div className="rounded-xl border border-purple-500/20 bg-purple-500/5 p-4 flex items-center justify-between">
+                <div>
+                  <div className="text-[10px] text-zinc-400 font-medium uppercase tracking-wider mb-1">Total Ekuitas</div>
+                  <div className="text-lg font-bold font-mono text-purple-400">{formatRp(totalEquity)}</div>
+                </div>
+                <PieChart className="h-8 w-8 text-purple-500/20" />
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-5 md:grid-cols-1 lg:grid-cols-3">
+            {/* Trend Chart (Takes 2 columns) */}
+            <div className="lg:col-span-2 rounded-xl border border-zinc-800/60 bg-zinc-900/40 p-5">
+              <p className="text-[11px] font-bold uppercase tracking-widest text-zinc-500 mb-4">Tren Pendapatan vs Pengeluaran</p>
+              <div className="h-72">
+                {financialTrend.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={financialTrend} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="colorIncome" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                          <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                        </linearGradient>
+                        <linearGradient id="colorExpense" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.3}/>
+                          <stop offset="95%" stopColor="#f43f5e" stopOpacity={0}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
+                      <XAxis dataKey="date" stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} />
+                      <YAxis tickFormatter={v => `${(v / 1000000).toFixed(0)}jt`} stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} />
+                      <RechartsTooltip formatter={(v: any) => formatRp(v)} labelStyle={{ color: '#a1a1aa' }} contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', color: '#f4f4f5', fontSize: 12, borderRadius: '8px' }} />
+                      <Legend iconType="circle" wrapperStyle={{ fontSize: '11px', color: '#a1a1aa' }} />
+                      <Area type="monotone" dataKey="income" name="Pendapatan" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#colorIncome)" />
+                      <Area type="monotone" dataKey="expense" name="Pengeluaran" stroke="#f43f5e" strokeWidth={2} fillOpacity={1} fill="url(#colorExpense)" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex h-full items-center justify-center text-xs text-zinc-500">Tidak ada data tren pada periode ini</div>
+                )}
+              </div>
+            </div>
+
+            {/* Existing Inventory Chart moved here (Takes 1 column) */}
+            <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 p-5">
+              <p className="text-[11px] font-bold uppercase tracking-widest text-zinc-500 mb-4">Nilai Inventori per Kategori</p>
+              <div className="h-72">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={inventoryByTier} cx="50%" cy="45%" innerRadius={60} outerRadius={80} paddingAngle={3} dataKey="value" stroke="none">
+                      {inventoryByTier.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                    </Pie>
+                    <RechartsTooltip formatter={(v: any) => formatRp(v)} contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', color: '#f4f4f5', fontSize: 12, borderRadius: '8px' }} />
+                    <Legend layout="horizontal" verticalAlign="bottom" align="center" wrapperStyle={{ fontSize: '11px', color: '#a1a1aa', paddingTop: 20 }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </div>
+          
+          {/* Top 10 Items Chart */}
           <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 p-5">
-            <p className="text-[11px] font-bold uppercase tracking-widest text-zinc-500 mb-4">Top 10 Item by Nilai</p>
+            <p className="text-[11px] font-bold uppercase tracking-widest text-zinc-500 mb-4">Top 10 Item Inventori by Nilai</p>
             <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={topItems} layout="vertical" margin={{ top: 0, right: 16, left: 8, bottom: 0 }}>
@@ -448,22 +601,8 @@ export default function ReportsPage() {
                   <XAxis type="number" tickFormatter={v => `${(v / 1000000).toFixed(0)}jt`} stroke="#52525b" fontSize={10} />
                   <YAxis dataKey="name" type="category" width={110} stroke="#52525b" fontSize={10} tick={{ fill: '#a1a1aa' }} />
                   <RechartsTooltip formatter={(v: any) => formatRp(v)} contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', color: '#f4f4f5', fontSize: 12 }} />
-                  <Bar dataKey="value" fill="#6366f1" radius={[0, 6, 6, 0]} />
+                  <Bar dataKey="value" name="Nilai Inventori" fill="#6366f1" radius={[0, 6, 6, 0]} barSize={20} />
                 </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-          <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 p-5">
-            <p className="text-[11px] font-bold uppercase tracking-widest text-zinc-500 mb-4">Nilai per Kategori</p>
-            <div className="h-72">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={inventoryByTier} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={3} dataKey="value">
-                    {inventoryByTier.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                  </Pie>
-                  <RechartsTooltip formatter={(v: any) => formatRp(v)} contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', color: '#f4f4f5', fontSize: 12 }} />
-                  <Legend wrapperStyle={{ fontSize: '11px', color: '#a1a1aa' }} />
-                </PieChart>
               </ResponsiveContainer>
             </div>
           </div>

@@ -18,6 +18,7 @@ import { Plus, Trash2, Save, ArrowLeft, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { CoaCombobox } from '@/components/ui/coa-combobox'
 
 export default function NewJournalPage() {
   const supabase = createClient()
@@ -171,23 +172,13 @@ export default function NewJournalPage() {
               {lines.map((line) => (
                 <TableRow key={line.id} className="border-zinc-800 hover:bg-zinc-800/20">
                   <TableCell>
-                    <select
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-2 text-sm text-zinc-100 focus:outline-none focus:border-zinc-700"
+                    <CoaCombobox
+                      coas={accounts}
                       value={line.coa_id}
-                      onChange={e => updateLine(line.id, 'coa_id', e.target.value)}
-                    >
-                      <option value="">Select Leaf Account...</option>
-                      {accounts.map(acc => (
-                        <option
-                          key={acc.id}
-                          value={acc.is_header ? '' : acc.id}
-                          disabled={acc.is_header}
-                          style={acc.is_header ? { color: '#52525b', fontStyle: 'italic', cursor: 'not-allowed' } : {}}
-                        >
-                          {acc.is_header ? `▸ ${acc.code} — ${acc.name}` : `   ${acc.code} — ${acc.name}`}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={(val) => updateLine(line.id, 'coa_id', val)}
+                      placeholder="Select Leaf Account..."
+                      className="bg-zinc-950 border-zinc-800"
+                    />
                   </TableCell>
                   <TableCell>
                     <Input 

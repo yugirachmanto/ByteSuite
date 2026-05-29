@@ -12,13 +12,8 @@ import {
   TableRow 
 } from '@/components/ui/table'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
-} from '@/components/ui/select'
+} from '@/components/ui/card'
+import { CoaCombobox } from '@/components/ui/coa-combobox'
 import { Button } from '@/components/ui/button'
 import { format } from 'date-fns'
 import { formatRp } from '@/lib/format'
@@ -181,27 +176,13 @@ export default function LedgerPage() {
 
       <div className="flex items-center justify-between py-4">
         <div className="w-72">
-          <Select value={selectedAccountId} onValueChange={(val) => setSelectedAccountId(val || 'all')}>
-            <SelectTrigger className="bg-zinc-950 border-zinc-800 text-zinc-100">
-              <SelectValue placeholder="Select Account...">
-                {selectedAccountId === 'all' ? (
-                  'All Accounts'
-                ) : (
-                  accounts.find(a => a.id === selectedAccountId)
-                    ? `${accounts.find(a => a.id === selectedAccountId)?.code} - ${accounts.find(a => a.id === selectedAccountId)?.name}`
-                    : 'Select Account...'
-                )}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-100 max-h-[300px]">
-              <SelectItem value="all">All Accounts</SelectItem>
-              {accounts.map(acc => (
-                <SelectItem key={acc.id} value={acc.id}>
-                  {acc.code} - {acc.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <CoaCombobox
+            coas={accounts}
+            value={selectedAccountId}
+            onChange={(val) => setSelectedAccountId(val)}
+            placeholder="Select Account..."
+            allowAll={true}
+          />
         </div>
         <Button 
           variant="outline" 
