@@ -22,7 +22,8 @@ import {
   Wallet,
   BookOpen,
   CreditCard,
-  Tag
+  Tag,
+  HelpCircle
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button, buttonVariants } from '@/components/ui/button'
@@ -253,8 +254,18 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
               .find((i) => pathname === i.href || (i.href !== '/dashboard' && pathname?.startsWith(i.href)))
               ?.name || 'Dashboard'}
           </h1>
-          <div className="ml-auto flex items-center gap-4">
+          <div className="ml-auto flex items-center gap-2 pr-4 print:hidden">
             <DateWindowPicker />
+            <Link href="/sop">
+              <Button
+                variant="ghost"
+                size="icon"
+                title="SOP & Panduan"
+                className="text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 ml-2"
+              >
+                <HelpCircle className="h-5 w-5" />
+              </Button>
+            </Link>
           </div>
         </header>
         <div className="flex-1 overflow-auto bg-zinc-950 p-8 print:bg-white print:p-0 print:overflow-visible">

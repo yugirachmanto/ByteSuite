@@ -38,7 +38,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Plus, Pencil, Trash2, Search, Loader2, AlertTriangle, Download, Upload, Image as ImageIcon } from 'lucide-react'
+import { Switch } from '@/components/ui/switch'
+import { Plus, Pencil, Trash2, Search, Loader2, AlertTriangle, Download, Upload, Image as ImageIcon, Scissors, Save } from 'lucide-react'
 import { parseCSV, generateItemTemplate } from '@/lib/inventory/import'
 import { STANDARD_UOMS } from '@/lib/constants'
 import { toast } from 'sonner'
@@ -92,6 +93,11 @@ export default function ItemsSettingsPage() {
   const [editItem, setEditItem] = useState<Omit<Item, 'id'> & { id?: string }>(emptyItem)
   const [importing, setImporting] = useState(false)
   const fileInputRef = useRef<any>(null)
+  
+  const [activeItemForDisassembly, setActiveItemForDisassembly] = useState<any>(null)
+  const [requiresDisassembly, setRequiresDisassembly] = useState(false)
+  const [templates, setTemplates] = useState<any[]>([])
+  const [savingDisassembly, setSavingDisassembly] = useState(false)
 
   useEffect(() => {
     fetchData()
@@ -161,6 +167,92 @@ export default function ItemsSettingsPage() {
       fetchData()
     } catch (error: any) {
       toast.error(error.message || 'Failed to delete item. It may be referenced by other records.')
+    }
+  }
+
+  const openDisassemblyConfig = async (item: any) => {
+    setActiveItemForDisassembly(item)
+    setRequiresDisassembly(item.requires_disassembly || false)
+    try {
+      const { data } = await supabase
+        .from('disassembly_templates')
+        .select('*')
+        .eq('parent_item_id', item.id)
+        .order('sort_order', { ascending: true })
+      setTemplates(data || [])
+    } catch (e) {
+      // Ignore
+      setTemplates([])
+    }
+  }
+
+  const handleAddTemplate = () => {
+    setTemplates([...templates, {
+      id: `new-${Date.now()}`,
+      parent_item_id: activeItemForDisassembly.id,
+      child_item_name: '',
+      unit: 'kg',
+      default_yield_pct: 0,
+      waste_threshold_pct: 20
+    }])
+  }
+
+  const handleRemoveTemplate = (id: string) => {
+    setTemplates(templates.filter(t => t.id !== id))
+  }
+
+  const handleTemplateChange = (id: string, field: string, value: any) => {
+    setTemplates(templates.map(t => t.id === id ? { ...t, [field]: value } : t))
+  }
+
+  const handleSaveDisassembly = async () => {
+    setSavingDisassembly(true)
+    try {
+      if (requiresDisassembly && templates.length === 0) {
+        throw new Error("Must have at least 1 component to enable disassembly")
+      }
+      const totalPct = templates.reduce((sum, t) => sum + (parseFloat(t.default_yield_pct) || 0), 0)
+      if (totalPct > 100) {
+        throw new Error("Total yield percentage cannot exceed 100%")
+      }
+
+      const { error: updateError } = await supabase
+        .from('item_master')
+        .update({ requires_disassembly: requiresDisassembly })
+        .eq('id', activeItemForDisassembly.id)
+      
+      if (updateError) throw updateError
+
+      const { error: delError } = await supabase
+        .from('disassembly_templates')
+        .delete()
+        .eq('parent_item_id', activeItemForDisassembly.id)
+      
+      if (delError) throw delError
+
+      if (templates.length > 0) {
+        const toInsert = templates.map((t, idx) => ({
+          parent_item_id: activeItemForDisassembly.id,
+          child_item_name: t.child_item_name,
+          unit: t.unit,
+          default_yield_pct: parseFloat(t.default_yield_pct) || 0,
+          waste_threshold_pct: parseFloat(t.waste_threshold_pct) || 20,
+          sort_order: idx
+        }))
+        const { error: insError } = await supabase
+          .from('disassembly_templates')
+          .insert(toInsert)
+        
+        if (insError) throw insError
+      }
+
+      toast.success('Disassembly configuration saved')
+      setActiveItemForDisassembly(null)
+      fetchData()
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to save configuration')
+    } finally {
+      setSavingDisassembly(false)
     }
   }
 
@@ -378,6 +470,17 @@ export default function ItemsSettingsPage() {
                   <TableCell className="text-right text-zinc-400">{item.reorder_level}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
+                      {item.category === 'raw' && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          title="Disassembly Settings"
+                          className="h-7 w-7 text-zinc-500 hover:text-orange-400"
+                          onClick={() => openDisassemblyConfig(item)}
+                        >
+                          <Scissors className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
                       <Button
                         variant="ghost"
                         size="icon"
@@ -559,6 +662,113 @@ export default function ItemsSettingsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Disassembly Dialog */}
+      <Dialog open={!!activeItemForDisassembly} onOpenChange={(open) => !open && setActiveItemForDisassembly(null)}>
+        <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Scissors className="h-4 w-4 text-orange-400" /> Disassembly Settings: {activeItemForDisassembly?.name}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="flex items-center justify-between p-3 rounded-lg border border-zinc-800 bg-zinc-950/50">
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-zinc-200">Require Disassembly?</p>
+                <p className="text-xs text-zinc-500">Enable this if this item is broken down into smaller parts upon receipt.</p>
+              </div>
+              <Switch 
+                checked={requiresDisassembly} 
+                onCheckedChange={setRequiresDisassembly}
+              />
+            </div>
+
+            {requiresDisassembly && (
+              <div className="space-y-3">
+                <div className="border border-zinc-800 rounded-md overflow-hidden">
+                  <Table>
+                    <TableHeader className="bg-zinc-950/80">
+                      <TableRow className="hover:bg-transparent border-zinc-800">
+                        <TableHead className="text-zinc-400">Component Name</TableHead>
+                        <TableHead className="text-zinc-400 w-24">Unit</TableHead>
+                        <TableHead className="text-zinc-400 w-28 text-right">Yield (%)</TableHead>
+                        <TableHead className="text-zinc-400 w-28 text-right">Waste Limit</TableHead>
+                        <TableHead className="w-[40px]"></TableHead>
+                      </TableRow>
+                    </TableHeader>
+
+                    <TableBody>
+                      {templates.map(t => (
+                        <TableRow key={t.id} className="border-zinc-800 bg-zinc-900/50">
+                          <TableCell className="p-2">
+                            <Input 
+                              value={t.child_item_name}
+                              onChange={e => handleTemplateChange(t.id, 'child_item_name', e.target.value)}
+                              className="h-8 bg-zinc-950 border-zinc-800 text-xs"
+                              placeholder="e.g. Daging Sapi"
+                            />
+                          </TableCell>
+                          <TableCell className="p-2">
+                            <Input 
+                              list="uom-list"
+                              value={t.unit}
+                              onChange={e => handleTemplateChange(t.id, 'unit', e.target.value)}
+                              className="h-8 bg-zinc-950 border-zinc-800 text-xs"
+                              placeholder="kg"
+                            />
+                          </TableCell>
+                          <TableCell className="p-2">
+                            <div className="flex items-center justify-end gap-1">
+                              <Input 
+                                type="number"
+                                value={t.default_yield_pct}
+                                onChange={e => handleTemplateChange(t.id, 'default_yield_pct', e.target.value)}
+                                className="h-8 w-16 bg-zinc-950 border-zinc-800 text-xs text-right pr-1"
+                              />
+                              <span className="text-xs text-zinc-500">%</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="p-2">
+                            <div className="flex items-center justify-end gap-1">
+                              <Input 
+                                type="number"
+                                value={t.waste_threshold_pct}
+                                onChange={e => handleTemplateChange(t.id, 'waste_threshold_pct', e.target.value)}
+                                className="h-8 w-16 bg-zinc-950 border-zinc-800 text-xs text-right pr-1"
+                              />
+                              <span className="text-xs text-zinc-500">%</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="p-2">
+                            <Button variant="ghost" size="icon" onClick={() => handleRemoveTemplate(t.id)} className="h-8 w-8 text-zinc-500 hover:text-red-400">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                  <datalist id="uom-list">
+                    {STANDARD_UOMS.map(u => <option key={u} value={u} />)}
+                  </datalist>
+                </div>
+                <Button onClick={handleAddTemplate} variant="outline" size="sm" className="border-zinc-800 bg-zinc-950 text-zinc-400 hover:text-zinc-100">
+                  <Plus className="h-4 w-4 mr-2" /> Add Component
+                </Button>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" className="border-zinc-800" onClick={() => setActiveItemForDisassembly(null)}>
+              Cancel
+            </Button>
+            <Button className="bg-orange-600 hover:bg-orange-700 text-white" onClick={handleSaveDisassembly} disabled={savingDisassembly}>
+              {savingDisassembly ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+              Save Configuration
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

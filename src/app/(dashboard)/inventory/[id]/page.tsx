@@ -4,9 +4,12 @@ import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useOutlet } from '@/lib/contexts/outlet-context'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Switch } from '@/components/ui/switch'
+import { Input } from '@/components/ui/input'
+import { toast } from 'sonner'
 import {
   Table,
   TableBody,
@@ -23,6 +26,10 @@ import {
   TrendingUp,
   Layers,
   Loader2,
+  Scissors,
+  Plus,
+  Trash2,
+  Save
 } from 'lucide-react'
 import { format } from 'date-fns'
 
@@ -74,6 +81,7 @@ export default function ItemDetailPage() {
 
     fetchData()
   }, [selectedOutletId, params.id])
+
 
   const getTxnBadge = (type: string) => {
     switch (type) {
@@ -184,6 +192,8 @@ export default function ItemDetailPage() {
           </CardContent>
         </Card>
       </div>
+
+
 
       {/* Ledger Table */}
       <Card className="border-zinc-800 bg-zinc-900/50">

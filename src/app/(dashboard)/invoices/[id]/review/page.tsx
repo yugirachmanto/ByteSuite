@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, Fragment } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useOutlet } from '@/lib/contexts/outlet-context'
@@ -58,6 +58,8 @@ export default function InvoiceReviewPage() {
   const [itemMaster, setItemMaster] = useState<any[]>([])
   const [coa, setCoa] = useState<any[]>([])
   const [vendors, setVendors] = useState<any[]>([])
+  const [disassemblyTemplates, setDisassemblyTemplates] = useState<any[]>([])
+  const [disassemblyData, setDisassemblyData] = useState<Record<string, Record<string, number>>>({})
 
   // Header accounts (is_header = true) cannot receive GL postings — they are rollup-only.
   // We use the DB-native is_header flag set by the hierarchy migration.
@@ -174,6 +176,13 @@ export default function InvoiceReviewPage() {
       setItemMaster(items || [])
       setCoa(accounts || [])
       setVendors(vendorsData || [])
+
+      try {
+        const { data: tpls } = await supabase.from('disassembly_templates').select('*')
+        if (tpls) setDisassemblyTemplates(tpls)
+      } catch (e) {
+        // Migration might not be applied yet, ignore safely
+      }
 
       // Auto-match vendor_id if it is null but the vendor text is set and matches an existing vendor by name
       let updatedInv = { ...inv }
@@ -690,6 +699,60 @@ export default function InvoiceReviewPage() {
         throw new Error(`Post failed: ${rpcError.message || rpcError.details || rpcError.hint || JSON.stringify(rpcError)}`)
       }
 
+      // 3. Process Disassembly if applicable
+      for (const item of lineItems) {
+        if (!item.is_inventory || !item.item_master_id) continue;
+        const matchedItem = itemMaster.find(im => im.id === item.item_master_id)
+        if (matchedItem?.requires_disassembly && disassemblyData[item.id]) {
+          const tpls = disassemblyTemplates.filter(t => t.parent_item_id === item.item_master_id)
+          const components = []
+          for (const t of tpls) {
+            let actualQty = disassemblyData[item.id][t.id]
+            if (actualQty === undefined || actualQty === null) continue;
+            
+            let childItem = itemMaster.find(im => im.name.toLowerCase() === t.child_item_name.toLowerCase())
+            if (!childItem) {
+              const { data: newChild, error: childErr } = await supabase.from('item_master').insert({
+                org_id: orgId,
+                name: t.child_item_name,
+                unit: t.unit,
+                category: 'raw',
+                is_inventory: true
+              }).select().single()
+              
+              if (childErr) throw new Error("Failed to auto-create component item: " + t.child_item_name)
+              childItem = newChild
+              setItemMaster(prev => [...prev, newChild]) 
+            }
+            
+            const isWaste = t.child_item_name.toLowerCase().includes('waste') || t.child_item_name.toLowerCase().includes('buangan')
+            
+            components.push({
+              item_id: childItem.id,
+              qty_actual: actualQty,
+              is_waste: isWaste
+            })
+          }
+          
+          if (components.length > 0) {
+            const { data: log, error: logErr } = await supabase.from('disassembly_logs').insert({
+              invoice_id: invoice.id,
+              parent_item_id: item.item_master_id,
+              total_qty: item.qty,
+              status: 'pending'
+            }).select().single()
+            if (logErr) throw new Error("Failed to create disassembly log")
+            
+            const { error: confErr } = await supabase.rpc('confirm_disassembly', {
+              p_log_id: log.id,
+              p_outlet_id: selectedOutletId,
+              p_components: components
+            })
+            if (confErr) throw new Error("Disassembly confirmation failed: " + confErr.message)
+          }
+        }
+      }
+
       toast.success('Invoice recorded and journalized successfully!')
       router.push('/invoices')
     } catch (error: any) {
@@ -1015,8 +1078,14 @@ export default function InvoiceReviewPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {lineItems.map((item) => (
-                    <TableRow key={item.id} className="border-zinc-800 hover:bg-zinc-800/20">
+                  {lineItems.map((item) => {
+                    const matchedItem = item.item_master_id ? itemMaster.find(im => im.id === item.item_master_id) : null
+                    const requiresDisassembly = matchedItem?.requires_disassembly === true
+                    const itemTemplates = requiresDisassembly ? disassemblyTemplates.filter(t => t.parent_item_id === matchedItem.id).sort((a,b) => a.sort_order - b.sort_order) : []
+
+                    return (
+                    <Fragment key={item.id}>
+                    <TableRow className="border-zinc-800 hover:bg-zinc-800/20">
                       <TableCell className="text-center">
                         <Switch 
                           checked={item.is_inventory} 
@@ -1150,7 +1219,109 @@ export default function InvoiceReviewPage() {
                         </Button>
                       </TableCell>
                     </TableRow>
-                  ))}
+                    {requiresDisassembly && (
+                      <TableRow className="border-zinc-800 bg-orange-950/10 hover:bg-orange-950/20">
+                        <TableCell colSpan={5} className="p-4 border-l-4 border-l-orange-500">
+                           <div className="space-y-4 pl-8">
+                             <div className="space-y-1">
+                               <div className="flex items-center gap-2 text-sm text-orange-400 font-medium uppercase tracking-wider">
+                                 <Scissors className="h-4 w-4" /> Component Disassembly (Actual Yield)
+                               </div>
+                               <div className="text-xs text-zinc-400">
+                                 This item ({matchedItem?.name}) requires breakdown into components. Please enter the actual measured yields below.
+                               </div>
+                             </div>
+                             
+                             <div className="bg-zinc-950/50 border border-orange-900/30 rounded-lg p-4">
+                               <div className="grid grid-cols-12 gap-4 text-[10px] text-zinc-500 uppercase font-bold tracking-wider mb-2">
+                                 <div className="col-span-4">Component Name</div>
+                                 <div className="col-span-2 text-right">Est. Yield</div>
+                                 <div className="col-span-3 text-right">Actual Qty</div>
+                                 <div className="col-span-3">Status</div>
+                               </div>
+                               
+                               {itemTemplates.length === 0 ? (
+                                 <div className="text-xs text-zinc-500 italic py-2">No components defined in master data.</div>
+                               ) : (
+                                 itemTemplates.map((t, idx) => {
+                                   const isWaste = t.child_item_name.toLowerCase().includes('waste') || t.child_item_name.toLowerCase().includes('buangan')
+                                   const estimatedQty = (t.default_yield_pct / 100) * (item.qty || 0)
+                                   const currentVal = disassemblyData[item.id]?.[t.id] ?? ''
+                                   
+                                   let statusText = ''
+                                   let statusColor = 'text-zinc-500'
+                                   if (currentVal !== '') {
+                                      const num = parseFloat(currentVal.toString()) || 0
+                                      if (isWaste) {
+                                        const wastePct = (num / (item.qty || 1)) * 100
+                                        if (wastePct > t.waste_threshold_pct) {
+                                          statusText = `Warning: High waste (${wastePct.toFixed(1)}% > ${t.waste_threshold_pct}%)`
+                                          statusColor = 'text-red-400'
+                                        } else {
+                                          statusText = 'Normal Waste'
+                                          statusColor = 'text-emerald-400'
+                                        }
+                                      } else {
+                                        const diff = num - estimatedQty
+                                        if (Math.abs(diff) < 0.01) {
+                                          statusText = 'Exact Match'
+                                          statusColor = 'text-emerald-400'
+                                        } else if (diff > 0) {
+                                          statusText = `+${diff.toFixed(2)} ${t.unit} higher`
+                                          statusColor = 'text-emerald-400'
+                                        } else {
+                                          statusText = `${diff.toFixed(2)} ${t.unit} lower`
+                                          statusColor = 'text-amber-400'
+                                        }
+                                      }
+                                   }
+                                   
+                                   return (
+                                     <div key={t.id} className={`grid grid-cols-12 gap-4 items-center ${idx > 0 ? 'mt-3' : ''}`}>
+                                       <div className="col-span-4 flex items-center gap-2">
+                                         <span className="text-xs font-medium text-zinc-200">{t.child_item_name}</span>
+                                         {isWaste && <Badge variant="outline" className="text-[9px] h-5 border-red-500/20 text-red-400 bg-red-500/10">WASTE</Badge>}
+                                       </div>
+                                       <div className="col-span-2 text-right text-xs text-zinc-500 font-mono">
+                                         {estimatedQty.toFixed(2)} {t.unit}
+                                       </div>
+                                       <div className="col-span-3">
+                                         <div className="flex items-center gap-2 justify-end">
+                                            <Input 
+                                              type="number"
+                                              value={currentVal}
+                                              onChange={(e) => {
+                                                const val = e.target.value
+                                                setDisassemblyData(prev => ({
+                                                  ...prev,
+                                                  [item.id]: {
+                                                    ...(prev[item.id] || {}),
+                                                    [t.id]: val === '' ? '' : parseFloat(val)
+                                                  }
+                                                }))
+                                              }}
+                                              className="h-8 w-24 bg-zinc-950 border-orange-900/30 text-right font-mono text-xs focus-visible:ring-orange-500"
+                                              placeholder="Actual..."
+                                              disabled={isPosted}
+                                            />
+                                            <span className="text-[10px] text-zinc-500 uppercase">{t.unit}</span>
+                                         </div>
+                                       </div>
+                                       <div className={`col-span-3 text-[10px] ${statusColor}`}>
+                                         {statusText}
+                                       </div>
+                                     </div>
+                                   )
+                                 })
+                               )}
+                             </div>
+                           </div>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    </Fragment>
+                    )
+                  })}
                 </TableBody>
               </Table>
             </CardContent>
