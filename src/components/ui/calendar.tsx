@@ -63,12 +63,12 @@ function Calendar({
   ).reduce(
     (acc, key) => ({
       ...acc,
-      [key]: classNames?.[key as keyof typeof classNames]
+      [key]: (classNames as any)?.[key]
         ? cn(
-            defaultClassNames[key as keyof typeof classNames],
-            classNames[key as keyof typeof classNames]
+            (defaultClassNames as any)[key],
+            (classNames as any)[key]
           )
-        : defaultClassNames[key as keyof typeof classNames],
+        : (defaultClassNames as any)[key],
     }),
     {} as typeof defaultClassNames
   );

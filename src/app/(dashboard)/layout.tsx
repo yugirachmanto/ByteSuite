@@ -90,12 +90,32 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   const { selectedOutletId, setSelectedOutletId, userRole, outlets, loading: outletLoading } = useOutlet()
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
   const [mounted, setMounted] = useState(false)
+  const [hasOutstandingBilling, setHasOutstandingBilling] = useState(false)
   const supabase = createClient()
   const router = useRouter()
 
   useEffect(() => {
     setMounted(true)
   }, [])
+
+  useEffect(() => {
+    async function checkBilling() {
+      if (userRole === 'owner') {
+        const { data } = await supabase
+          .from('tenant_invoices')
+          .select('id')
+          .in('status', ['pending', 'past_due', 'under_review'])
+          .limit(1)
+          
+        if (data && data.length > 0) {
+          setHasOutstandingBilling(true)
+        }
+      }
+    }
+    if (mounted && userRole === 'owner') {
+      checkBilling()
+    }
+  }, [mounted, userRole, supabase])
 
   const selectedOutlet = outlets.find((o) => o.id === selectedOutletId)
 
@@ -183,20 +203,26 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                         pathname === item.href ||
                         (item.href !== '/dashboard' && pathname?.startsWith(item.href))
                       return (
-                        <Link
-                          key={item.name}
-                          href={item.href}
-                          className={cn(
-                            'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-                            isActive
-                              ? 'bg-zinc-800 text-zinc-100'
-                              : 'text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-100',
-                            !isSidebarOpen && 'justify-center'
-                          )}
-                        >
-                          <item.icon className="h-5 w-5" />
-                          {isSidebarOpen && <span>{item.name}</span>}
-                        </Link>
+                          <Link
+                            key={item.name}
+                            href={item.href}
+                            className={cn(
+                              'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors relative',
+                              isActive
+                                ? 'bg-zinc-800 text-zinc-100'
+                                : 'text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-100',
+                              !isSidebarOpen && 'justify-center'
+                            )}
+                          >
+                            <item.icon className="h-5 w-5" />
+                            {isSidebarOpen && <span>{item.name}</span>}
+                            {item.name === 'Billing' && hasOutstandingBilling && (
+                              <span className={cn(
+                                "absolute h-2 w-2 rounded-full bg-yellow-500",
+                                isSidebarOpen ? "right-3 top-1/2 -translate-y-1/2" : "right-1 top-1"
+                              )} />
+                            )}
+                          </Link>
                       )
                     })}
                     {!mounted && <div className="h-10 w-full animate-pulse rounded-lg bg-zinc-800/50" />}

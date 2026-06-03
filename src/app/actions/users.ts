@@ -27,8 +27,8 @@ export async function updateUserProfile(
       .eq('id', currentUser.id)
       .single()
 
-    if (!profile || profile.role !== 'owner') {
-      throw new Error('Forbidden: Only owners can manage users')
+    if (!profile || (profile.role !== 'owner' && profile.role !== 'admin')) {
+      throw new Error('Forbidden: Only owners and admins can manage users')
     }
 
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -82,8 +82,8 @@ export async function deleteUser(userId: string) {
       .eq('id', currentUser.id)
       .single()
 
-    if (!profile || profile.role !== 'owner') {
-      throw new Error('Forbidden: Only owners can manage users')
+    if (!profile || (profile.role !== 'owner' && profile.role !== 'admin')) {
+      throw new Error('Forbidden: Only owners and admins can manage users')
     }
 
     if (currentUser.id === userId) {

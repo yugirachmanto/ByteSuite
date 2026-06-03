@@ -31,7 +31,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Loader2, Users, Search, Mail, Edit } from 'lucide-react'
+import { Loader2, Users, Search, Mail, Edit, Send, Link as LinkIcon, Copy } from 'lucide-react'
 import { updateUserProfile, deleteUser } from '@/app/actions/users'
 import { toast } from 'sonner'
 import { Switch } from '@/components/ui/switch'
@@ -66,6 +66,32 @@ export default function UsersSettingsPage() {
   const [editIsActive, setEditIsActive] = useState(true)
   const [isUpdating, setIsUpdating] = useState(false)
 
+  const [isResending, setIsResending] = useState<string | null>(null)
+  const [inviteLinkData, setInviteLinkData] = useState<{name: string, link: string} | null>(null)
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null)
+
+  const handleResendInvite = async (userId: string, name: string) => {
+    setIsResending(userId)
+    try {
+      const res = await fetch('/api/users/resend-invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to resend invite')
+      
+      toast.success('Invitation email sent again!')
+      if (data.link) {
+        setInviteLinkData({ name, link: data.link })
+      }
+    } catch (err: any) {
+      toast.error(err.message)
+    } finally {
+      setIsResending(null)
+    }
+  }
+
   useEffect(() => {
     fetchData()
   }, [])
@@ -82,6 +108,13 @@ export default function UsersSettingsPage() {
     const { data: outletsData } = await supabase
       .from('outlets')
       .select('id, name')
+
+    // 3. Get current user's role
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      const { data: profile } = await supabase.from('user_profiles').select('role').eq('id', user.id).single()
+      if (profile) setCurrentUserRole(profile.role)
+    }
 
     setOutlets(outletsData || [])
     
@@ -199,6 +232,39 @@ export default function UsersSettingsPage() {
           />
         </div>
 
+        <Dialog open={!!inviteLinkData} onOpenChange={(open) => !open && setInviteLinkData(null)}>
+          <DialogContent className="sm:max-w-[425px] bg-zinc-950 border-zinc-800 text-zinc-100">
+            <DialogHeader>
+              <DialogTitle>Access Link Generated</DialogTitle>
+              <DialogDescription className="text-zinc-400">
+                A direct access link has been generated for {inviteLinkData?.name}. Please copy the link below and send it to them directly (e.g. via WhatsApp).
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+              <div className="relative">
+                <LinkIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+                <Input 
+                  value={inviteLinkData?.link || ''}
+                  readOnly
+                  className="bg-zinc-900 border-zinc-800 pl-10 pr-4"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="ghost" onClick={() => setInviteLinkData(null)} className="text-zinc-400 hover:text-zinc-100">
+                Close
+              </Button>
+              <Button type="button" onClick={() => {
+                navigator.clipboard.writeText(inviteLinkData?.link || '')
+                toast.success('Link copied to clipboard')
+              }} className="bg-indigo-600 text-white hover:bg-indigo-700">
+                <Copy className="h-4 w-4 mr-2" />
+                Copy Link
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         <Dialog open={isInviteOpen} onOpenChange={setIsInviteOpen}>
           <DialogTrigger render={<Button className="bg-zinc-100 text-zinc-900 hover:bg-zinc-200" />}>
             <Mail className="mr-2 h-4 w-4" />
@@ -237,7 +303,7 @@ export default function UsersSettingsPage() {
                 </div>
                 <div className="grid gap-2">
                   <Label className="text-zinc-300">Role</Label>
-                  <Select value={inviteRole} onValueChange={setInviteRole}>
+                  <Select value={inviteRole} onValueChange={(val) => val && setInviteRole(val)}>
                     <SelectTrigger className="bg-zinc-900 border-zinc-800">
                       <SelectValue placeholder="Select a role" />
                     </SelectTrigger>
@@ -290,7 +356,6 @@ export default function UsersSettingsPage() {
             </form>
           </DialogContent>
         </Dialog>
-
         <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
           <DialogContent className="sm:max-w-[425px] bg-zinc-950 border-zinc-800 text-zinc-100">
             <form onSubmit={handleUpdateUser}>
@@ -314,7 +379,7 @@ export default function UsersSettingsPage() {
                 </div>
                 <div className="grid gap-2">
                   <Label className="text-zinc-300">Role</Label>
-                  <Select value={editRole} onValueChange={setEditRole}>
+                  <Select value={editRole} onValueChange={(val) => val && setEditRole(val)}>
                     <SelectTrigger className="bg-zinc-900 border-zinc-800">
                       <SelectValue placeholder="Select a role" />
                     </SelectTrigger>
@@ -472,9 +537,22 @@ export default function UsersSettingsPage() {
                     )}
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button variant="ghost" size="sm" onClick={() => openEdit(u)} className="text-zinc-400 hover:text-zinc-100 text-xs">
-                      Edit
-                    </Button>
+                    <div className="flex justify-end gap-1">
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        disabled={isResending === u.id}
+                        onClick={() => handleResendInvite(u.id, displayName)} 
+                        className="text-amber-500 hover:text-amber-400 hover:bg-amber-950/30 text-xs px-2"
+                        title="Resend Invitation"
+                      >
+                        {isResending === u.id ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Send className="h-3 w-3 mr-1" />}
+                        Resend
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => openEdit(u)} className="text-zinc-400 hover:text-zinc-100 text-xs px-2">
+                        Edit
+                      </Button>
+                    </div>
                   </TableCell>
                   </TableRow>
                 )

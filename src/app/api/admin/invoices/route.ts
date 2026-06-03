@@ -29,7 +29,7 @@ export async function GET(request: Request) {
       auth: { autoRefreshToken: false, persistSession: false }
     })
 
-    let query = adminClient.from('tenant_invoices').select('*').order('created_at', { ascending: false })
+    let query = adminClient.from('tenant_invoices').select('*, organizations(name)').order('created_at', { ascending: false })
     if (org_id) {
       query = query.eq('org_id', org_id)
     }
@@ -71,9 +71,9 @@ export async function POST(request: Request) {
     })
 
     const body = await request.json()
-    const { org_id, description, amount, due_date } = body
+    const { org_id, payment_outlet_id, description, amount, due_date } = body
 
-    if (!org_id || !description || amount === undefined) {
+    if (!org_id || !payment_outlet_id || !description || amount === undefined) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
@@ -81,6 +81,7 @@ export async function POST(request: Request) {
       .from('tenant_invoices')
       .insert({
         org_id,
+        payment_outlet_id,
         description,
         amount,
         due_date: due_date || null,
@@ -90,6 +91,19 @@ export async function POST(request: Request) {
       .single()
 
     if (error) throw error
+
+    // Also immediately insert a pending AP invoice for the tenant's outlet
+    const today = new Date().toISOString().split('T')[0]
+    await adminClient.from('invoices').insert({
+      outlet_id: payment_outlet_id,
+      vendor: 'ByteSuite',
+      invoice_no: `SUB-${invoice.id.split('-')[0].toUpperCase()}`,
+      invoice_date: today,
+      grand_total: amount,
+      paid_amount: 0,
+      status: 'pending',
+      payment_status: 'unpaid',
+    })
 
     return NextResponse.json({ success: true, invoice })
 
@@ -159,6 +173,34 @@ export async function PATCH(request: Request) {
             description: description
           }
         ])
+
+        // Update the existing AP Invoice (or create if it somehow doesn't exist for older billings)
+        const invoiceNo = `SUB-${invoice.id.split('-')[0].toUpperCase()}`
+        const { data: existingAP } = await adminClient
+          .from('invoices')
+          .select('id')
+          .eq('invoice_no', invoiceNo)
+          .eq('vendor', 'ByteSuite')
+          .maybeSingle()
+
+        if (existingAP) {
+          await adminClient.from('invoices').update({
+            status: 'posted',
+            payment_status: 'paid',
+            paid_amount: invoice.amount
+          }).eq('id', existingAP.id)
+        } else {
+          await adminClient.from('invoices').insert({
+            outlet_id: invoice.payment_outlet_id,
+            vendor: 'ByteSuite',
+            invoice_no: invoiceNo,
+            invoice_date: today,
+            grand_total: invoice.amount,
+            paid_amount: invoice.amount,
+            status: 'posted',
+            payment_status: 'paid',
+          })
+        }
       }
     }
 
@@ -175,6 +217,59 @@ export async function PATCH(request: Request) {
 
   } catch (error: any) {
     console.error('Update invoice error:', error)
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    if (!serviceRoleKey) return NextResponse.json({ error: 'Missing service role key' }, { status: 500 })
+
+    const authSupabase = await createServerClient()
+    const { data: { user } } = await authSupabase.auth.getUser()
+    
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    const { data: profile } = await authSupabase
+      .from('user_profiles')
+      .select('is_superadmin')
+      .eq('id', user.id)
+      .single()
+
+    if (!profile || !profile.is_superadmin) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    const adminClient = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceRoleKey, {
+      auth: { autoRefreshToken: false, persistSession: false }
+    })
+
+    const { searchParams } = new URL(request.url)
+    const id = searchParams.get('id')
+
+    if (!id) return NextResponse.json({ error: 'Missing invoice id' }, { status: 400 })
+
+    const { data: invoice } = await adminClient.from('tenant_invoices').select('status').eq('id', id).single()
+    if (!invoice) return NextResponse.json({ error: 'Invoice not found' }, { status: 404 })
+
+    // Only allow deletion of pending or under_review
+    if (invoice.status === 'paid') {
+      return NextResponse.json({ error: 'Cannot delete a paid invoice' }, { status: 400 })
+    }
+
+    // Delete corresponding AP invoice
+    const invoiceNo = `SUB-${id.split('-')[0].toUpperCase()}`
+    await adminClient.from('invoices').delete().eq('invoice_no', invoiceNo).eq('vendor', 'ByteSuite')
+
+    // Delete tenant invoice
+    const { error } = await adminClient.from('tenant_invoices').delete().eq('id', id)
+    if (error) throw error
+
+    return NextResponse.json({ success: true })
+
+  } catch (error: any) {
+    console.error('Delete invoice error:', error)
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
   }
 }

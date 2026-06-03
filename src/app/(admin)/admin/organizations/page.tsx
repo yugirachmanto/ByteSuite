@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Building2, Loader2, CreditCard, Ban, CheckCircle2, Settings, ChevronRight, ChevronDown, User, PlusCircle, FileText } from 'lucide-react'
+import { Building2, Loader2, CreditCard, Ban, CheckCircle2, Settings, ChevronRight, ChevronDown, User, PlusCircle, FileText, Trash2 } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -29,6 +29,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
+import { format } from 'date-fns'
 
 export default function AdminOrganizationsPage() {
   const [groupedOrgs, setGroupedOrgs] = useState<{ ownerName: string, orgs: any[] }[]>([])
@@ -45,6 +46,10 @@ export default function AdminOrganizationsPage() {
   const [invoiceDesc, setInvoiceDesc] = useState('')
   const [invoiceAmount, setInvoiceAmount] = useState('')
   const [invoiceDue, setInvoiceDue] = useState('')
+  const [invoiceOutletId, setInvoiceOutletId] = useState('')
+
+  // Receipt Modal State
+  const [viewingReceipt, setViewingReceipt] = useState<any>(null)
 
   useEffect(() => {
     fetchOrgs()
@@ -113,6 +118,7 @@ export default function AdminOrganizationsPage() {
     setInvoiceDesc(`${org.subscription_plan || 'Pro'} Plan - Custom Setup`)
     setInvoiceAmount('')
     setInvoiceDue('')
+    setInvoiceOutletId(org.outlets?.[0]?.id || '')
     setIsBillingOpen(true)
   }
 
@@ -125,6 +131,7 @@ export default function AdminOrganizationsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           org_id: selectedOrg.id,
+          payment_outlet_id: invoiceOutletId,
           description: invoiceDesc,
           amount: parseFloat(invoiceAmount),
           due_date: invoiceDue || null,
@@ -147,6 +154,18 @@ export default function AdminOrganizationsPage() {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: invoiceId, status })
+      })
+      if (res.ok) fetchOrgs()
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
+  async function deleteInvoice(invoiceId: string) {
+    if (!confirm('Are you sure you want to delete this billing?')) return
+    try {
+      const res = await fetch(`/api/admin/invoices?id=${invoiceId}`, {
+        method: 'DELETE',
       })
       if (res.ok) fetchOrgs()
     } catch (err) {
@@ -293,7 +312,7 @@ export default function AdminOrganizationsPage() {
                                       {org.tenant_invoices.sort((a:any, b:any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).map((inv: any) => (
                                         <TableRow key={inv.id} className="border-zinc-800/50 hover:bg-zinc-800/30 text-sm">
                                           <TableCell className="text-zinc-300">
-                                            {new Date(inv.created_at).toLocaleDateString()}
+                                            {format(new Date(inv.created_at), 'dd/MM/yyyy')}
                                           </TableCell>
                                           <TableCell className="text-zinc-100">{inv.description}</TableCell>
                                           <TableCell className="text-zinc-300">
@@ -332,15 +351,14 @@ export default function AdminOrganizationsPage() {
                                                 </Button>
                                               )}
                                               {inv.receipt_url && (
-                                                <a href={inv.receipt_url} target="_blank" rel="noopener noreferrer">
-                                                  <Button 
-                                                    variant="ghost" 
-                                                    size="sm" 
-                                                    className="h-7 text-xs text-indigo-400 hover:text-indigo-300 hover:bg-indigo-950/30"
-                                                  >
-                                                    Receipt
-                                                  </Button>
-                                                </a>
+                                                <Button 
+                                                  variant="ghost" 
+                                                  size="sm" 
+                                                  className="h-7 text-xs text-indigo-400 hover:text-indigo-300 hover:bg-indigo-950/30"
+                                                  onClick={() => setViewingReceipt(inv)}
+                                                >
+                                                  Receipt
+                                                </Button>
                                               )}
                                               {inv.status === 'paid' && (
                                                 <Button 
@@ -350,6 +368,16 @@ export default function AdminOrganizationsPage() {
                                                   onClick={() => updateInvoiceStatus(inv.id, 'pending')}
                                                 >
                                                   Mark Pending
+                                                </Button>
+                                              )}
+                                              {inv.status !== 'paid' && (
+                                                <Button 
+                                                  variant="ghost" 
+                                                  size="icon" 
+                                                  className="h-7 w-7 text-zinc-500 hover:text-red-400 hover:bg-red-950/30 ml-2"
+                                                  onClick={() => deleteInvoice(inv.id)}
+                                                >
+                                                  <Trash2 className="h-4 w-4" />
                                                 </Button>
                                               )}
                                             </div>
@@ -407,6 +435,21 @@ export default function AdminOrganizationsPage() {
                 />
               </div>
               <div className="grid gap-2">
+                <Label className="text-zinc-300">Target Outlet</Label>
+                <Select value={invoiceOutletId} onValueChange={(v) => setInvoiceOutletId(v || '')} required>
+                  <SelectTrigger className="bg-zinc-900 border-zinc-800">
+                    <SelectValue placeholder="Select an outlet">
+                      {invoiceOutletId ? selectedOrg?.outlets?.find((o: any) => o.id === invoiceOutletId)?.name : "Select an outlet"}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent className="bg-zinc-950 border-zinc-800">
+                    {selectedOrg?.outlets?.map((o: any) => (
+                      <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
                 <Label className="text-zinc-300">Due Date</Label>
                 <Input 
                   type="date" 
@@ -427,6 +470,46 @@ export default function AdminOrganizationsPage() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Receipt View Modal */}
+      <Dialog open={!!viewingReceipt} onOpenChange={(open) => !open && setViewingReceipt(null)}>
+        <DialogContent className="sm:max-w-[600px] bg-zinc-950 border-zinc-800 text-zinc-100">
+          <DialogHeader>
+            <DialogTitle>Payment Receipt</DialogTitle>
+            <DialogDescription className="text-zinc-400">
+              Review the payment receipt below.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 flex justify-center bg-zinc-900 rounded-md overflow-hidden relative min-h-[200px]">
+            {viewingReceipt?.receipt_url ? (
+              viewingReceipt.receipt_url.toLowerCase().endsWith('.pdf') ? (
+                <iframe src={viewingReceipt.receipt_url} className="w-full h-[60vh] border-0 bg-white" />
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={viewingReceipt.receipt_url} alt="Receipt" className="max-w-full max-h-[60vh] object-contain" />
+              )
+            ) : (
+              <span className="text-zinc-500 my-auto">No receipt found.</span>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setViewingReceipt(null)} className="text-zinc-400 hover:text-zinc-100">
+              Close
+            </Button>
+            {viewingReceipt?.status === 'under_review' && (
+              <Button 
+                onClick={() => {
+                  updateInvoiceStatus(viewingReceipt.id, 'paid')
+                  setViewingReceipt(null)
+                }} 
+                className="bg-emerald-600 text-white hover:bg-emerald-700"
+              >
+                Approve Payment
+              </Button>
+            )}
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

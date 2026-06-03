@@ -11,7 +11,7 @@ import {
   TableHeader, TableRow
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
-import { Upload, Search, Trash2, X, ChevronDown } from 'lucide-react'
+import { Upload, Search, Trash2, X, ChevronDown, BadgeCheck } from 'lucide-react'
 import Link from 'next/link'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
@@ -285,44 +285,65 @@ export default function InvoicesPage() {
               filtered.map((invoice) => (
                 <TableRow
                   key={invoice.id}
-                  className="border-zinc-800 hover:bg-zinc-800/30 cursor-pointer"
-                  onClick={() => router.push(`/invoices/${invoice.id}/review`)}
+                  className={`border-zinc-800 ${invoice.vendor !== 'ByteSuite' ? 'hover:bg-zinc-800/30 cursor-pointer' : 'opacity-80'}`}
+                  onClick={() => invoice.vendor !== 'ByteSuite' && router.push(`/invoices/${invoice.id}/review`)}
                 >
                   <TableCell className="text-zinc-300">
                     {invoice.invoice_date
                       ? format(new Date(invoice.invoice_date), 'dd MMM yyyy')
                       : format(new Date(invoice.created_at), 'dd MMM yyyy')}
                   </TableCell>
-                  <TableCell className="font-medium text-zinc-100">{invoice.vendor || <span className="italic text-zinc-600">Extracting…</span>}</TableCell>
+                  <TableCell className="font-medium text-zinc-100">
+                    <div className="flex items-center gap-2">
+                      {invoice.vendor || <span className="italic text-zinc-600">Extracting…</span>}
+                      {invoice.vendor === 'ByteSuite' && (
+                        <div className="flex items-center gap-1.5">
+                          <BadgeCheck className="h-4 w-4 text-indigo-400" />
+                          <Badge variant="outline" className="text-[10px] bg-indigo-500/10 text-indigo-400 border-indigo-500/20">
+                            Subscription
+                          </Badge>
+                        </div>
+                      )}
+                    </div>
+                  </TableCell>
                   <TableCell className="text-zinc-400">{invoice.invoice_no || <span className="text-zinc-700">—</span>}</TableCell>
                   <TableCell className="text-zinc-100 font-semibold font-mono">
                     {invoice.grand_total ? formatRp(invoice.grand_total) : <span className="text-zinc-700">—</span>}
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
-                      <div className="h-6 w-6 rounded-full bg-zinc-700 flex items-center justify-center text-[10px] text-zinc-300 font-medium">
-                        {(invoice._author || 'U').charAt(0).toUpperCase()}
+                      <div className={`h-6 w-6 rounded-full flex items-center justify-center text-[10px] font-medium ${invoice.vendor === 'ByteSuite' ? 'bg-indigo-500/20 text-indigo-400' : 'bg-zinc-700 text-zinc-300'}`}>
+                        {invoice.vendor === 'ByteSuite' ? 'B' : (invoice._author || 'U').charAt(0).toUpperCase()}
                       </div>
-                      <span className="text-xs text-zinc-400">{invoice._author || 'Unknown'}</span>
+                      <span className="text-xs text-zinc-400 flex items-center gap-1">
+                        {invoice.vendor === 'ByteSuite' ? (
+                          <>
+                            ByteSuite
+                            <BadgeCheck className="h-3 w-3 text-indigo-400" />
+                          </>
+                        ) : (invoice._author || 'Unknown')}
+                      </span>
                     </div>
                   </TableCell>
                   <TableCell><StatusBadge status={invoice.status} /></TableCell>
                   <TableCell className="text-right" onClick={e => e.stopPropagation()}>
                     <div className="flex items-center justify-end gap-1">
-                      {(invoice.status === 'extracted' || invoice.status === 'pending') && (
+                      {(invoice.status === 'extracted' || invoice.status === 'pending') && invoice.vendor !== 'ByteSuite' && (
                         <Link href={`/invoices/${invoice.id}/review`}>
                           <Button variant="ghost" size="sm" className="text-blue-400 hover:text-blue-300 hover:bg-blue-400/10">
                             Review
                           </Button>
                         </Link>
                       )}
-                      <Button
-                        variant="ghost" size="icon"
-                        className="text-zinc-600 hover:text-red-400 hover:bg-red-400/10"
-                        onClick={e => deleteInvoice(invoice.id, e)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      {invoice.status !== 'posted' && invoice.vendor !== 'ByteSuite' && (
+                        <Button
+                          variant="ghost" size="icon"
+                          className="text-zinc-600 hover:text-red-400 hover:bg-red-400/10"
+                          onClick={e => deleteInvoice(invoice.id, e)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>

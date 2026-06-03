@@ -37,8 +37,10 @@ export default function DashboardPage() {
     inventoryValue: 0,
     apTotal: 0,
     lowStockCount: 0,
+    apAging: { current: 0, days1_30: 0, days31_60: 0, days60plus: 0 }
   })
   const [recentInvoices, setRecentInvoices] = useState<any[]>([])
+  const [recentMovements, setRecentMovements] = useState<any[]>([])
 
   useEffect(() => {
     async function fetchUserName() {
@@ -67,6 +69,7 @@ export default function DashboardPage() {
           { data: invBalance },
           { data: apData },
           { data: recentInv },
+          { data: recentMov },
         ] = await Promise.all([
           supabase
             .from('invoices')
@@ -81,7 +84,7 @@ export default function DashboardPage() {
             .eq('outlet_id', selectedOutletId),
           supabase
             .from('invoices')
-            .select('grand_total, paid_amount')
+            .select('grand_total, paid_amount, due_date')
             .eq('outlet_id', selectedOutletId)
             .eq('status', 'posted')
             .neq('payment_status', 'paid'),
@@ -91,6 +94,15 @@ export default function DashboardPage() {
             .eq('outlet_id', selectedOutletId)
             .order('created_at', { ascending: false })
             .limit(6),
+          supabase
+            .from('stock_ledger')
+            .select(`
+              id, created_at, txn_type, qty,
+              item_master ( name, unit )
+            `)
+            .eq('outlet_id', selectedOutletId)
+            .order('created_at', { ascending: false })
+            .limit(5),
         ])
 
         const invValue =
@@ -104,21 +116,46 @@ export default function DashboardPage() {
             const level = (i.item_master as any)?.reorder_level || 0
             return onHand <= level
           }).length || 0
-        const apSum =
-          apData?.reduce(
-            (acc, curr) =>
-              acc +
-              (Number(curr.grand_total) - (Number(curr.paid_amount) || 0)),
-            0
-          ) || 0
+        let apSum = 0
+        let current = 0
+        let days1_30 = 0
+        let days31_60 = 0
+        let days60plus = 0
+
+        apData?.forEach((inv) => {
+          const balance = Number(inv.grand_total) - (Number(inv.paid_amount) || 0)
+          apSum += balance
+
+          if (!inv.due_date) {
+            current += balance
+            return
+          }
+          const due = new Date(inv.due_date)
+          due.setHours(0,0,0,0)
+          const today = new Date()
+          today.setHours(0,0,0,0)
+          const diffDays = Math.ceil((today.getTime() - due.getTime()) / (1000 * 3600 * 24))
+
+          if (diffDays <= 0) {
+            current += balance
+          } else if (diffDays <= 30) {
+            days1_30 += balance
+          } else if (diffDays <= 60) {
+            days31_60 += balance
+          } else {
+            days60plus += balance
+          }
+        })
 
         setStats({
           invoiceCount: invCount || 0,
           inventoryValue: invValue,
           apTotal: apSum,
           lowStockCount: lowStock,
+          apAging: { current, days1_30, days31_60, days60plus }
         })
         setRecentInvoices(recentInv || [])
+        setRecentMovements(recentMov || [])
       } catch (error) {
         console.error('Error fetching dashboard stats:', error)
       } finally {
@@ -482,6 +519,98 @@ export default function DashboardPage() {
                   </span>
                 </div>
               ))}
+            </div>
+          </div>
+
+          {/* AP Aging Widget */}
+          <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 backdrop-blur-sm overflow-hidden">
+            <div className="px-6 py-4 border-b border-zinc-800/60 flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-bold text-zinc-100">AP Aging</h3>
+                <p className="text-[11px] text-zinc-500 mt-0.5">Payables by due date</p>
+              </div>
+              <DollarSign className="h-4 w-4 text-zinc-500" />
+            </div>
+            <div className="p-4 space-y-3">
+              {[
+                { label: 'Current (Not Due)', amount: stats.apAging.current, color: 'text-emerald-400', bar: 'bg-emerald-500' },
+                { label: '1 - 30 Days Overdue', amount: stats.apAging.days1_30, color: 'text-amber-400', bar: 'bg-amber-500' },
+                { label: '31 - 60 Days Overdue', amount: stats.apAging.days31_60, color: 'text-orange-400', bar: 'bg-orange-500' },
+                { label: '> 60 Days Overdue', amount: stats.apAging.days60plus, color: 'text-red-400', bar: 'bg-red-500' }
+              ].map((bucket) => {
+                const max = Math.max(stats.apTotal, 1);
+                const pct = (bucket.amount / max) * 100;
+                return (
+                  <div key={bucket.label} className="space-y-1">
+                    <div className="flex justify-between text-xs">
+                      <span className="text-zinc-400">{bucket.label}</span>
+                      <span className={`font-mono font-bold ${bucket.amount > 0 ? bucket.color : 'text-zinc-600'}`}>
+                        {formatRp(bucket.amount)}
+                      </span>
+                    </div>
+                    <div className="h-1.5 w-full bg-zinc-800/50 rounded-full overflow-hidden">
+                      <div 
+                        className={`h-full ${bucket.bar} rounded-full transition-all duration-1000 ${bucket.amount > 0 ? 'opacity-100' : 'opacity-0'}`} 
+                        style={{ width: `${pct}%` }} 
+                      />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Recent Inventory Movements */}
+          <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 backdrop-blur-sm overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800/60">
+              <div>
+                <h3 className="text-sm font-bold text-zinc-100">Inventory Movements</h3>
+                <p className="text-[11px] text-zinc-500 mt-0.5">Latest stock changes</p>
+              </div>
+              <Link href="/inventory/ledger">
+                <Button variant="ghost" size="sm" className="h-8 text-xs text-zinc-400 hover:text-zinc-100 group gap-1.5">
+                  Ledger
+                  <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-0.5" />
+                </Button>
+              </Link>
+            </div>
+            <div className="p-4 space-y-2">
+              {loading ? (
+                Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="h-14 animate-pulse rounded-lg bg-zinc-800/40" />
+                ))
+              ) : recentMovements.length === 0 ? (
+                <div className="flex h-32 flex-col items-center justify-center text-zinc-600 gap-2">
+                  <Package className="h-5 w-5 opacity-40" />
+                  <p className="text-sm font-medium">No recent movements</p>
+                </div>
+              ) : (
+                recentMovements.map((mov) => (
+                  <div key={mov.id} className="flex items-center justify-between px-4 py-3 rounded-lg bg-zinc-950/50 border border-zinc-800/40 hover:border-zinc-700/60 hover:bg-zinc-900/70 transition-all duration-150">
+                    <div className="flex items-center gap-3">
+                      <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${mov.qty > 0 ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'}`}>
+                        <Package className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-zinc-200">
+                          {mov.item_master?.name}
+                        </p>
+                        <p className="text-[10px] text-zinc-600 font-mono">
+                          {new Date(mov.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className={`text-sm font-bold font-mono ${mov.qty > 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                        {mov.qty > 0 ? '+' : ''}{mov.qty} <span className="text-[10px] font-normal text-zinc-500">{mov.item_master?.unit}</span>
+                      </p>
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">
+                        {mov.txn_type}
+                      </p>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>

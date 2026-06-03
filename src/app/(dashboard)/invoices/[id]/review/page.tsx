@@ -7,6 +7,7 @@ import { useOutlet } from '@/lib/contexts/outlet-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
 import { 
   Table, 
   TableBody, 
@@ -30,7 +31,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from 'sonner'
-import { Search, Loader2, Plus, ArrowLeft, ArrowRight, ArrowRightLeft, BookOpen, Check, Save, Trash2, Edit2, AlertCircle, Package, Receipt, Calculator, ChevronRight, Layers, LayoutGrid, Tag, FileText, CheckCircle2, History, TrendingUp, AlertTriangle, FileSpreadsheet, Download, Bot } from 'lucide-react'
+import { Search, Loader2, Plus, ArrowLeft, ArrowRight, ArrowRightLeft, BookOpen, Check, Save, Trash2, Edit2, AlertCircle, Package, Receipt, Calculator, ChevronRight, Layers, LayoutGrid, Tag, FileText, CheckCircle2, History, TrendingUp, AlertTriangle, FileSpreadsheet, Download, Bot, Scissors } from 'lucide-react'
 import { STANDARD_UOMS } from '@/lib/constants'
 import { formatRp } from '@/lib/format'
 
@@ -660,6 +661,8 @@ export default function InvoiceReviewPage() {
   const executePost = async (option: 'distribute' | 'expense') => {
     setPosting(true)
     try {
+      const checkedInvoiceNo = await validateAndFormatInvoiceNo()
+
       const { p_lines, p_freight_amount, p_freight_distributed } = preparePostLines(option)
 
       // 1. Update invoice metadata first
@@ -669,7 +672,7 @@ export default function InvoiceReviewPage() {
         grand_total: calculatedGrandTotal,
         vendor: invoice.vendor,
         vendor_id: invoice.vendor_id,
-        invoice_no: invoice.invoice_no,
+        invoice_no: checkedInvoiceNo,
         invoice_date: invoice.invoice_date,
         due_date: dueDate || null,
         discount: invoice.discount || 0,
@@ -797,16 +800,47 @@ export default function InvoiceReviewPage() {
     }
   }
 
+  const validateAndFormatInvoiceNo = async () => {
+    let currentInvoiceNo = invoice.invoice_no?.trim() || ''
+    if (!currentInvoiceNo) {
+      const now = new Date()
+      const yyyy = now.getFullYear()
+      const mm = (now.getMonth() + 1).toString().padStart(2, '0')
+      const dd = now.getDate().toString().padStart(2, '0')
+      const random = Math.floor(1000 + Math.random() * 9000)
+      currentInvoiceNo = `INV-${yyyy}${mm}${dd}-${random}`
+    }
+    
+    // Check for duplicate
+    if (invoice.vendor_id) {
+      const { data: dups } = await supabase
+        .from('invoices')
+        .select('id')
+        .eq('vendor_id', invoice.vendor_id)
+        .eq('invoice_no', currentInvoiceNo)
+        .neq('id', invoice.id)
+        .neq('status', 'rejected')
+        .limit(1)
+        
+      if (dups && dups.length > 0) {
+        throw new Error(`Duplicate detected: An active invoice with number "${currentInvoiceNo}" already exists for this vendor.`)
+      }
+    }
+    
+    return currentInvoiceNo
+  }
+
   const handleSaveDraft = async () => {
     setSaving(true)
     try {
+      const checkedInvoiceNo = await validateAndFormatInvoiceNo()
       const payload = {
         subtotal: calculatedSubtotal,
         tax_total: calculatedTax,
         grand_total: calculatedGrandTotal,
         vendor: invoice.vendor,
         vendor_id: invoice.vendor_id,
-        invoice_no: invoice.invoice_no,
+        invoice_no: checkedInvoiceNo,
         invoice_date: invoice.invoice_date,
         due_date: dueDate || null,
         discount: invoice.discount || 0,
@@ -829,13 +863,14 @@ export default function InvoiceReviewPage() {
   const handleApprove = async () => {
     setApproving(true)
     try {
+      const checkedInvoiceNo = await validateAndFormatInvoiceNo()
       const payload = {
         subtotal: calculatedSubtotal,
         tax_total: calculatedTax,
         grand_total: calculatedGrandTotal,
         vendor: invoice.vendor,
         vendor_id: invoice.vendor_id,
-        invoice_no: invoice.invoice_no,
+        invoice_no: checkedInvoiceNo,
         invoice_date: invoice.invoice_date,
         due_date: dueDate || null,
         discount: invoice.discount || 0,
@@ -1250,7 +1285,7 @@ export default function InvoiceReviewPage() {
                                    
                                    let statusText = ''
                                    let statusColor = 'text-zinc-500'
-                                   if (currentVal !== '') {
+                                   if (String(currentVal) !== '') {
                                       const num = parseFloat(currentVal.toString()) || 0
                                       if (isWaste) {
                                         const wastePct = (num / (item.qty || 1)) * 100

@@ -31,7 +31,7 @@ export async function GET() {
       .from('organizations')
       .select(`
         *,
-        outlets (count),
+        outlets (id, name),
         user_profiles (id, full_name, role),
         tenant_invoices (*)
       `)

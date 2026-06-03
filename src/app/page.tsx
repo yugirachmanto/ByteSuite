@@ -19,10 +19,10 @@ export default function HeroSection() {
     const router = useRouter()
 
     React.useEffect(() => {
-        if (typeof window !== 'undefined' && window.location.hash.includes('type=invite')) {
-            router.push('/setup-account' + window.location.hash)
+        if (typeof window !== 'undefined' && (window.location.hash.includes('type=invite') || window.location.hash.includes('type=recovery'))) {
+            window.location.href = '/setup-account' + window.location.hash
         }
-    }, [router])
+    }, [])
 
     return (
         <div>

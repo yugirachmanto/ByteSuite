@@ -22,37 +22,78 @@ export default function SetupAccountPage() {
   const supabase = createClient()
 
   useEffect(() => {
-    async function checkUser() {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        setUser(user)
-        // Fetch existing profile to pre-fill name if available
-        const { data: profile } = await supabase
-          .from('user_profiles')
-          .select('full_name')
-          .eq('id', user.id)
-          .single()
-        
-        if (profile?.full_name) {
-          const cleanName = profile.full_name.startsWith('[INVITED] ')
-            ? profile.full_name.replace('[INVITED] ', '')
-            : profile.full_name
-          setFullName(cleanName)
-        }
-      } else {
-        toast.error('Invalid or expired invitation link')
-        router.push('/login')
+    let mounted = true
+
+    const fetchProfile = async (userId: string) => {
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('full_name')
+        .eq('id', userId)
+        .single()
+      
+      if (profile?.full_name && mounted) {
+        const cleanName = profile.full_name.startsWith('[INVITED] ')
+          ? profile.full_name.replace('[INVITED] ', '')
+          : profile.full_name
+        setFullName(cleanName)
       }
-      setPageLoading(false)
+      if (mounted) setPageLoading(false)
     }
 
-    // Wait a brief moment to allow Supabase to process the URL hash if they just landed here
-    const timer = setTimeout(() => {
-      checkUser()
-    }, 500)
+    const initSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session?.user && mounted) {
+        setUser(session.user)
+        fetchProfile(session.user.id)
+      }
+    }
 
-    return () => clearTimeout(timer)
-  }, [supabase, router])
+    const handleAuthFlow = async () => {
+      if (typeof window === 'undefined') return
+      const params = new URLSearchParams(window.location.search)
+      const code = params.get('code')
+      
+      if (code) {
+        const { data, error } = await supabase.auth.exchangeCodeForSession(code)
+        if (!error && data.session && mounted) {
+          setUser(data.session.user)
+          fetchProfile(data.session.user.id)
+          window.history.replaceState({}, document.title, window.location.pathname)
+        } else {
+          initSession()
+        }
+      } else {
+        initSession()
+      }
+    }
+
+    handleAuthFlow()
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session?.user && mounted) {
+        setUser(session.user)
+        fetchProfile(session.user.id)
+      }
+    })
+
+    // Fallback: if after 3.5 seconds we still don't have a user, it's probably invalid
+    const timer = setTimeout(() => {
+      if (mounted && pageLoading) {
+        supabase.auth.getSession().then(({ data }) => {
+          if (!data.session?.user && mounted) {
+            toast.error('Invalid or expired invitation link')
+            router.push('/login')
+          }
+        })
+      }
+    }, 3500)
+
+    return () => {
+      mounted = false
+      subscription.unsubscribe()
+      clearTimeout(timer)
+    }
+  }, [supabase, router, pageLoading])
 
   const handleSetup = async (e: React.FormEvent) => {
     e.preventDefault()

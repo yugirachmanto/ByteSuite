@@ -68,6 +68,7 @@ export default function BOMPage() {
     name: '',
     unit: 'PCS',
     default_coa_id: '',
+    default_coa_search: '',
   })
   const [savingWip, setSavingWip] = useState(false)
   
@@ -161,7 +162,7 @@ export default function BOMPage() {
       setWipItems(prev => [data, ...prev])
       setSelectedWipId(data.id)
       setNewWipModalOpen(false)
-      setNewWipData({ name: '', unit: 'PCS', default_coa_id: '' })
+      setNewWipData({ name: '', unit: 'PCS', default_coa_id: '', default_coa_search: '' })
       toast.success(`WIP "${data.name}" created! You can now define its BOM below.`)
     } catch (error: any) {
       toast.error(error.message || 'Failed to create WIP item')
@@ -593,7 +594,7 @@ export default function BOMPage() {
 
       {/* Create New WIP Modal */}
       <Dialog open={newWipModalOpen} onOpenChange={setNewWipModalOpen}>
-        <DialogContent className="bg-zinc-950 border-zinc-800 sm:max-w-md text-zinc-100">
+        <DialogContent className="bg-zinc-950 border-zinc-800 sm:max-w-xl text-zinc-100">
           <DialogHeader>
             <DialogTitle className="text-zinc-100">Create New WIP Item</DialogTitle>
             <DialogDescription className="text-zinc-400">
@@ -625,16 +626,28 @@ export default function BOMPage() {
               </div>
               <div className="space-y-2">
                 <label className="text-xs text-zinc-500 font-medium uppercase">Default COA (Optional)</label>
-                <select 
-                  value={newWipData.default_coa_id}
-                  onChange={e => setNewWipData({...newWipData, default_coa_id: e.target.value})}
-                  className="w-full bg-zinc-900 border border-zinc-800 rounded-md px-3 h-9 text-sm text-zinc-100 focus:outline-none"
-                >
-                  <option value="">No Default Account</option>
-                  {coa.map(acc => (
-                    <option key={acc.id} value={acc.id}>{acc.code} - {acc.name}</option>
-                  ))}
-                </select>
+                <div className="relative">
+                  <Input
+                    list="coa-list"
+                    placeholder="Search account code or name..."
+                    value={newWipData.default_coa_search}
+                    onChange={(e) => {
+                      const val = e.target.value
+                      const match = coa.find(a => `${a.code} - ${a.name}` === val)
+                      setNewWipData({
+                        ...newWipData, 
+                        default_coa_search: val,
+                        default_coa_id: match ? match.id : ''
+                      })
+                    }}
+                    className="w-full bg-zinc-900 border-zinc-800 h-9 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none"
+                  />
+                  <datalist id="coa-list">
+                    {coa.map(acc => (
+                      <option key={acc.id} value={`${acc.code} - ${acc.name}`} />
+                    ))}
+                  </datalist>
+                </div>
               </div>
             </div>
           </div>

@@ -16,7 +16,7 @@ import {
   TableHeader, 
   TableRow 
 } from '@/components/ui/table'
-import { ArrowLeft, Loader2, Hammer, AlertTriangle, CheckCircle2 } from 'lucide-react'
+import { ArrowLeft, Loader2, Hammer, AlertTriangle, CheckCircle2, Package } from 'lucide-react'
 import { toast } from 'sonner'
 import Link from 'next/link'
 import { format } from 'date-fns'
@@ -150,19 +150,38 @@ export default function NewProductionPage() {
             <CardTitle className="text-sm font-medium text-zinc-400 uppercase tracking-wider">Batch Details</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="wipItem">WIP Item</Label>
-              <select
-                id="wipItem"
-                className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-zinc-700"
-                value={selectedWipId}
-                onChange={(e) => setSelectedWipId(e.target.value)}
-              >
-                <option value="">Select item...</option>
+            <div className="space-y-3">
+              <Label>Select WIP Item</Label>
+              <div className="grid grid-cols-2 gap-3 max-h-60 overflow-y-auto pr-1">
                 {wipItems.map(item => (
-                  <option key={item.id} value={item.id}>{item.name}</option>
+                  <div
+                    key={item.id}
+                    onClick={() => setSelectedWipId(item.id)}
+                    className={`cursor-pointer border rounded-xl p-3 transition-all duration-150 flex flex-col items-center justify-center text-center gap-2 ${
+                      selectedWipId === item.id 
+                        ? 'border-emerald-500 bg-emerald-500/10' 
+                        : 'border-zinc-800 bg-zinc-950 hover:bg-zinc-900/50 hover:border-zinc-700'
+                    }`}
+                  >
+                    <div className={`h-10 w-10 shrink-0 rounded-full flex items-center justify-center ${selectedWipId === item.id ? 'bg-emerald-500/20 text-emerald-400' : 'bg-zinc-900 border border-zinc-800 text-zinc-500'}`}>
+                      <Package className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className={`text-sm font-bold leading-tight ${selectedWipId === item.id ? 'text-zinc-100' : 'text-zinc-300'}`}>
+                        {item.name}
+                      </p>
+                      <p className="text-[10px] uppercase font-semibold tracking-wider text-zinc-500 mt-1">
+                        {item.unit}
+                      </p>
+                    </div>
+                  </div>
                 ))}
-              </select>
+                {wipItems.length === 0 && !loading && (
+                  <div className="col-span-2 text-center text-zinc-500 py-8 text-sm italic border border-dashed border-zinc-800 rounded-lg">
+                    No WIP items found.
+                  </div>
+                )}
+              </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="qty">Qty Produced {selectedWip && `(${selectedWip.unit})`}</Label>

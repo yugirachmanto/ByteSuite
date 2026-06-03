@@ -25,6 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { format } from 'date-fns'
 import { CoaCombobox } from '@/components/ui/coa-combobox'
 import { Input } from '@/components/ui/input'
 
@@ -115,6 +116,7 @@ export default function BillingPage() {
   function openPayModal(invoice: any) {
     setSelectedInvoice(invoice)
     setReceiptFile(null)
+    setPaymentOutletId(invoice.payment_outlet_id || '')
     setPaymentAssetCoaId('')
     setPaymentExpenseCoaId('')
     setIsPayModalOpen(true)
@@ -185,6 +187,23 @@ export default function BillingPage() {
   const assetCoas = coas.filter(c => c.type === 'asset' && c.is_active)
   const expenseCoas = coas.filter(c => c.type === 'expense' && c.is_active)
 
+  let nextBillingDateStr = 'N/A'
+  if (org.next_billing_date) {
+    nextBillingDateStr = new Date(org.next_billing_date).toLocaleDateString(undefined, { 
+      year: 'numeric', month: 'long', day: 'numeric' 
+    })
+  } else if (org.tenant_invoices && org.tenant_invoices.length > 0) {
+    const sorted = [...org.tenant_invoices].sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    const latestDate = new Date(sorted[0].created_at)
+    latestDate.setMonth(latestDate.getMonth() + 1)
+    nextBillingDateStr = latestDate.toLocaleDateString(undefined, { 
+      year: 'numeric', month: 'long', day: 'numeric' 
+    })
+  }
+
+  const outstandingInvoices = (org.tenant_invoices || []).filter((inv: any) => ['pending', 'under_review', 'past_due'].includes(inv.status))
+  const historyInvoices = (org.tenant_invoices || []).filter((inv: any) => !['pending', 'under_review', 'past_due'].includes(inv.status))
+
   return (
     <div className="space-y-8 pb-8">
       {/* Current Plan Overview */}
@@ -227,24 +246,17 @@ export default function BillingPage() {
             </div>
             <div className="space-y-2">
               <p className="text-sm font-medium text-zinc-500">Next Billing Date</p>
-              <p className="font-medium text-zinc-200">
-                {org.next_billing_date 
-                  ? new Date(org.next_billing_date).toLocaleDateString(undefined, { 
-                      year: 'numeric', month: 'long', day: 'numeric' 
-                    })
-                  : 'N/A'
-                }
-              </p>
+              <p className="font-medium text-zinc-200">{nextBillingDateStr}</p>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Invoice History */}
+      {/* Outstanding Billings */}
       <div className="space-y-4">
         <h3 className="text-lg font-medium text-zinc-100 flex items-center gap-2">
-          <FileText className="h-5 w-5 text-zinc-400" />
-          Billing History
+          <FileText className="h-5 w-5 text-amber-400" />
+          Outstanding Billings
         </h3>
         
         <div className="rounded-md border border-zinc-800 bg-zinc-900/50 overflow-hidden">
@@ -259,17 +271,17 @@ export default function BillingPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {!org.tenant_invoices || org.tenant_invoices.length === 0 ? (
+              {outstandingInvoices.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={5} className="h-24 text-center text-zinc-500">
-                    No invoices found.
+                    No outstanding billings.
                   </TableCell>
                 </TableRow>
               ) : (
-                org.tenant_invoices.sort((a:any, b:any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).map((inv: any) => (
+                outstandingInvoices.sort((a:any, b:any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).map((inv: any) => (
                   <TableRow key={inv.id} className="border-zinc-800 hover:bg-zinc-800/30">
                     <TableCell className="text-zinc-300">
-                      {new Date(inv.created_at).toLocaleDateString()}
+                      {format(new Date(inv.created_at), 'dd/MM/yyyy')}
                     </TableCell>
                     <TableCell className="text-zinc-100 font-medium">{inv.description}</TableCell>
                     <TableCell className="text-zinc-300">
@@ -277,7 +289,6 @@ export default function BillingPage() {
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline" className={
-                        inv.status === 'paid' ? 'border-emerald-500/30 text-emerald-400 bg-emerald-950/20' : 
                         inv.status === 'pending' ? 'border-red-500/30 text-red-400 bg-red-950/20' : 
                         inv.status === 'under_review' ? 'border-amber-500/30 text-amber-400 bg-amber-950/20' :
                         'border-zinc-500/30 text-zinc-400 bg-zinc-950/20'
@@ -307,65 +318,66 @@ export default function BillingPage() {
         </div>
       </div>
 
-      {/* Pricing Tiers */}
+      {/* Invoice History */}
       <div className="space-y-4">
         <h3 className="text-lg font-medium text-zinc-100 flex items-center gap-2">
-          <Zap className="h-5 w-5 text-amber-400" />
-          Available Plans
+          <CheckCircle2 className="h-5 w-5 text-emerald-400" />
+          Billing History
         </h3>
         
-        <div className="grid gap-6 md:grid-cols-3">
-          {plans.map((plan) => (
-            <Card 
-              key={plan.name} 
-              className={`bg-zinc-900 flex flex-col ${
-                currentPlan === plan.name 
-                  ? 'border-indigo-500 shadow-[0_0_15px_rgba(99,102,241,0.1)]' 
-                  : 'border-zinc-800'
-              }`}
-            >
-              <CardHeader>
-                <CardTitle className="text-zinc-100">{plan.name}</CardTitle>
-                <div className="mt-4 flex items-baseline text-3xl font-extrabold text-zinc-100">
-                  {plan.price}
-                  {plan.price !== 'Custom' && <span className="ml-1 text-xl font-medium text-zinc-500">/bln</span>}
-                </div>
-                <CardDescription className="mt-4 text-zinc-400 h-10">
-                  {plan.description}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="flex-1">
-                <ul className="space-y-3">
-                  {plan.features.map((feature) => (
-                    <li key={feature} className="flex items-start">
-                      <CheckCircle2 className="h-5 w-5 text-emerald-500 shrink-0 mr-2" />
-                      <span className="text-sm text-zinc-300">{feature}</span>
-                    </li>
-                  ))}
-                </ul>
-              </CardContent>
-              <CardFooter>
-                {currentPlan === plan.name ? (
-                  <Button variant="outline" className="w-full border-indigo-500/50 text-indigo-300 hover:bg-indigo-950/20" disabled>
-                    Current Plan
-                  </Button>
-                ) : (
-                  <Button 
-                    className="w-full bg-zinc-100 text-zinc-900 hover:bg-zinc-300"
-                    onClick={() => handleUpgradeRequest(plan.name)}
-                    disabled={upgradeLoading !== null}
-                  >
-                    {upgradeLoading === plan.name ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : null}
-                    Request Upgrade
-                  </Button>
-                )}
-              </CardFooter>
-            </Card>
-          ))}
+        <div className="rounded-md border border-zinc-800 bg-zinc-900/50 overflow-hidden">
+          <Table>
+            <TableHeader className="bg-zinc-900">
+              <TableRow className="border-zinc-800 hover:bg-transparent">
+                <TableHead className="text-zinc-400">Date</TableHead>
+                <TableHead className="text-zinc-400">Description</TableHead>
+                <TableHead className="text-zinc-400">Amount</TableHead>
+                <TableHead className="text-zinc-400">Status</TableHead>
+                <TableHead className="text-right text-zinc-400">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {historyInvoices.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="h-24 text-center text-zinc-500">
+                    No billing history found.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                historyInvoices.sort((a:any, b:any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).map((inv: any) => (
+                  <TableRow key={inv.id} className="border-zinc-800 hover:bg-zinc-800/30">
+                    <TableCell className="text-zinc-300">
+                      {format(new Date(inv.created_at), 'dd/MM/yyyy')}
+                    </TableCell>
+                    <TableCell className="text-zinc-100 font-medium">{inv.description}</TableCell>
+                    <TableCell className="text-zinc-300">
+                      {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(inv.amount)}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className={
+                        inv.status === 'paid' ? 'border-emerald-500/30 text-emerald-400 bg-emerald-950/20' : 
+                        'border-zinc-500/30 text-zinc-400 bg-zinc-950/20'
+                      }>
+                        {inv.status.replace('_', ' ')}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-2">
+                        <Link href={`/billing/invoice/${inv.id}`}>
+                          <Button variant="ghost" size="sm" className="text-indigo-400 hover:text-indigo-300 hover:bg-indigo-950/30 h-8">
+                            <Download className="h-4 w-4" />
+                          </Button>
+                        </Link>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
         </div>
       </div>
+
 
       {/* Pay Invoice Modal */}
       <Dialog open={isPayModalOpen} onOpenChange={setIsPayModalOpen}>
@@ -385,20 +397,11 @@ export default function BillingPage() {
                 </div>
               </div>
 
-              <div className="grid gap-2">
-                <Label className="text-zinc-300">Outlet for Accounting</Label>
-                <Select value={paymentOutletId} onValueChange={setPaymentOutletId} required>
-                  <SelectTrigger className="w-full bg-zinc-900 border-zinc-800 h-auto min-h-[2.5rem] text-left py-2">
-                    <SelectValue placeholder="Select Outlet" className="!line-clamp-none !whitespace-normal break-words">
-                      {paymentOutletId ? outlets.find(o => o.id === paymentOutletId)?.name : "Select Outlet"}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-100 max-w-[350px]">
-                    {outlets.map(o => (
-                      <SelectItem key={o.id} value={o.id} className="whitespace-normal break-words py-2 [&_span]:!whitespace-normal [&_span]:!break-words">{o.name || 'Unnamed Outlet'}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="grid gap-2 mb-4">
+                <Label className="text-zinc-300">Billed Outlet</Label>
+                <div className="bg-zinc-900 border border-zinc-800 rounded-md px-3 py-2 text-zinc-400 cursor-not-allowed">
+                  {outlets.find(o => o.id === selectedInvoice?.payment_outlet_id)?.name || "Unknown Outlet"}
+                </div>
               </div>
 
               <div className="grid gap-2">

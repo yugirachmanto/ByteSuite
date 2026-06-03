@@ -11,6 +11,7 @@ const settingsTabs = [
   { value: 'pos-mapping', label: 'POS Mapping', href: '/settings/accounting/pos-mapping' },
   { value: 'outlets', label: 'Outlets', href: '/settings/outlets' },
   { value: 'users', label: 'Users', href: '/settings/users' },
+  { value: 'import', label: 'Data Import', href: '/settings/import' },
   { value: 'system', label: 'System Reset', href: '/settings/system' },
 ]
 

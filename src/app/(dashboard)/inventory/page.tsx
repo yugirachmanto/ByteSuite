@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useOutlet } from '@/lib/contexts/outlet-context'
 import { useRouter } from 'next/navigation'
@@ -16,6 +16,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Input } from '@/components/ui/input'
 import { 
   Package, 
   TrendingDown, 
@@ -24,16 +25,19 @@ import {
   Filter,
   History,
   ArrowUpRight,
-  ChevronRight
+  ChevronRight,
+  Calendar
 } from 'lucide-react'
 import Link from 'next/link'
-import { format } from 'date-fns'
+import { format, startOfMonth, endOfMonth, isBefore, isAfter, isSameMonth } from 'date-fns'
 
 export default function InventoryPage() {
   const [items, setItems] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('all')
+  const [selectedMonth, setSelectedMonth] = useState<string>(format(new Date(), 'yyyy-MM'))
+
   const { selectedOutletId } = useOutlet()
   const supabase = createClient()
   const router = useRouter()
@@ -43,10 +47,12 @@ export default function InventoryPage() {
 
     async function fetchInventory() {
       setLoading(true)
-      // Join inventory_balance with item_master
-      const { data, error } = await supabase
+      
+      // 1. Fetch inventory balances (for item master and real-time fallbacks)
+      const { data: balanceData, error: balanceError } = await supabase
         .from('inventory_balance')
         .select(`
+          item_id,
           qty_on_hand,
           inventory_value,
           updated_at,
@@ -60,20 +66,91 @@ export default function InventoryPage() {
         `)
         .eq('outlet_id', selectedOutletId)
 
-      if (error) {
-        console.error('Inventory fetch error:', error)
-      } else if (data) {
-        setItems(data)
+      if (balanceError) {
+        console.error('Inventory fetch error:', balanceError)
+        setLoading(false)
+        return
       }
+
+      // 2. Fetch stock ledger up to the end of selected month
+      const startOfSelectedMonth = new Date(`${selectedMonth}-01T00:00:00Z`)
+      const endOfSelectedMonth = new Date(startOfSelectedMonth)
+      endOfSelectedMonth.setUTCMonth(endOfSelectedMonth.getUTCMonth() + 1)
+
+      const { data: ledgerData, error: ledgerError } = await supabase
+        .from('stock_ledger')
+        .select('item_id, txn_type, qty, total_value, created_at')
+        .eq('outlet_id', selectedOutletId)
+        .lt('created_at', endOfSelectedMonth.toISOString())
+
+      if (ledgerError) {
+        console.error('Ledger fetch error:', ledgerError)
+      }
+
+      // 3. Calculate metrics
+      const itemsMap = new Map<string, any>()
+      
+      // Initialize map with all known items from balance
+      balanceData?.forEach(b => {
+        if (!b.item_master) return
+        itemsMap.set(b.item_id, {
+          item_master: b.item_master,
+          beginningQty: 0,
+          inQty: 0,
+          outQty: 0,
+          endingQty: 0,
+          endingValue: 0,
+          updated_at: b.updated_at
+        })
+      })
+
+      ledgerData?.forEach(tx => {
+        if (!itemsMap.has(tx.item_id)) return // Skip if not in item master
+
+        const item = itemsMap.get(tx.item_id)
+        const isBeforeMonth = new Date(tx.created_at) < startOfSelectedMonth
+        const qty = Number(tx.qty) || 0
+        const val = Number(tx.total_value) || 0
+
+        let qtyChange = 0
+        let valChange = 0
+
+        // Determine direction based on txn_type
+        if (['IN', 'PRODUCTION_IN', 'TRANSFER_IN', 'OPNAME_ADJ'].includes(tx.txn_type)) {
+          qtyChange = qty
+          valChange = val
+        } else if (['OUT', 'PRODUCTION_OUT', 'TRANSFER_OUT', 'WASTE'].includes(tx.txn_type)) {
+          qtyChange = -qty
+          valChange = -val
+        }
+
+        if (isBeforeMonth) {
+          item.beginningQty += qtyChange
+          item.endingQty += qtyChange
+          item.endingValue += valChange
+        } else {
+          if (qtyChange > 0) {
+            item.inQty += qtyChange
+          } else {
+            item.outQty += Math.abs(qtyChange)
+          }
+          item.endingQty += qtyChange
+          item.endingValue += valChange
+        }
+      })
+
+      // Convert to array
+      const processedItems = Array.from(itemsMap.values())
+      setItems(processedItems)
       setLoading(false)
     }
 
     fetchInventory()
-  }, [selectedOutletId, supabase])
+  }, [selectedOutletId, selectedMonth, supabase])
 
-  const totalValue = items.reduce((sum, item) => sum + (item.inventory_value || 0), 0)
+  const totalValue = items.reduce((sum, item) => sum + Math.max(0, item.endingValue || 0), 0)
   const totalItems = items.length
-  const lowStockCount = items.filter(item => item.qty_on_hand <= (item.item_master?.reorder_level || 0)).length
+  const lowStockCount = items.filter(item => item.endingQty <= (item.item_master?.reorder_level || 0)).length
 
   const getCategoryBadge = (category: string) => {
     switch (category) {
@@ -92,12 +169,26 @@ export default function InventoryPage() {
     return matchesSearch && matchesCategory
   })
 
+  // Generate last 12 months for selector
+  const monthOptions = useMemo(() => {
+    const options = []
+    const d = new Date()
+    for (let i = 0; i < 12; i++) {
+      options.push({
+        value: format(d, 'yyyy-MM'),
+        label: format(d, 'MMMM yyyy')
+      })
+      d.setMonth(d.getMonth() - 1)
+    }
+    return options
+  }, [])
+
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight text-zinc-100">Inventory Dashboard</h2>
-          <p className="text-zinc-400 text-sm">Real-time stock levels and valuation across your outlet.</p>
+          <h2 className="text-2xl font-bold tracking-tight text-zinc-100">Monthly Inventory Report</h2>
+          <p className="text-zinc-400 text-sm">Monthly summary of stock movements and ending balances.</p>
         </div>
         <div className="flex gap-3">
           <Link href="/inventory/ledger">
@@ -109,17 +200,34 @@ export default function InventoryPage() {
         </div>
       </div>
 
+      <div className="flex items-center gap-4 bg-zinc-900/50 border border-zinc-800 p-4 rounded-lg">
+        <div className="flex items-center gap-3">
+          <Calendar className="h-5 w-5 text-indigo-400" />
+          <span className="text-sm font-medium text-zinc-300">Report Month:</span>
+        </div>
+        <Select value={selectedMonth} onValueChange={(val) => val && setSelectedMonth(val)}>
+          <SelectTrigger className="w-[200px] bg-zinc-950 border-zinc-800 text-zinc-100">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent className="bg-zinc-950 border-zinc-800 text-zinc-300">
+            {monthOptions.map(m => (
+              <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
       <div className="grid gap-4 md:grid-cols-3">
         <Card className="border-zinc-800 bg-zinc-900/50">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-zinc-400">Total Inventory Value</CardTitle>
+            <CardTitle className="text-sm font-medium text-zinc-400">Total Ending Value</CardTitle>
             <Package className="h-4 w-4 text-blue-400" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-zinc-100">
               {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(totalValue)}
             </div>
-            <p className="text-xs text-zinc-500">Value of all current batches</p>
+            <p className="text-xs text-zinc-500">For selected month</p>
           </CardContent>
         </Card>
         <Card className="border-zinc-800 bg-zinc-900/50">
@@ -139,7 +247,7 @@ export default function InventoryPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-zinc-100">{lowStockCount}</div>
-            <p className="text-xs text-amber-500 font-medium">Items below reorder level</p>
+            <p className="text-xs text-amber-500 font-medium">Items below reorder level (Ending Qty)</p>
           </CardContent>
         </Card>
       </div>
@@ -154,7 +262,7 @@ export default function InventoryPage() {
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
-        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+        <Select value={categoryFilter} onValueChange={(val) => val && setCategoryFilter(val)}>
           <SelectTrigger className="w-[180px] bg-zinc-900 border-zinc-800 text-zinc-300 h-[38px]">
             <div className="flex items-center gap-2">
               <Filter className="h-4 w-4" />
@@ -177,22 +285,23 @@ export default function InventoryPage() {
             <TableRow className="hover:bg-transparent">
               <TableHead className="text-zinc-400">Item Name</TableHead>
               <TableHead className="text-zinc-400">Category</TableHead>
-              <TableHead className="text-zinc-400 text-right">Qty On Hand</TableHead>
-              <TableHead className="text-zinc-400 text-right">Inventory Value</TableHead>
-              <TableHead className="text-zinc-400 text-center">Last Updated</TableHead>
+              <TableHead className="text-zinc-400 text-right">Beginning</TableHead>
+              <TableHead className="text-zinc-400 text-right">In</TableHead>
+              <TableHead className="text-zinc-400 text-right">Out</TableHead>
+              <TableHead className="text-zinc-400 text-right">Ending Qty</TableHead>
               <TableHead className="w-[50px]"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={6} className="h-24 text-center text-zinc-500">
+                <TableCell colSpan={7} className="h-24 text-center text-zinc-500">
                   Loading inventory data...
                 </TableCell>
               </TableRow>
             ) : filteredItems.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="h-24 text-center text-zinc-500">
+                <TableCell colSpan={7} className="h-24 text-center text-zinc-500">
                   No inventory records found matching your filters.
                 </TableCell>
               </TableRow>
@@ -210,17 +319,31 @@ export default function InventoryPage() {
                     </div>
                   </TableCell>
                   <TableCell>{getCategoryBadge(item.item_master?.category)}</TableCell>
+                  
                   <TableCell className="text-right">
-                    <div className={item.qty_on_hand <= (item.item_master?.reorder_level || 0) ? "text-amber-500 font-bold" : "text-zinc-100"}>
-                      {Number(item.qty_on_hand).toLocaleString()}
+                    <span className="text-zinc-300 font-mono">
+                      {Math.max(0, item.beginningQty).toLocaleString()}
+                    </span>
+                  </TableCell>
+                  
+                  <TableCell className="text-right">
+                    <span className="text-emerald-400 font-mono">
+                      {item.inQty > 0 ? `+${item.inQty.toLocaleString()}` : '0'}
+                    </span>
+                  </TableCell>
+                  
+                  <TableCell className="text-right">
+                    <span className="text-red-400 font-mono">
+                      {item.outQty > 0 ? `-${item.outQty.toLocaleString()}` : '0'}
+                    </span>
+                  </TableCell>
+
+                  <TableCell className="text-right">
+                    <div className={item.endingQty <= (item.item_master?.reorder_level || 0) ? "text-amber-500 font-bold font-mono" : "text-zinc-100 font-bold font-mono"}>
+                      {Math.max(0, item.endingQty).toLocaleString()}
                     </div>
                   </TableCell>
-                  <TableCell className="text-right text-zinc-300 font-medium">
-                    {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(item.inventory_value)}
-                  </TableCell>
-                  <TableCell className="text-center text-zinc-500 text-xs">
-                    {format(new Date(item.updated_at), 'dd MMM, HH:mm')}
-                  </TableCell>
+                  
                   <TableCell>
                     <ChevronRight className="h-4 w-4 text-zinc-700" />
                   </TableCell>

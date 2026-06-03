@@ -15,6 +15,7 @@ import {
   LogOut,
   ChevronRight,
   ShieldAlert,
+  CreditCard,
 } from 'lucide-react'
 
 const adminSidebarGroups = [
@@ -29,6 +30,7 @@ const adminSidebarGroups = [
     items: [
       { name: 'Organizations', href: '/admin/organizations', icon: Building2 },
       { name: 'Global Users', href: '/admin/users', icon: Users },
+      { name: 'Billing', href: '/admin/billing', icon: CreditCard },
     ]
   }
 ]

@@ -12,7 +12,6 @@ import {
   TableRow 
 } from '@/components/ui/table'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-} from '@/components/ui/card'
 import { CoaCombobox } from '@/components/ui/coa-combobox'
 import { Button } from '@/components/ui/button'
 import { format } from 'date-fns'

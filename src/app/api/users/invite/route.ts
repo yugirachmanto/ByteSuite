@@ -27,8 +27,8 @@ export async function POST(request: Request) {
       .eq('id', currentUser.id)
       .single()
 
-    if (!profile || profile.role !== 'owner') {
-      return NextResponse.json({ error: 'Forbidden: Only owners can invite users' }, { status: 403 })
+    if (!profile || (profile.role !== 'owner' && profile.role !== 'admin')) {
+      return NextResponse.json({ error: 'Forbidden: Only owners and admins can invite users' }, { status: 403 })
     }
 
     const body = await request.json()
@@ -47,12 +47,13 @@ export async function POST(request: Request) {
       }
     })
 
-    // Invite user via Supabase Auth Admin
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
     const { data: inviteData, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(email, {
       data: {
         full_name,
         role
-      }
+      },
+      redirectTo: `${siteUrl}/setup-account`
     })
 
     if (inviteError) {
