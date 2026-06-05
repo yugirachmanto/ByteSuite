@@ -44,7 +44,7 @@ export default function ProductsPage() {
         // Fetch items with category 'finished'
         const { data: items, error: itemsError } = await supabase
           .from('item_master')
-          .select('*')
+          .select('*, show_on_pos')
           .eq('category', 'finished')
           .order('name')
         
@@ -82,6 +82,26 @@ export default function ProductsPage() {
     (p.name?.toLowerCase()?.includes(search.toLowerCase()) ?? false) || 
     (p.code?.toLowerCase()?.includes(search.toLowerCase()) ?? false)
   )
+
+  const handleTogglePos = async (id: string, currentVal: boolean) => {
+    try {
+      const newVal = !currentVal
+      // Optimistic update
+      setProducts(prev => prev.map(p => p.id === id ? { ...p, show_on_pos: newVal } : p))
+      
+      const { error } = await supabase
+        .from('item_master')
+        .update({ show_on_pos: newVal })
+        .eq('id', id)
+        
+      if (error) throw error
+      toast.success(`POS visibility ${newVal ? 'enabled' : 'disabled'}`)
+    } catch (error: any) {
+      // Revert on error
+      setProducts(prev => prev.map(p => p.id === id ? { ...p, show_on_pos: currentVal } : p))
+      toast.error('Failed to update POS visibility')
+    }
+  }
 
   if (loading) {
     return (
@@ -139,6 +159,7 @@ export default function ProductsPage() {
               <TableHead className="text-zinc-400">Product</TableHead>
               <TableHead className="text-zinc-400">Category</TableHead>
               <TableHead className="text-zinc-400">Unit</TableHead>
+              <TableHead className="text-zinc-400 text-center">POS</TableHead>
               <TableHead className="text-zinc-400 text-right">Selling Price</TableHead>
               <TableHead className="w-[100px]"></TableHead>
             </TableRow>
@@ -170,6 +191,17 @@ export default function ProductsPage() {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-zinc-400 text-sm">{p.unit}</TableCell>
+                  <TableCell className="text-center">
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        className="sr-only peer"
+                        checked={p.show_on_pos ?? true}
+                        onChange={() => handleTogglePos(p.id, p.show_on_pos ?? true)}
+                      />
+                      <div className="w-8 h-4 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-emerald-500"></div>
+                    </label>
+                  </TableCell>
                   <TableCell className="text-right font-mono font-bold text-zinc-100">
                     {p.price > 0 ? formatRp(p.price) : <span className="text-zinc-600 italic text-xs">Price not set</span>}
                   </TableCell>

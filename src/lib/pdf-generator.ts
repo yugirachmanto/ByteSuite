@@ -20,6 +20,7 @@ export interface ReportData {
   totalPurchases: number
   inventoryValue: number
   totalTax: number
+  posTaxTotal: number
   apOutstanding: number
   varianceValue: number
 
@@ -227,9 +228,9 @@ export async function generateFinancialPDF(data: ReportData): Promise<void> {
   const kpis = [
     { label: 'Total Pembelian',  value: formatRp(data.totalPurchases), color: C.primaryMid },
     { label: 'Nilai Inventori',  value: formatRp(data.inventoryValue), color: C.accent },
-    { label: 'PPN Masukan',      value: formatRp(data.totalTax),       color: C.warning },
+    { label: 'PPN Masukan (In)', value: formatRp(data.totalTax),       color: C.warning },
+    { label: 'PPN Keluaran (Out)', value: formatRp(data.posTaxTotal),  color: C.warning },
     { label: 'Hutang Dagang',    value: formatRp(data.apOutstanding),  color: C.danger },
-    { label: 'Total Invoice',    value: `${data.invoices.length} Dok`, color: C.primaryMid },
     { label: 'Selisih Opname',   value: (data.varianceValue >= 0 ? '+' : '') + formatRp(data.varianceValue), color: data.varianceValue >= 0 ? C.accent : C.danger },
   ]
 

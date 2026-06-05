@@ -21,13 +21,15 @@ export default function NewProductPage() {
   const supabase = createClient()
 
   const [loading, setLoading] = useState(false)
+  const [uploadingImage, setUploadingImage] = useState(false)
+  const [imageUrl, setImageUrl] = useState('')
   const [orgId, setOrgId] = useState<string | null>(null)
   const [coa, setCoa] = useState<any[]>([])
   
   const [formData, setFormData] = useState({
     name: '',
     code: '',
-    unit: 'pcs',
+    unit: 'PCS',
     default_coa_id: ''
   })
 
@@ -47,7 +49,7 @@ export default function NewProductPage() {
       if (profile?.org_id) {
         const { data: accounts } = await supabase
           .from('chart_of_accounts')
-          .select('id, code, name')
+          .select('id, code, name, is_header')
           .eq('org_id', profile.org_id)
           .eq('is_active', true)
           .order('code')
@@ -57,6 +59,29 @@ export default function NewProductPage() {
     }
     fetchData()
   }, [supabase])
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploadingImage(true)
+    try {
+      const fileExt = file.name.split('.').pop()
+      const fileName = `product-${Date.now()}.${fileExt}`
+      const { error: uploadError } = await supabase.storage
+        .from('product-images')
+        .upload(fileName, file)
+      if (uploadError) throw uploadError
+      const { data: { publicUrl } } = supabase.storage
+        .from('product-images')
+        .getPublicUrl(fileName)
+      setImageUrl(publicUrl)
+      toast.success('Image uploaded successfully')
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to upload image')
+    } finally {
+      setUploadingImage(false)
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -76,7 +101,8 @@ export default function NewProductPage() {
           unit: formData.unit,
           category: 'finished',
           default_coa_id: formData.default_coa_id || null,
-          is_inventory: true
+          is_inventory: true,
+          image_url: imageUrl || null
         })
         .select()
         .single()
@@ -114,6 +140,36 @@ export default function NewProductPage() {
           </CardHeader>
           <CardContent className="space-y-6 pt-6">
             <div className="space-y-2">
+              <label className="text-xs text-zinc-500 font-medium uppercase tracking-wider">Product Image</label>
+              <div className="flex flex-col gap-4">
+                {imageUrl ? (
+                  <div className="relative w-32 h-32 rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden group">
+                    <img src={imageUrl} alt="Preview" className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => setImageUrl('')}
+                      className="absolute top-2 right-2 p-1.5 bg-black/50 hover:bg-red-500/80 text-white rounded-md opacity-0 group-hover:opacity-100 transition-all"
+                    >
+                      <Loader2 className="h-4 w-4 hidden" />
+                      <span className="text-xs font-bold px-1">X</span>
+                    </button>
+                  </div>
+                ) : null}
+                <label className="flex items-center gap-2 bg-zinc-950 border border-zinc-800 hover:border-zinc-600 rounded-lg px-4 py-2.5 cursor-pointer transition-colors w-fit">
+                  {uploadingImage ? <Loader2 className="h-4 w-4 animate-spin text-zinc-400" /> : <div className="h-4 w-4 text-zinc-400 font-bold">+</div>}
+                  <span className="text-sm text-zinc-300">{imageUrl ? 'Replace Image' : 'Upload Image'}</span>
+                  <input
+                    type="file"
+                    className="hidden"
+                    accept="image/*"
+                    disabled={uploadingImage}
+                    onChange={handleImageUpload}
+                  />
+                </label>
+              </div>
+            </div>
+
+            <div className="space-y-2">
               <label className="text-xs text-zinc-500 font-medium uppercase tracking-wider">Product Name *</label>
               <Input 
                 placeholder="e.g. Avocado Toast"
@@ -136,12 +192,23 @@ export default function NewProductPage() {
               </div>
               <div className="space-y-2">
                 <label className="text-xs text-zinc-500 font-medium uppercase tracking-wider">Unit</label>
-                <Input 
-                  placeholder="e.g. pcs, cup, portion"
+                <select 
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-md px-3 h-11 text-sm text-zinc-100 focus:outline-none focus:ring-1 focus:ring-zinc-700"
                   value={formData.unit}
                   onChange={e => setFormData({...formData, unit: e.target.value})}
-                  className="bg-zinc-950 border-zinc-800"
-                />
+                >
+                  <option value="PCS">PCS</option>
+                  <option value="PORTION">PORTION</option>
+                  <option value="CUP">CUP</option>
+                  <option value="BOWL">BOWL</option>
+                  <option value="PLATE">PLATE</option>
+                  <option value="KG">KG</option>
+                  <option value="GR">GR</option>
+                  <option value="LTR">LTR</option>
+                  <option value="ML">ML</option>
+                  <option value="BOX">BOX</option>
+                  <option value="PACK">PACK</option>
+                </select>
               </div>
             </div>
 
@@ -155,7 +222,16 @@ export default function NewProductPage() {
                 onChange={e => setFormData({...formData, default_coa_id: e.target.value})}
               >
                 <option value="">No Default Account</option>
-                {coa.map(acc => <option key={acc.id} value={acc.id}>{acc.code} - {acc.name}</option>)}
+                {coa.map(acc => (
+                  <option 
+                    key={acc.id} 
+                    value={acc.id} 
+                    disabled={acc.is_header}
+                    className={acc.is_header ? "font-bold text-zinc-500 bg-zinc-900" : ""}
+                  >
+                    {acc.code} - {acc.name} {acc.is_header ? '(Header - Cannot Select)' : ''}
+                  </option>
+                ))}
               </select>
               <p className="text-[10px] text-zinc-500">Mapping to an income account helps with automated sales journalization.</p>
             </div>

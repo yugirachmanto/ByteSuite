@@ -12,6 +12,7 @@ interface OutletContextType {
   selectedOutletId: string | null
   setSelectedOutletId: (id: string) => void
   userRole: string | null
+  posEnabled: boolean
   outlets: Outlet[]
   loading: boolean
   reloadOutlets: () => void
@@ -22,6 +23,7 @@ const OutletContext = createContext<OutletContextType | undefined>(undefined)
 export function OutletProvider({ children }: { children: React.ReactNode }) {
   const [selectedOutletId, setSelectedOutletId] = useState<string | null>(null)
   const [userRole, setUserRole] = useState<string | null>(null)
+  const [posEnabled, setPosEnabled] = useState<boolean>(true)
   const [outlets, setOutlets] = useState<Outlet[]>([])
   const [loading, setLoading] = useState(true)
   const supabase = createClient()
@@ -37,7 +39,7 @@ export function OutletProvider({ children }: { children: React.ReactNode }) {
 
     const { data: profile, error: profileError } = await supabase
       .from('user_profiles')
-      .select('org_id, outlet_ids, role')
+      .select('org_id, outlet_ids, role, organizations(pos_enabled)')
       .eq('id', user.id)
       .single()
 
@@ -48,6 +50,8 @@ export function OutletProvider({ children }: { children: React.ReactNode }) {
     }
 
     setUserRole(profile?.role || 'viewer')
+    const orgData = profile?.organizations as any
+    setPosEnabled(orgData?.pos_enabled ?? true)
 
     // Owners see ALL outlets in the org; other roles see only their assigned outlets
     let query = supabase.from('outlets').select('id, name').order('name')
@@ -99,6 +103,7 @@ export function OutletProvider({ children }: { children: React.ReactNode }) {
       selectedOutletId,
       setSelectedOutletId: handleSetSelectedOutletId,
       userRole,
+      posEnabled,
       outlets,
       loading,
       reloadOutlets: fetchOutlets,

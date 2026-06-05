@@ -7,7 +7,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
-import { AlertTriangle, Loader2, ShieldAlert, Trash2, CheckCircle2, XCircle } from 'lucide-react'
+import { AlertTriangle, Loader2, ShieldAlert, Trash2, CheckCircle2, XCircle, CreditCard } from 'lucide-react'
+import { Switch } from '@/components/ui/switch'
 
 export default function SystemResetPage() {
   const supabase = createClient()
@@ -17,6 +18,8 @@ export default function SystemResetPage() {
   const [wiping, setWiping] = useState(false)
   const [userProfile, setUserProfile] = useState<{ org_id: string; role: string } | null>(null)
   const [confirmText, setConfirmText] = useState('')
+  const [posEnabled, setPosEnabled] = useState(true)
+  const [savingModule, setSavingModule] = useState(false)
   
   useEffect(() => {
     async function checkRole() {
@@ -30,17 +33,40 @@ export default function SystemResetPage() {
 
       const { data: profile } = await supabase
         .from('user_profiles')
-        .select('org_id, role')
+        .select('org_id, role, organizations(pos_enabled)')
         .eq('id', user.id)
         .single()
       
       if (profile) {
         setUserProfile(profile)
+        const orgData = profile.organizations as any
+        setPosEnabled(orgData?.pos_enabled ?? true)
       }
       setLoading(false)
     }
     checkRole()
   }, [supabase, router])
+
+  const togglePosModule = async () => {
+    if (!userProfile) return
+    const newValue = !posEnabled
+    setSavingModule(true)
+    const toastId = toast.loading('Updating organization modules...')
+    try {
+      const { error } = await supabase
+        .from('organizations')
+        .update({ pos_enabled: newValue })
+        .eq('id', userProfile.org_id)
+      
+      if (error) throw error
+      setPosEnabled(newValue)
+      toast.success('Modules updated successfully. Please refresh the page to apply layout changes.', { id: toastId })
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update module configuration', { id: toastId })
+    } finally {
+      setSavingModule(false)
+    }
+  }
 
   const handleWipeData = async () => {
     if (!userProfile || userProfile.role !== 'owner') {
@@ -118,6 +144,29 @@ export default function SystemResetPage() {
   // 3. Normal Form UI (Owner user)
   return (
     <div className="space-y-6 max-w-4xl">
+      <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-6">
+        <h3 className="text-lg font-bold text-zinc-100 mb-4">Organization Modules</h3>
+        <div className="flex items-center justify-between p-4 rounded-lg bg-zinc-950/50 border border-zinc-800/40">
+          <div className="flex items-center gap-4">
+            <div className="p-2 rounded-lg bg-blue-500/10 text-blue-400">
+              <CreditCard className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-zinc-200">Point of Sale (POS)</p>
+              <p className="text-xs text-zinc-500 mt-0.5">Enable or disable the cashier module and POS analytics.</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            {savingModule && <Loader2 className="h-4 w-4 animate-spin text-zinc-500" />}
+            <Switch 
+              checked={posEnabled}
+              onCheckedChange={togglePosModule}
+              disabled={savingModule}
+            />
+          </div>
+        </div>
+      </div>
+
       <div className="rounded-xl border border-red-900/30 bg-red-950/10 backdrop-blur-sm p-6 flex gap-4 items-start">
         <div className="p-2 rounded-lg bg-red-950/40 border border-red-900/50 text-red-500 shrink-0">
           <AlertTriangle className="h-6 w-6" />

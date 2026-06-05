@@ -238,7 +238,7 @@ export default function AdminDashboardPage() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#3f3f46" horizontal={false} />
                 <XAxis type="number" stroke="#a1a1aa" fontSize={12} tickLine={false} axisLine={false} allowDecimals={false} />
                 <YAxis dataKey="client" type="category" stroke="#a1a1aa" fontSize={12} tickLine={false} axisLine={false} width={100} />
-                <Tooltip cursor={{ fill: '#27272a' }} contentStyle={{ backgroundColor: '#18181b', borderColor: '#3f3f46', color: '#f4f4f5' }} />
+                <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ backgroundColor: '#18181b', borderColor: '#3f3f46', color: '#f4f4f5' }} />
                 <Bar dataKey="count" fill="#f59e0b" radius={[0, 4, 4, 0]} name="Invoices" />
               </BarChart>
             </ResponsiveContainer>

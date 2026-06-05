@@ -197,7 +197,7 @@ export default function LedgerPage() {
         <Card className="border-zinc-800 bg-zinc-900/50">
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-sm font-medium text-zinc-400 uppercase tracking-wider">
-              {selectedAccountId === 'all' ? 'Consolidated Transactions' : `History: ${accounts.find(a => a.id === selectedAccountId)?.name}`}
+              {selectedAccountId === 'all' ? 'Consolidated Transactions' : `History: ${accounts.find(a => a.id === selectedAccountId)?.code} - ${accounts.find(a => a.id === selectedAccountId)?.name}`}
             </CardTitle>
             {selectedAccountId !== 'all' && (
               <div className="text-right">
@@ -212,7 +212,12 @@ export default function LedgerPage() {
                 <TableHeader className="sticky top-0 z-10 bg-zinc-900/95 backdrop-blur shadow-sm border-zinc-800">
                   <TableRow className="hover:bg-transparent">
                     <TableHead className="text-zinc-400">Date</TableHead>
-                    {selectedAccountId === 'all' && <TableHead className="text-zinc-400">Account</TableHead>}
+                    {selectedAccountId === 'all' && (
+                      <>
+                        <TableHead className="text-zinc-400">Code</TableHead>
+                        <TableHead className="text-zinc-400">Account</TableHead>
+                      </>
+                    )}
                     <TableHead className="text-zinc-400">Description</TableHead>
                     <TableHead className="text-zinc-400 text-right">Debit</TableHead>
                     <TableHead className="text-zinc-400 text-right">Credit</TableHead>
@@ -222,13 +227,13 @@ export default function LedgerPage() {
                 <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={selectedAccountId === 'all' ? 6 : 5} className="h-24 text-center text-zinc-500">
+                    <TableCell colSpan={selectedAccountId === 'all' ? 7 : 5} className="h-24 text-center text-zinc-500">
                       <Loader2 className="h-5 w-5 animate-spin mx-auto" />
                     </TableCell>
                   </TableRow>
                 ) : entries.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={selectedAccountId === 'all' ? 6 : 5} className="h-24 text-center text-zinc-500">
+                    <TableCell colSpan={selectedAccountId === 'all' ? 7 : 5} className="h-24 text-center text-zinc-500">
                       No transactions found for this account.
                     </TableCell>
                   </TableRow>
@@ -239,9 +244,14 @@ export default function LedgerPage() {
                         {format(new Date(entry.entry_date), 'dd MMM yyyy')}
                       </TableCell>
                       {selectedAccountId === 'all' && (
-                        <TableCell>
-                          <span className="text-zinc-100 text-sm font-medium">{entry.chart_of_accounts?.name}</span>
-                        </TableCell>
+                        <>
+                          <TableCell>
+                            <span className="text-zinc-400 text-sm font-medium">{entry.chart_of_accounts?.code}</span>
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-zinc-100 text-sm font-medium">{entry.chart_of_accounts?.name}</span>
+                          </TableCell>
+                        </>
                       )}
                       <TableCell className="text-zinc-300 text-sm">
                         <div className="flex items-center gap-2">

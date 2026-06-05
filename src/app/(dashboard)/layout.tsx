@@ -51,6 +51,7 @@ const sidebarGroups = [
     roles: ['owner', 'finance', 'cashier', 'kitchen'],
     items: [
       { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+      { name: 'Point of Sale', href: '/pos', icon: CreditCard },
     ]
   },
   {
@@ -87,7 +88,7 @@ const sidebarGroups = [
 // ── Inner shell (consumes OutletProvider context) ────────────────────────────
 function DashboardShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
-  const { selectedOutletId, setSelectedOutletId, userRole, outlets, loading: outletLoading } = useOutlet()
+  const { selectedOutletId, setSelectedOutletId, userRole, outlets, posEnabled, loading: outletLoading } = useOutlet()
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
   const [mounted, setMounted] = useState(false)
   const [hasOutstandingBilling, setHasOutstandingBilling] = useState(false)
@@ -186,19 +187,20 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           </DropdownMenu>
         </div>
 
-        <ScrollArea className="flex-1 px-4 py-4">
-          <nav className="space-y-6">
+        <ScrollArea className="flex-1 px-4 py-2">
+          <nav className="space-y-4">
             {sidebarGroups
               .filter(group => !userRole || group.roles.includes(userRole))
               .map((group) => (
-                <div key={group.name} className="space-y-2">
+                <div key={group.name} className="space-y-1">
                   {isSidebarOpen && (
-                    <h3 className="px-3 text-[10px] font-bold uppercase tracking-widest text-zinc-500">
+                    <h3 className="px-3 text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1">
                       {group.name}
                     </h3>
                   )}
-                  <div className="space-y-1">
+                  <div className="space-y-0.5">
                     {mounted && group.items.map((item) => {
+                      if (!posEnabled && item.name === 'Point of Sale') return null;
                       const isActive =
                         pathname === item.href ||
                         (item.href !== '/dashboard' && pathname?.startsWith(item.href))
@@ -207,7 +209,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                             key={item.name}
                             href={item.href}
                             className={cn(
-                              'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors relative',
+                              'flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors relative',
                               isActive
                                 ? 'bg-zinc-800 text-zinc-100'
                                 : 'text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-100',
@@ -232,8 +234,8 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           </nav>
         </ScrollArea>
 
-        <div className="p-4 space-y-2">
-          <Separator className="mb-4 bg-zinc-800" />
+        <div className="p-3 space-y-1">
+          <Separator className="mb-2 bg-zinc-800" />
           <Link href="/profile">
             <Button
               variant="ghost"

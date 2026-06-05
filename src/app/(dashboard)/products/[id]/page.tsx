@@ -7,6 +7,7 @@ import { useOutlet } from '@/lib/contexts/outlet-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
 import { 
@@ -145,7 +146,8 @@ export default function ProductDetailPage() {
       if (updateError) throw updateError
       
       setProduct({ ...product, image_url: publicUrl })
-      toast.success('Product image updated')
+      toast.success('Product image updated successfully!')
+      setShowImageExpand(false)
     } catch (error: any) {
       toast.error(error.message || 'Failed to upload image')
     } finally {
@@ -163,7 +165,9 @@ export default function ProductDetailPage() {
           code: product.code,
           unit: product.unit,
           purchase_unit: product.purchase_unit || product.unit,
-          conversion_factor: product.conversion_factor || 1
+          conversion_factor: product.conversion_factor || 1,
+          show_on_pos: product.show_on_pos ?? true,
+          pos_category: product.pos_category || 'Uncategorized'
         })
         .eq('id', product.id)
       
@@ -176,7 +180,9 @@ export default function ProductDetailPage() {
           org_id: product.org_id,
           outlet_id: selectedOutletId,
           item_id: product.id,
-          selling_price: price
+          selling_price: price,
+          estimated_hpp: estimatedHpp,
+          estimated_margin: margin
         }, { onConflict: 'outlet_id,item_id' })
       
       if (priceError) throw priceError
@@ -347,6 +353,42 @@ export default function ProductDetailPage() {
                         className="h-7 bg-zinc-950 border-zinc-800 text-xs"
                       />
                     </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 pt-1">
+                    <div className="space-y-1">
+                      <label className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider">POS Category</label>
+                      <Select 
+                        value={product.pos_category || 'Uncategorized'} 
+                        onValueChange={(val) => setProduct({...product, pos_category: val})}
+                      >
+                        <SelectTrigger className="h-7 bg-zinc-950 border-zinc-800 text-xs">
+                          <SelectValue placeholder="Select Category" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-zinc-900 border-zinc-800">
+                          <SelectItem value="Food">Food</SelectItem>
+                          <SelectItem value="Beverage">Beverage</SelectItem>
+                          <SelectItem value="Snacks">Snacks</SelectItem>
+                          <SelectItem value="Merchandise">Merchandise</SelectItem>
+                          <SelectItem value="Uncategorized">Uncategorized</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="pt-2">
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <div className="relative inline-flex items-center">
+                        <input 
+                          type="checkbox" 
+                          className="sr-only peer"
+                          checked={product.show_on_pos ?? true}
+                          onChange={e => setProduct({...product, show_on_pos: e.target.checked})}
+                        />
+                        <div className="w-9 h-5 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
+                      </div>
+                      <span className="text-xs font-medium text-zinc-300">Show on POS</span>
+                    </label>
                   </div>
                 </div>
               </div>

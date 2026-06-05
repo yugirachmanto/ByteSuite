@@ -97,6 +97,7 @@ export default function ReportsPage() {
   const [inventoryValue, setInventoryValue] = useState(0)
   const [totalPurchases, setTotalPurchases] = useState(0)
   const [totalTax, setTotalTax] = useState(0)
+  const [posTaxTotal, setPosTaxTotal] = useState(0)
   const [varianceValue, setVarianceValue] = useState(0)
   const [apOutstanding, setApOutstanding] = useState(0)
   const [inventoryByTier, setInventoryByTier] = useState<any[]>([])
@@ -142,6 +143,7 @@ export default function ReportsPage() {
         { data: apData },
         { data: glData },
         { data: allCoas },
+        { data: posData },
       ] = await Promise.all([
         supabase.from('inventory_balance').select('inventory_value, qty_on_hand, item_master(name, category)').eq('outlet_id', selectedOutletId),
         supabase.from('invoices').select('vendor, invoice_no, invoice_date, grand_total, tax_total, payment_status').eq('outlet_id', selectedOutletId).eq('status', 'posted').gte('invoice_date', startIso).lte('invoice_date', endIso).order('invoice_date', { ascending: false }),
@@ -150,6 +152,7 @@ export default function ReportsPage() {
         supabase.from('invoices').select('grand_total, paid_amount').eq('outlet_id', selectedOutletId).eq('status', 'posted').neq('payment_status', 'paid'),
         supabase.from('gl_entries').select('coa_id, debit, credit, entry_date, description, chart_of_accounts(code, name, type)').eq('outlet_id', selectedOutletId).gte('entry_date', startIso).lte('entry_date', endIso),
         orgId ? supabase.from('chart_of_accounts').select('id, code, name, type, level, is_header, parent_id').eq('org_id', orgId) : Promise.resolve({ data: [] }),
+        supabase.from('pos_orders').select('tax_amount, total_amount').eq('outlet_id', selectedOutletId).eq('status', 'completed').gte('created_at', startIso).lte('created_at', endIso),
       ])
 
       // Inventory
@@ -170,11 +173,15 @@ export default function ReportsPage() {
       setTopItems(items.slice(0, 10))
       setInventoryByTier(Object.entries(tierMap).filter(([, v]) => v > 0).map(([name, value]) => ({ name: tierLabels[name] || name, value })))
 
-      // Invoices
+      // Invoices (Purchases & Input Tax)
       const invList = invoiceData || []
       setInvoices(invList)
       setTotalPurchases(invList.reduce((s: number, i: any) => s + (i.grand_total || 0), 0))
       setTotalTax(invList.reduce((s: number, i: any) => s + (i.tax_total || 0), 0))
+
+      // POS Orders (Sales & Output Tax)
+      const posTotalTaxVal = posData?.reduce((s: number, i: any) => s + (i.tax_amount || 0), 0) || 0
+      setPosTaxTotal(posTotalTaxVal)
 
       // Opname
       setVarianceValue(opnames?.reduce((s, o) => s + (o.variance_value || 0), 0) || 0)
@@ -313,6 +320,7 @@ export default function ReportsPage() {
         totalPurchases,
         inventoryValue,
         totalTax,
+        posTaxTotal,
         apOutstanding,
         varianceValue,
         invoices,
@@ -436,11 +444,12 @@ export default function ReportsPage() {
       </div>
 
       {/* ── KPI Cards ─────────────────────────────────────────────── */}
-      <div className="grid gap-3 grid-cols-2 lg:grid-cols-5">
+      <div className="grid gap-3 grid-cols-2 lg:grid-cols-6">
         {[
           { label: 'Total Pembelian', value: formatRp(totalPurchases), icon: FileText,      color: 'text-indigo-400',  bg: 'bg-indigo-500/10',  border: 'border-indigo-500/20'  },
           { label: 'Nilai Inventori', value: formatRp(inventoryValue), icon: Package,       color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
-          { label: 'PPN Masukan',     value: formatRp(totalTax),       icon: TrendingUp,    color: 'text-amber-400',   bg: 'bg-amber-500/10',   border: 'border-amber-500/20'   },
+          { label: 'PPN Masukan (Input)', value: formatRp(totalTax),       icon: TrendingUp,    color: 'text-amber-400',   bg: 'bg-amber-500/10',   border: 'border-amber-500/20'   },
+          { label: 'PPN Keluaran (Output)', value: formatRp(posTaxTotal),  icon: TrendingUp,    color: 'text-orange-400',  bg: 'bg-orange-500/10',  border: 'border-orange-500/20'  },
           { label: 'Hutang Dagang',   value: formatRp(apOutstanding),  icon: ArrowUpRight,  color: 'text-red-400',     bg: 'bg-red-500/10',     border: 'border-red-500/20'     },
           { label: 'Selisih Opname',  value: (varianceValue >= 0 ? '+' : '') + formatRp(varianceValue), icon: AlertTriangle, color: varianceValue >= 0 ? 'text-emerald-400' : 'text-red-400', bg: varianceValue >= 0 ? 'bg-emerald-500/10' : 'bg-red-500/10', border: varianceValue >= 0 ? 'border-emerald-500/20' : 'border-red-500/20' },
         ].map(kpi => (
@@ -562,7 +571,7 @@ export default function ReportsPage() {
                       <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
                       <XAxis dataKey="date" stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} />
                       <YAxis tickFormatter={v => `${(v / 1000000).toFixed(0)}jt`} stroke="#52525b" fontSize={10} tickLine={false} axisLine={false} />
-                      <RechartsTooltip formatter={(v: any) => formatRp(v)} labelStyle={{ color: '#a1a1aa' }} contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', color: '#f4f4f5', fontSize: 12, borderRadius: '8px' }} />
+                      <RechartsTooltip cursor={{ fill: 'transparent' }} formatter={(v: any) => formatRp(v)} labelStyle={{ color: '#a1a1aa' }} contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', color: '#f4f4f5', fontSize: 12, borderRadius: '8px' }} />
                       <Legend iconType="circle" wrapperStyle={{ fontSize: '11px', color: '#a1a1aa' }} />
                       <Area type="monotone" dataKey="income" name="Pendapatan" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#colorIncome)" />
                       <Area type="monotone" dataKey="expense" name="Pengeluaran" stroke="#f43f5e" strokeWidth={2} fillOpacity={1} fill="url(#colorExpense)" />
@@ -583,7 +592,7 @@ export default function ReportsPage() {
                     <Pie data={inventoryByTier} cx="50%" cy="45%" innerRadius={60} outerRadius={80} paddingAngle={3} dataKey="value" stroke="none">
                       {inventoryByTier.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                     </Pie>
-                    <RechartsTooltip formatter={(v: any) => formatRp(v)} contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', color: '#f4f4f5', fontSize: 12, borderRadius: '8px' }} />
+                    <RechartsTooltip cursor={{ fill: 'transparent' }} formatter={(v: any) => formatRp(v)} contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', color: '#f4f4f5', fontSize: 12, borderRadius: '8px' }} />
                     <Legend layout="horizontal" verticalAlign="bottom" align="center" wrapperStyle={{ fontSize: '11px', color: '#a1a1aa', paddingTop: 20 }} />
                   </PieChart>
                 </ResponsiveContainer>
@@ -600,7 +609,7 @@ export default function ReportsPage() {
                   <CartesianGrid strokeDasharray="3 3" stroke="#27272a" horizontal={false} />
                   <XAxis type="number" tickFormatter={v => `${(v / 1000000).toFixed(0)}jt`} stroke="#52525b" fontSize={10} />
                   <YAxis dataKey="name" type="category" width={110} stroke="#52525b" fontSize={10} tick={{ fill: '#a1a1aa' }} />
-                  <RechartsTooltip formatter={(v: any) => formatRp(v)} contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', color: '#f4f4f5', fontSize: 12 }} />
+                  <RechartsTooltip cursor={{ fill: 'transparent' }} formatter={(v: any) => formatRp(v)} contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', color: '#f4f4f5', fontSize: 12 }} />
                   <Bar dataKey="value" name="Nilai Inventori" fill="#6366f1" radius={[0, 6, 6, 0]} barSize={20} />
                 </BarChart>
               </ResponsiveContainer>

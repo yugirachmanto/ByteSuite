@@ -26,7 +26,7 @@ import Link from 'next/link'
 
 export default function DashboardPage() {
   const supabase = createClient()
-  const { selectedOutletId, outlets } = useOutlet()
+  const { selectedOutletId, outlets, posEnabled } = useOutlet()
   const { startDate, endDate } = useDateWindow()
   const selectedOutlet = outlets.find((o) => o.id === selectedOutletId)
 
@@ -39,6 +39,7 @@ export default function DashboardPage() {
     lowStockCount: 0,
     apAging: { current: 0, days1_30: 0, days31_60: 0, days60plus: 0 }
   })
+  const [posStats, setPosStats] = useState({ revenue: 0, orderCount: 0 })
   const [recentInvoices, setRecentInvoices] = useState<any[]>([])
   const [recentMovements, setRecentMovements] = useState<any[]>([])
 
@@ -64,13 +65,7 @@ export default function DashboardPage() {
       const endIso = endDate.toISOString()
 
       try {
-        const [
-          { count: invCount },
-          { data: invBalance },
-          { data: apData },
-          { data: recentInv },
-          { data: recentMov },
-        ] = await Promise.all([
+        const fetchPromises: any[] = [
           supabase
             .from('invoices')
             .select('*', { count: 'exact', head: true })
@@ -103,7 +98,37 @@ export default function DashboardPage() {
             .eq('outlet_id', selectedOutletId)
             .order('created_at', { ascending: false })
             .limit(5),
-        ])
+        ]
+
+        if (posEnabled) {
+          fetchPromises.push(
+            supabase
+              .from('pos_orders')
+              .select('total_amount', { count: 'exact' })
+              .eq('outlet_id', selectedOutletId)
+              .eq('status', 'completed')
+              .gte('created_at', startIso)
+              .lte('created_at', endIso)
+          )
+        }
+
+        const results = await Promise.all(fetchPromises)
+
+        const [
+          { count: invCount },
+          { data: invBalance },
+          { data: apData },
+          { data: recentInv },
+          { data: recentMov },
+        ] = results
+
+        let posRev = 0
+        let posCount = 0
+        if (posEnabled && results[5]) {
+          const { data: posData, count: pCount } = results[5]
+          posCount = pCount || 0
+          posRev = posData?.reduce((acc: number, curr: any) => acc + (Number(curr.total_amount) || 0), 0) || 0
+        }
 
         const invValue =
           invBalance?.reduce(
@@ -154,6 +179,7 @@ export default function DashboardPage() {
           lowStockCount: lowStock,
           apAging: { current, days1_30, days31_60, days60plus }
         })
+        setPosStats({ revenue: posRev, orderCount: posCount })
         setRecentInvoices(recentInv || [])
         setRecentMovements(recentMov || [])
       } catch (error) {
@@ -163,7 +189,7 @@ export default function DashboardPage() {
       }
     }
     fetchDashboardData()
-  }, [selectedOutletId, supabase, startDate, endDate])
+  }, [selectedOutletId, supabase, startDate, endDate, posEnabled])
 
   const statCards = [
     {
@@ -465,6 +491,58 @@ export default function DashboardPage() {
               ))}
             </div>
           </div>
+
+          {/* POS Analytics */}
+          {posEnabled && (
+            <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 backdrop-blur-sm overflow-hidden mb-5">
+              <div className="px-6 py-4 border-b border-zinc-800/60 flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-bold text-zinc-100">POS Analytics</h3>
+                  <p className="text-[11px] text-zinc-500 mt-0.5">Point of Sale performance</p>
+                </div>
+                <CreditCard className="h-4 w-4 text-zinc-500" />
+              </div>
+              <div className="p-4 space-y-2">
+                {[
+                  {
+                    label: 'Total Revenue',
+                    value: formatRp(posStats.revenue),
+                    icon: DollarSign,
+                    iconBg: 'bg-emerald-500/10',
+                    iconColor: 'text-emerald-400',
+                    valueColor: 'text-zinc-100',
+                  },
+                  {
+                    label: 'Completed Orders',
+                    value: posStats.orderCount.toString(),
+                    icon: Activity,
+                    iconBg: 'bg-blue-500/10',
+                    iconColor: 'text-blue-400',
+                    valueColor: 'text-zinc-100',
+                  },
+                ].map((row) => (
+                  <div
+                    key={row.label}
+                    className="flex items-center justify-between px-3 py-2.5 rounded-lg bg-zinc-950/50 border border-zinc-800/40"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`flex h-7 w-7 items-center justify-center rounded-md ${row.iconBg}`}>
+                        <row.icon className={`h-3.5 w-3.5 ${row.iconColor}`} />
+                      </div>
+                      <span className="text-xs text-zinc-400">{row.label}</span>
+                    </div>
+                    <span className={`text-xs font-bold font-mono ${row.valueColor}`}>
+                      {loading ? (
+                        <div className="h-4 w-16 animate-pulse rounded bg-zinc-800" />
+                      ) : (
+                        row.value
+                      )}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Financials Summary */}
           <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 backdrop-blur-sm overflow-hidden">
