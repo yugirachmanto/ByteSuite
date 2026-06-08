@@ -132,7 +132,7 @@ export default function DashboardPage() {
 
         const invValue =
           invBalance?.reduce(
-            (acc, curr) => acc + (Number(curr.inventory_value) || 0),
+            (acc: number, curr: any) => acc + (Number(curr.inventory_value) || 0),
             0
           ) || 0
         const lowStock =
