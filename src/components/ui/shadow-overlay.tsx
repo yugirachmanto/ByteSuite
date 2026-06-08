@@ -25,7 +25,7 @@ interface ShadowOverlayProps {
     type?: 'preset' | 'custom';
     presetIndex?: number;
     customImage?: ResponsiveImage;
-    sizing?: 'fill' | 'stretch';
+    sizing?: 'fill' | 'stretch' | 'cover';
     color?: string;
     animation?: AnimationConfig;
     noise?: NoiseConfig;

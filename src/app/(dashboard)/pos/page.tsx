@@ -18,6 +18,7 @@ interface Product {
   category: string
   price: number
   posCategory?: string
+  imageUrl?: string
 }
 
 type CartItem = Product & {

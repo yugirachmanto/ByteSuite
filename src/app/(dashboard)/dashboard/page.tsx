@@ -136,7 +136,7 @@ export default function DashboardPage() {
             0
           ) || 0
         const lowStock =
-          invBalance?.filter((i) => {
+          invBalance?.filter((i: any) => {
             const onHand = i.qty_on_hand || 0
             const level = (i.item_master as any)?.reorder_level || 0
             return onHand <= level
@@ -147,7 +147,7 @@ export default function DashboardPage() {
         let days31_60 = 0
         let days60plus = 0
 
-        apData?.forEach((inv) => {
+        apData?.forEach((inv: any) => {
           const balance = Number(inv.grand_total) - (Number(inv.paid_amount) || 0)
           apSum += balance
 
