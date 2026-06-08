@@ -16,7 +16,7 @@ import {
 import { formatRp, tierColors, tierLabels } from '@/lib/format'
 import { format } from 'date-fns'
 import { id as localeId } from 'date-fns/locale'
-import { generateFinancialPDF, type ReportData } from '@/lib/pdf-generator'
+import { generateFinancialPDF, type ReportData, type PnLLineItem } from '@/lib/pdf-generator'
 import { cn } from '@/lib/utils'
 import { COATreeTable } from '@/components/accounting/COATreeTable'
 
@@ -311,6 +311,17 @@ export default function ReportsPage() {
   const handleExportPDF = async () => {
     setExporting(true)
     try {
+      // Map GL summary entries to PnLLineItem format
+      const mapToPnL = (entries: any[]): PnLLineItem[] =>
+        entries.map((c: any) => ({
+          code: c.code,
+          name: c.name,
+          depth: c.depth ?? 0,
+          is_header: c.is_header ?? false,
+          totalDebit: c.totalDebit ?? 0,
+          totalCredit: c.totalCredit ?? 0,
+        }))
+
       const reportData: ReportData = {
         orgName,
         outletName: selectedOutlet?.name || 'Outlet',
@@ -326,6 +337,27 @@ export default function ReportsPage() {
         invoices,
         inventoryItems: allItems,
         glSummary,
+        pnl: {
+          revenue: mapToPnL(incomeEntries),
+          cogs: mapToPnL(cogsEntries),
+          opex: mapToPnL(standardOpexEntries),
+          da: mapToPnL(daEntries),
+          interestTax: mapToPnL(interestTaxEntries),
+          totalRevenue,
+          totalCogs,
+          grossProfit,
+          totalOpex,
+          ebitda,
+          totalDa,
+          ebit,
+          totalInterestTax,
+          netIncome,
+        },
+        balanceSheet: {
+          totalAssets,
+          totalLiabilities,
+          totalEquity,
+        },
       }
       await generateFinancialPDF(reportData)
     } catch (err) {
