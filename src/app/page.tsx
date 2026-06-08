@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Menu, X, Zap } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import { ShadowOverlay } from '@/components/ui/shadow-overlay'
 
 const menuItems = [
     { name: 'Features', href: '#' },
@@ -26,10 +27,10 @@ export default function HeroSection() {
 
     return (
         <div>
-            <header>
+            <header className="fixed top-0 left-0 right-0 z-50">
                 <nav
                     data-state={menuState && 'active'}
-                    className="group fixed z-20 w-full border-b border-dashed bg-white backdrop-blur md:relative dark:bg-zinc-950/50 lg:dark:bg-transparent">
+                    className="group w-full bg-transparent backdrop-blur-sm border-b border-white/10 dark:border-white/5">
                     <div className="m-auto max-w-5xl px-6">
                         <div className="flex flex-wrap items-center justify-between gap-6 py-3 lg:gap-0 lg:py-4">
                             <div className="flex w-full justify-between lg:w-auto">
@@ -87,54 +88,23 @@ export default function HeroSection() {
                     <div className="h-[80rem] -translate-y-87.5 absolute left-0 top-0 w-56 -rotate-45 bg-[radial-gradient(50%_50%_at_50%_50%,hsla(0,0%,85%,.04)_0,hsla(0,0%,45%,.02)_80%,transparent_100%)]" />
                 </div>
 
-                <section className="overflow-hidden bg-white dark:bg-transparent">
-                    <div className="relative mx-auto max-w-5xl px-6 py-28 lg:py-24">
-                        <div className="relative z-10 mx-auto max-w-2xl text-center">
-                            <h1 className="text-balance text-4xl font-semibold md:text-5xl lg:text-6xl">The All-In-One ERP for Modern F&B</h1>
-                            <p className="mx-auto my-8 max-w-2xl text-xl">Streamline operations from smart invoice capture to real-time inventory and POS integration. Double-entry accounting made simple.</p>
+                <section className="relative overflow-hidden bg-white dark:bg-transparent min-h-screen flex items-center justify-center">
+                    <div className="absolute inset-0 z-0">
+                        <ShadowOverlay
+                            sizing="cover"
+                            color="rgba(128, 128, 128, 1)"
+                            animation={{ scale: 30, speed: 80 }}
+                            noise={{ opacity: 0.2, scale: 1 }}
+                        />
+                    </div>
+                    <div className="relative z-10 mx-auto max-w-5xl px-6 py-28 lg:py-24">
+                        <div className="mx-auto max-w-2xl text-center">
+                            <h1 className="text-balance text-4xl font-semibold md:text-5xl lg:text-6xl text-zinc-900 dark:text-zinc-100">The All-In-One ERP for Modern F&B</h1>
+                            <p className="mx-auto my-8 max-w-2xl text-xl text-zinc-700 dark:text-zinc-300">Streamline operations from smart invoice capture to real-time inventory and POS integration. Double-entry accounting made simple.</p>
 
                             <Link href="/register" className={buttonVariants({ size: 'lg' })}>
                                 <span className="btn-label">Start Free Trial</span>
                             </Link>
-                        </div>
-                    </div>
-
-                    <div className="mx-auto -mt-16 max-w-7xl [mask-image:linear-gradient(to_bottom,black_50%,transparent_100%)]">
-                        <div className="[perspective:1200px] [mask-image:linear-gradient(to_right,black_50%,transparent_100%)] -mr-16 pl-16 lg:-mr-56 lg:pl-56">
-                            <div className="[transform:rotateX(20deg);]">
-                                <div className="lg:h-[44rem] relative skew-x-[.36rad]">
-                                    <img
-                                        className="rounded-[--radius] z-[2] relative border dark:hidden"
-                                        src="/dashboard-light.png"
-                                        alt="ByteSuite hero section"
-                                        width={2880}
-                                        height={2074}
-                                    />
-                                    <img
-                                        className="rounded-[--radius] z-[2] relative hidden border dark:block"
-                                        src="/dashboard-dark.png"
-                                        alt="ByteSuite hero section"
-                                        width={2880}
-                                        height={2074}
-                                    />
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </section>
-                <section className="bg-background relative z-10 py-16">
-                    <div className="m-auto max-w-5xl px-6">
-                        <h2 className="text-center text-lg font-medium text-muted-foreground">Powering the operations behind great food.</h2>
-                        <div className="mx-auto mt-12 flex max-w-4xl flex-wrap items-center justify-center gap-x-8 gap-y-6 sm:gap-x-12 sm:gap-y-8 text-xl font-semibold text-zinc-800 dark:text-zinc-200">
-                            <span>Smart Invoicing</span>
-                            <span className="hidden sm:inline text-muted-foreground">•</span>
-                            <span>Real-time Inventory</span>
-                            <span className="hidden sm:inline text-muted-foreground">•</span>
-                            <span>Double-Entry Accounting</span>
-                            <span className="hidden sm:inline text-muted-foreground">•</span>
-                            <span>POS Integration</span>
-                            <span className="hidden sm:inline text-muted-foreground">•</span>
-                            <span>BOM & Production</span>
                         </div>
                     </div>
                 </section>
