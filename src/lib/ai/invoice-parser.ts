@@ -1,8 +1,14 @@
 import OpenAI from 'openai'
 
-const defaultClient = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-})
+let defaultClient: OpenAI | null = null;
+function getDefaultClient() {
+  if (!defaultClient) {
+    defaultClient = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY || 'dummy_key_for_build',
+    });
+  }
+  return defaultClient;
+}
 
 export interface ExtractedInvoice {
   vendor: {
@@ -128,7 +134,7 @@ export async function extractInvoice(
   vendors?: { id: string; name: string }[],
   items?: { id: string; name: string; unit: string; default_coa_id: string }[]
 ): Promise<ExtractedInvoice> {
-  const client = apiKey ? new OpenAI({ apiKey }) : defaultClient
+  const client = apiKey ? new OpenAI({ apiKey }) : getDefaultClient()
 
   const today = new Date().toLocaleDateString('id-ID', {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
