@@ -34,7 +34,7 @@ BEGIN
   ORDER BY outlet_id NULLS LAST LIMIT 1;
 
   IF v_payment_coa_id IS NULL THEN
-    SELECT id INTO v_payment_coa_id FROM chart_of_accounts WHERE org_id = p_org_id AND code LIKE '1-1%' LIMIT 1;
+    SELECT id INTO v_payment_coa_id FROM chart_of_accounts WHERE org_id = p_org_id AND code LIKE '1-1%' AND is_header = false LIMIT 1;
   END IF;
 
   -- Resolve Revenue COA (using 'finished' category)
@@ -43,14 +43,14 @@ BEGIN
   ORDER BY outlet_id NULLS LAST LIMIT 1;
 
   IF v_revenue_coa_id IS NULL THEN
-    SELECT id INTO v_revenue_coa_id FROM chart_of_accounts WHERE org_id = p_org_id AND code LIKE '4-%' LIMIT 1;
+    SELECT id INTO v_revenue_coa_id FROM chart_of_accounts WHERE org_id = p_org_id AND code LIKE '4-%' AND is_header = false LIMIT 1;
   END IF;
   IF v_cogs_coa_id IS NULL THEN
-    SELECT id INTO v_cogs_coa_id FROM chart_of_accounts WHERE org_id = p_org_id AND code LIKE '5-%' LIMIT 1;
+    SELECT id INTO v_cogs_coa_id FROM chart_of_accounts WHERE org_id = p_org_id AND code LIKE '5-%' AND is_header = false LIMIT 1;
   END IF;
   
   -- Resolve Inventory COA (global fallback for simplicity)
-  SELECT id INTO v_inventory_coa_id FROM chart_of_accounts WHERE org_id = p_org_id AND code LIKE '1-3%' LIMIT 1;
+  SELECT id INTO v_inventory_coa_id FROM chart_of_accounts WHERE org_id = p_org_id AND code LIKE '1-3%' AND is_header = false LIMIT 1;
 
   -- Process Lines
   FOR line IN SELECT * FROM jsonb_to_recordset(p_lines) AS x(
