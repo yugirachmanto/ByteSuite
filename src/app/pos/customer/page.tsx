@@ -61,9 +61,9 @@ export default function POSCustomerDisplay() {
   }, {}) || {}
 
   return (
-    <div className="flex h-screen p-8 gap-8 bg-zinc-950">
+    <div className="flex flex-col md:flex-row h-screen p-4 md:p-8 gap-4 md:gap-8 bg-zinc-950 overflow-y-auto md:overflow-hidden">
       {/* Left Side - Welcome or QRIS */}
-      <div className="flex-1 flex flex-col items-center justify-center bg-zinc-900 rounded-3xl border border-zinc-800 p-8 text-center relative overflow-hidden">
+      <div className="flex-1 flex flex-col items-center justify-center bg-zinc-900 rounded-3xl border border-zinc-800 p-4 md:p-8 text-center relative overflow-hidden min-h-[50vh] md:min-h-0">
         <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-transparent"></div>
         
         {isQris && state.qrisImageUrl ? (
@@ -196,7 +196,7 @@ export default function POSCustomerDisplay() {
       </div>
 
       {/* Right Side - Cart */}
-      <div className="w-[450px] flex flex-col bg-zinc-950 rounded-3xl border border-zinc-800 overflow-hidden shadow-2xl">
+      <div className="w-full md:w-[450px] flex flex-col bg-zinc-950 rounded-3xl border border-zinc-800 overflow-hidden shadow-2xl shrink-0 min-h-[50vh] md:min-h-0">
         <div className="p-6 border-b border-zinc-800 bg-zinc-900/50">
           <h2 className="text-2xl font-bold text-zinc-100 flex items-center gap-3">
             <ShoppingCart className="h-6 w-6 text-indigo-400" />

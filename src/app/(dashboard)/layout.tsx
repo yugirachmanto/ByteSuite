@@ -15,6 +15,7 @@ import {
   Settings,
   Share2,
   ChevronRight,
+  Menu,
   LogOut,
   Building2,
   Check,
@@ -97,7 +98,16 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     setMounted(true)
+    if (window.innerWidth < 768) {
+      setIsSidebarOpen(false)
+    }
   }, [])
+
+  useEffect(() => {
+    if (window.innerWidth < 768) {
+      setIsSidebarOpen(false)
+    }
+  }, [pathname])
 
   useEffect(() => {
     async function checkBilling() {
@@ -128,11 +138,20 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-screen bg-zinc-950 print:bg-white print:h-auto print:block">
+      {/* Mobile Sidebar Backdrop */}
+      {isSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black/60 z-40 md:hidden" 
+          onClick={() => setIsSidebarOpen(false)} 
+        />
+      )}
+
       {/* Sidebar */}
       <aside
         className={cn(
-          'flex flex-col border-r border-zinc-800 bg-zinc-900 transition-all duration-300 print:hidden',
-          isSidebarOpen ? 'w-64' : 'w-20'
+          'flex flex-col border-r border-zinc-800 bg-zinc-900 transition-all duration-300 print:hidden z-50',
+          'fixed inset-y-0 left-0 md:relative',
+          isSidebarOpen ? 'w-64 translate-x-0' : 'w-20 -translate-x-full md:translate-x-0'
         )}
       >
         <div className="flex h-16 items-center px-6">
@@ -264,18 +283,26 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col overflow-hidden print:overflow-visible print:block">
-        <header className="flex h-16 items-center border-b border-zinc-800 bg-zinc-900/50 px-8 backdrop-blur-sm print:hidden">
+        <header className="flex h-16 items-center border-b border-zinc-800 bg-zinc-900/50 px-4 md:px-8 backdrop-blur-sm print:hidden">
           <Button
             variant="ghost"
             size="icon"
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            className="text-zinc-400 hover:text-zinc-100"
+            className="text-zinc-400 hover:text-zinc-100 hidden md:flex"
           >
             <ChevronRight
               className={cn('h-5 w-5 transition-transform', isSidebarOpen ? 'rotate-180' : 'rotate-0')}
             />
           </Button>
-          <div className="ml-4 h-4 w-[1px] bg-zinc-800" />
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            className="text-zinc-400 hover:text-zinc-100 flex md:hidden"
+          >
+            <Menu className="h-5 w-5" />
+          </Button>
+          <div className="ml-4 h-4 w-[1px] bg-zinc-800 hidden md:block" />
           <h1 className="ml-6 text-sm font-medium text-zinc-400">
             {sidebarGroups
               .flatMap(g => g.items)
@@ -296,7 +323,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
             </Link>
           </div>
         </header>
-        <div className="flex-1 overflow-auto bg-zinc-950 p-8 print:bg-white print:p-0 print:overflow-visible">
+        <div className="flex-1 overflow-auto bg-zinc-950 p-4 md:p-8 print:bg-white print:p-0 print:overflow-visible">
           <div className="mx-auto max-w-7xl print:max-w-none">{children}</div>
         </div>
       </main>

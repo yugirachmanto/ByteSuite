@@ -89,7 +89,7 @@ export default function APDashboardPage() {
         // Used for the header "Total Outstanding" card.
         const { data: allInvData } = await supabase
           .from('invoices')
-          .select('grand_total, paid_amount, payment_status, due_date')
+          .select('id, grand_total, paid_amount, payment_status')
           .eq('outlet_id', selectedOutletId)
           .eq('status', 'posted')
         setAllOutstanding(allInvData || [])
@@ -191,7 +191,7 @@ export default function APDashboardPage() {
       // Refresh outstanding total and invoice lists for the current outlet
       const { data: allInvData } = await supabase
         .from('invoices')
-        .select('grand_total, paid_amount, payment_status, due_date')
+        .select('id, grand_total, paid_amount, payment_status')
         .eq('outlet_id', selectedOutletId)
         .eq('status', 'posted')
       setAllOutstanding(allInvData || [])

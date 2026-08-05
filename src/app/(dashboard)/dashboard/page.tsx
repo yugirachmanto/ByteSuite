@@ -79,7 +79,7 @@ export default function DashboardPage() {
             .eq('outlet_id', selectedOutletId),
           supabase
             .from('invoices')
-            .select('grand_total, paid_amount, due_date')
+            .select('grand_total, paid_amount')
             .eq('outlet_id', selectedOutletId)
             .eq('status', 'posted')
             .neq('payment_status', 'paid'),

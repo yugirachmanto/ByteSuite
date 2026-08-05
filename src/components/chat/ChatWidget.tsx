@@ -163,7 +163,7 @@ export function ChatWidget() {
     return (
       <button 
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 w-14 h-14 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full shadow-lg flex items-center justify-center transition-transform hover:scale-105 z-50"
+        className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 w-14 h-14 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full shadow-lg flex items-center justify-center transition-transform hover:scale-105 z-50"
       >
         <MessageCircle size={24} />
       </button>
@@ -172,8 +172,8 @@ export function ChatWidget() {
 
   return (
     <div className={cn(
-      "fixed bottom-6 right-6 bg-zinc-950 border border-zinc-800 rounded-xl shadow-2xl flex flex-col z-50 overflow-hidden transition-all duration-200",
-      isExpanded ? "w-[800px] h-[80vh] max-h-[800px]" : "w-[400px] h-[600px] max-h-[80vh]"
+      "fixed bottom-4 right-4 sm:bottom-6 sm:right-6 bg-zinc-950 border border-zinc-800 rounded-xl shadow-2xl flex flex-col z-50 overflow-hidden transition-all duration-200",
+      isExpanded ? "w-[calc(100vw-2rem)] md:w-[800px] h-[80vh] max-h-[800px]" : "w-[calc(100vw-2rem)] sm:w-[400px] h-[80vh] sm:h-[600px] max-h-[80vh]"
     )}>
       {/* Header */}
       <div className="h-14 border-b border-zinc-800 flex items-center justify-between px-4 bg-zinc-900/50 shrink-0">

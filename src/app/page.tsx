@@ -122,7 +122,7 @@ export default function HeroSection() {
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             {/* AI Invoice OCR */}
-                            <div className="group relative overflow-hidden rounded-3xl bg-zinc-900/50 backdrop-blur-md border border-white/5 p-8 hover:bg-zinc-900/80 transition-all duration-500 hover:border-indigo-500/30">
+                            <div className="group relative overflow-hidden rounded-3xl bg-zinc-900/50 backdrop-blur-md border border-white/5 p-6 md:p-8 hover:bg-zinc-900/80 transition-all duration-500 hover:border-indigo-500/30">
                                 <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                                 <div className="relative z-10">
                                     <div className="mb-6 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-500/20 text-indigo-400 ring-1 ring-indigo-500/30">
@@ -139,7 +139,7 @@ export default function HeroSection() {
                             </div>
 
                             {/* Double-Entry Accounting */}
-                            <div className="group relative overflow-hidden rounded-3xl bg-zinc-900/50 backdrop-blur-md border border-white/5 p-8 hover:bg-zinc-900/80 transition-all duration-500 hover:border-emerald-500/30">
+                            <div className="group relative overflow-hidden rounded-3xl bg-zinc-900/50 backdrop-blur-md border border-white/5 p-6 md:p-8 hover:bg-zinc-900/80 transition-all duration-500 hover:border-emerald-500/30">
                                 <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                                 <div className="relative z-10">
                                     <div className="mb-6 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/30">
@@ -156,7 +156,7 @@ export default function HeroSection() {
                             </div>
 
                             {/* Inventory & BOM */}
-                            <div className="group relative overflow-hidden rounded-3xl bg-zinc-900/50 backdrop-blur-md border border-white/5 p-8 hover:bg-zinc-900/80 transition-all duration-500 hover:border-amber-500/30 md:col-span-2 lg:col-span-1">
+                            <div className="group relative overflow-hidden rounded-3xl bg-zinc-900/50 backdrop-blur-md border border-white/5 p-6 md:p-8 hover:bg-zinc-900/80 transition-all duration-500 hover:border-amber-500/30 md:col-span-2 lg:col-span-1">
                                 <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                                 <div className="relative z-10">
                                     <div className="mb-6 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-amber-500/20 text-amber-400 ring-1 ring-amber-500/30">
@@ -173,7 +173,7 @@ export default function HeroSection() {
                             </div>
 
                             {/* Point of Sale */}
-                            <div className="group relative overflow-hidden rounded-3xl bg-zinc-900/50 backdrop-blur-md border border-white/5 p-8 hover:bg-zinc-900/80 transition-all duration-500 hover:border-cyan-500/30 md:col-span-2 lg:col-span-1">
+                            <div className="group relative overflow-hidden rounded-3xl bg-zinc-900/50 backdrop-blur-md border border-white/5 p-6 md:p-8 hover:bg-zinc-900/80 transition-all duration-500 hover:border-cyan-500/30 md:col-span-2 lg:col-span-1">
                                 <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                                 <div className="relative z-10">
                                     <div className="mb-6 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-cyan-500/20 text-cyan-400 ring-1 ring-cyan-500/30">
