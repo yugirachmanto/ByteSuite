@@ -67,10 +67,16 @@ const sidebarGroups = [
     ]
   },
   {
+    name: 'Projects & Tasks',
+    roles: ['owner', 'finance', 'kitchen'],
+    items: [
+      { name: 'Projects', href: '/projects', icon: FolderKanban },
+    ]
+  },
+  {
     name: 'Operations',
     roles: ['owner', 'kitchen', 'finance'],
     items: [
-      { name: 'Projects', href: '/projects', icon: FolderKanban },
       { name: 'Inventory', href: '/inventory', icon: Package },
       { name: 'Products', href: '/products', icon: Tag },
       { name: 'Production', href: '/production', icon: Hammer },
