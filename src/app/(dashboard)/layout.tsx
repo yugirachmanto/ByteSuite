@@ -24,7 +24,8 @@ import {
   BookOpen,
   CreditCard,
   Tag,
-  HelpCircle
+  HelpCircle,
+  FolderKanban
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button, buttonVariants } from '@/components/ui/button'
@@ -69,6 +70,7 @@ const sidebarGroups = [
     name: 'Operations',
     roles: ['owner', 'kitchen', 'finance'],
     items: [
+      { name: 'Projects', href: '/projects', icon: FolderKanban },
       { name: 'Inventory', href: '/inventory', icon: Package },
       { name: 'Products', href: '/products', icon: Tag },
       { name: 'Production', href: '/production', icon: Hammer },
