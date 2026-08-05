@@ -21,14 +21,14 @@ const COLUMNS: { id: Task['status']; label: string; color: string }[] = [
 
 export function TaskKanbanBoard({ tasks, onSelectTask, onQuickCreateTask }: TaskKanbanBoardProps) {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 overflow-x-auto pb-4">
+    <div className="flex gap-3 w-full">
       {COLUMNS.map((column) => {
         const columnTasks = tasks.filter((t) => t.status === column.id)
 
         return (
           <div 
             key={column.id}
-            className="flex flex-col bg-zinc-900/40 border border-zinc-800/80 rounded-2xl p-3 min-w-[240px] max-h-[750px]"
+            className="flex flex-col bg-zinc-900/40 border border-zinc-800/80 rounded-2xl p-3 flex-1 min-w-0 max-h-[750px]"
           >
             {/* Column Header */}
             <div className="flex items-center justify-between p-2 mb-2">
