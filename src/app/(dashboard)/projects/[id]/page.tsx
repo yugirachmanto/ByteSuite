@@ -13,7 +13,10 @@ import {
   Clock, 
   Settings, 
   Loader2,
-  Calendar
+  Calendar,
+  Pencil,
+  Check,
+  X
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
@@ -36,6 +39,12 @@ export default function ProjectDetailPage({ params }: ProjectDetailProps) {
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'board' | 'gantt' | 'mom'>('board')
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
+
+  // Inline Project Edit
+  const [isEditingProject, setIsEditingProject] = useState(false)
+  const [editName, setEditName] = useState('')
+  const [editDescription, setEditDescription] = useState('')
+  const [savingProject, setSavingProject] = useState(false)
   
   // Quick Task Modal
   const [isCreatingTask, setIsCreatingTask] = useState(false)
@@ -110,6 +119,36 @@ export default function ProjectDetailPage({ params }: ProjectDetailProps) {
     }
   }
 
+  const handleStartEdit = () => {
+    setEditName(project.name)
+    setEditDescription(project.description || '')
+    setIsEditingProject(true)
+  }
+
+  const handleCancelEdit = () => {
+    setIsEditingProject(false)
+  }
+
+  const handleSaveProject = async () => {
+    if (!editName.trim() || savingProject) return
+    setSavingProject(true)
+
+    const { error } = await supabase
+      .from('pm_projects')
+      .update({
+        name: editName.trim(),
+        description: editDescription.trim() || null,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', projectId)
+
+    setSavingProject(false)
+    if (!error) {
+      setProject({ ...project, name: editName.trim(), description: editDescription.trim() || null })
+      setIsEditingProject(false)
+    }
+  }
+
   if (loading) {
     return <div className="py-20 text-center text-zinc-500 text-sm">Loading project detail...</div>
   }
@@ -141,11 +180,70 @@ export default function ProjectDetailPage({ params }: ProjectDetailProps) {
               {project.status}
             </span>
           </div>
-          <h1 className="text-2xl font-bold text-zinc-100">{project.name}</h1>
-          <p className="text-xs text-zinc-400 max-w-2xl">{project.description || 'Tidak ada deskripsi.'}</p>
+          {/* Inline Edit Mode */}
+          {isEditingProject ? (
+            <div className="space-y-2 mt-1">
+              <input
+                autoFocus
+                type="text"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                className="w-full bg-zinc-900 border border-indigo-500/60 rounded-xl px-3 py-2 text-xl font-bold text-zinc-100 focus:outline-none"
+              />
+              <textarea
+                rows={2}
+                value={editDescription}
+                onChange={(e) => setEditDescription(e.target.value)}
+                placeholder="Deskripsi project..."
+                className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs text-zinc-300 placeholder-zinc-600 focus:outline-none focus:border-indigo-500"
+              />
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  onClick={handleSaveProject}
+                  disabled={savingProject || !editName.trim()}
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white gap-1.5 text-xs"
+                >
+                  {savingProject ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                  Simpan
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={handleCancelEdit}
+                  className="text-zinc-400 hover:text-zinc-100 text-xs gap-1.5"
+                >
+                  <X className="h-3.5 w-3.5" />
+                  Batal
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="group/title flex items-start gap-2">
+              <div>
+                <h1 className="text-2xl font-bold text-zinc-100">{project.name}</h1>
+                <p className="text-xs text-zinc-400 max-w-2xl mt-0.5">{project.description || 'Tidak ada deskripsi.'}</p>
+              </div>
+              <button
+                onClick={handleStartEdit}
+                className="mt-1 opacity-0 group-hover/title:opacity-100 transition-opacity text-zinc-500 hover:text-indigo-400"
+                title="Edit nama & deskripsi project"
+              >
+                <Pencil className="h-4 w-4" />
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
+          <Button
+            onClick={handleStartEdit}
+            variant="outline"
+            className="border-zinc-700 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 gap-2 font-medium text-xs"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+            Edit Project
+          </Button>
           <Button
             onClick={() => {
               setNewTaskStatus('todo')
