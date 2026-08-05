@@ -15,6 +15,7 @@ export function ChatWidget() {
   const [isOpen, setIsOpen] = useState(false)
   const [isExpanded, setIsExpanded] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
+  const [drawerOpen, setDrawerOpen] = useState(false)
   const { selectedOutletId } = useOutlet()
   const [currentOrgId, setCurrentOrgId] = useState<string | null>(null)
   const supabase = createClient()
@@ -27,6 +28,18 @@ export function ChatWidget() {
     }
     fetchOrgId();
   }, [selectedOutletId])
+
+  // Hide chat widget when task drawer is open
+  useEffect(() => {
+    const onDrawerOpen = () => setDrawerOpen(true)
+    const onDrawerClose = () => setDrawerOpen(false)
+    window.addEventListener('task-drawer-open', onDrawerOpen)
+    window.addEventListener('task-drawer-close', onDrawerClose)
+    return () => {
+      window.removeEventListener('task-drawer-open', onDrawerOpen)
+      window.removeEventListener('task-drawer-close', onDrawerClose)
+    }
+  }, [])
   
   // Custom Session Management
   const [sessionId, setSessionId] = useState<string | null>(null)
@@ -163,7 +176,10 @@ export function ChatWidget() {
     return (
       <button 
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 w-14 h-14 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full shadow-lg flex items-center justify-center transition-transform hover:scale-105 z-50"
+        className={cn(
+          "fixed bottom-4 right-4 sm:bottom-6 sm:right-6 w-14 h-14 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full shadow-lg flex items-center justify-center transition-all duration-300 z-50",
+          drawerOpen ? "opacity-0 pointer-events-none scale-75" : "opacity-100 scale-100 hover:scale-105"
+        )}
       >
         <MessageCircle size={24} />
       </button>

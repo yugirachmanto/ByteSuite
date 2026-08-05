@@ -57,6 +57,11 @@ export function TaskDetailDrawer({ task, onClose, onTaskUpdated }: TaskDetailDra
       setProgress(task.progress_percent)
       setPriority(task.priority)
       fetchAttachments()
+      // Notify ChatWidget to hide itself
+      window.dispatchEvent(new Event('task-drawer-open'))
+    } else {
+      // Notify ChatWidget to reappear
+      window.dispatchEvent(new Event('task-drawer-close'))
     }
   }, [task])
 
