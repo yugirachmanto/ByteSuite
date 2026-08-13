@@ -20,8 +20,19 @@ export default function HeroSection() {
     const router = useRouter()
 
     React.useEffect(() => {
-        if (typeof window !== 'undefined' && (window.location.hash.includes('type=invite') || window.location.hash.includes('type=recovery'))) {
-            window.location.href = '/setup-account' + window.location.hash
+        if (typeof window !== 'undefined') {
+            const hash = window.location.hash
+            const search = window.location.search
+            if (
+                hash.includes('access_token=') || 
+                hash.includes('type=invite') || 
+                hash.includes('type=recovery') ||
+                hash.includes('type=signup') ||
+                search.includes('code=') ||
+                search.includes('token_hash=')
+            ) {
+                window.location.href = '/setup-account' + search + hash
+            }
         }
     }, [])
 

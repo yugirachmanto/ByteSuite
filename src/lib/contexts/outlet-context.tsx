@@ -53,10 +53,10 @@ export function OutletProvider({ children }: { children: React.ReactNode }) {
     const orgData = profile?.organizations as any
     setPosEnabled(orgData?.pos_enabled ?? true)
 
-    // Owners see ALL outlets in the org; other roles see only their assigned outlets
+    // Owners and Admins see ALL outlets in the org; other roles see only their assigned outlets
     let query = supabase.from('outlets').select('id, name').order('name')
 
-    if (profile?.role === 'owner') {
+    if (profile?.role === 'owner' || profile?.role === 'admin') {
       query = query.eq('org_id', profile.org_id)
     } else if (profile?.outlet_ids?.length > 0) {
       query = query.in('id', profile.outlet_ids)

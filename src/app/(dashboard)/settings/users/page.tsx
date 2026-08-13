@@ -135,20 +135,24 @@ export default function UsersSettingsPage() {
           email: inviteEmail,
           full_name: inviteName,
           role: inviteRole,
-          outlet_ids: inviteRole === 'owner' ? [] : inviteOutlets
+          outlet_ids: (inviteRole === 'owner' || inviteRole === 'admin') ? [] : inviteOutlets
         })
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to invite user')
       
       setIsInviteOpen(false)
+      toast.success('Invitation processed successfully!')
+      if (data.link) {
+        setInviteLinkData({ name: inviteName || inviteEmail, link: data.link })
+      }
       setInviteEmail('')
       setInviteName('')
       setInviteRole('cashier')
       setInviteOutlets([])
       fetchData() // refresh list
     } catch (err: any) {
-      alert(err.message)
+      toast.error(err.message)
     } finally {
       setIsInviting(false)
     }
@@ -309,6 +313,7 @@ export default function UsersSettingsPage() {
                     </SelectTrigger>
                     <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-100">
                       <SelectItem value="owner">Owner (Full Access)</SelectItem>
+                      <SelectItem value="admin">Admin (Manager Access)</SelectItem>
                       <SelectItem value="finance">Finance</SelectItem>
                       <SelectItem value="cashier">Cashier</SelectItem>
                       <SelectItem value="kitchen">Kitchen</SelectItem>
@@ -317,7 +322,7 @@ export default function UsersSettingsPage() {
                   </Select>
                 </div>
                 
-                {inviteRole !== 'owner' && (
+                {inviteRole !== 'owner' && inviteRole !== 'admin' && (
                   <div className="grid gap-2">
                     <Label className="text-zinc-300">Assigned Outlets</Label>
                     <div className="grid grid-cols-2 gap-2 mt-2">
@@ -385,6 +390,7 @@ export default function UsersSettingsPage() {
                     </SelectTrigger>
                     <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-100">
                       <SelectItem value="owner">Owner (Full Access)</SelectItem>
+                      <SelectItem value="admin">Admin (Manager Access)</SelectItem>
                       <SelectItem value="finance">Finance</SelectItem>
                       <SelectItem value="cashier">Cashier</SelectItem>
                       <SelectItem value="kitchen">Kitchen</SelectItem>
@@ -393,7 +399,7 @@ export default function UsersSettingsPage() {
                   </Select>
                 </div>
                 
-                {editRole !== 'owner' && (
+                {editRole !== 'owner' && editRole !== 'admin' && (
                   <div className="grid gap-2">
                     <Label className="text-zinc-300">Assigned Outlets</Label>
                     <div className="grid grid-cols-2 gap-2 mt-2">

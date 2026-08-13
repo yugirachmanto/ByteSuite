@@ -47,24 +47,56 @@ export async function POST(request: Request) {
       }
     })
 
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+    const origin = request.headers.get('origin')
+    const host = request.headers.get('x-forwarded-host') || request.headers.get('host')
+    const proto = request.headers.get('x-forwarded-proto') || 'https'
+    const reqUrl = origin || (host ? `${proto}://${host}` : null)
+    const rawSiteUrl = reqUrl || process.env.NEXT_PUBLIC_SITE_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
+    const siteUrl = rawSiteUrl.replace(/\/$/, '')
+    const redirectTo = `${siteUrl}/setup-account`
+
+    let newUserId: string | null = null
+    let actionLink: string | null = null
+
+    // 1. Try standard inviteUserByEmail
     const { data: inviteData, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(email, {
       data: {
         full_name,
         role
       },
-      redirectTo: `${siteUrl}/setup-account`
+      redirectTo
     })
 
-    if (inviteError) {
-      return NextResponse.json({ error: inviteError.message }, { status: 400 })
+    if (!inviteError && inviteData?.user) {
+      newUserId = inviteData.user.id
+    } else {
+      // If user already exists or invite email fails, try generateLink (type: 'invite' or 'magiclink')
+      let linkRes = await adminClient.auth.admin.generateLink({
+        type: 'invite',
+        email,
+        options: { redirectTo }
+      })
+
+      if (linkRes.error) {
+        linkRes = await adminClient.auth.admin.generateLink({
+          type: 'magiclink',
+          email,
+          options: { redirectTo }
+        })
+      }
+
+      if (linkRes.error || !linkRes.data?.user) {
+        return NextResponse.json(
+          { error: inviteError?.message || linkRes.error?.message || 'Failed to send user invitation' },
+          { status: 400 }
+        )
+      }
+
+      newUserId = linkRes.data.user.id
+      actionLink = linkRes.data.properties?.action_link || null
     }
 
-    const newUserId = inviteData.user.id
-
-    // Insert or update the new user's profile in the user_profiles table.
-    // We use the adminClient here to bypass RLS since the new user might not have set up their session yet,
-    // and the inviter might not have policies that allow them to insert arbitrary users (although owner probably does).
+    // 2. Insert or update the user's profile in user_profiles
     const { error: profileError } = await adminClient
       .from('user_profiles')
       .upsert({
@@ -72,7 +104,7 @@ export async function POST(request: Request) {
         org_id: profile.org_id,
         full_name: `[INVITED] ${full_name || 'Unnamed User'}`,
         role: role,
-        outlet_ids: role === 'owner' ? [] : (outlet_ids || []),
+        outlet_ids: (role === 'owner' || role === 'admin') ? [] : (outlet_ids || []),
         is_active: true
       })
 
@@ -80,7 +112,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Failed to create user profile: ' + profileError.message }, { status: 500 })
     }
 
-    return NextResponse.json({ success: true, user: inviteData.user })
+    return NextResponse.json({ success: true, user_id: newUserId, link: actionLink })
 
   } catch (error: any) {
     console.error('Invite error:', error)

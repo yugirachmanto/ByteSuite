@@ -12,6 +12,7 @@ import Link from 'next/link'
 
 export default function SetupAccountPage() {
   const [fullName, setFullName] = useState('')
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -24,7 +25,11 @@ export default function SetupAccountPage() {
   useEffect(() => {
     let mounted = true
 
-    const fetchProfile = async (userId: string) => {
+    const fetchProfile = async (userId: string, userEmail?: string) => {
+      if (userEmail && mounted) {
+        setEmail(userEmail)
+      }
+      
       const { data: profile } = await supabase
         .from('user_profiles')
         .select('full_name')
@@ -35,7 +40,7 @@ export default function SetupAccountPage() {
         const cleanName = profile.full_name.startsWith('[INVITED] ')
           ? profile.full_name.replace('[INVITED] ', '')
           : profile.full_name
-        setFullName(cleanName)
+        setFullName(cleanName === 'Unnamed User' || cleanName === 'New User' ? '' : cleanName)
       }
       if (mounted) setPageLoading(false)
     }
@@ -44,7 +49,7 @@ export default function SetupAccountPage() {
       const { data: { session } } = await supabase.auth.getSession()
       if (session?.user && mounted) {
         setUser(session.user)
-        fetchProfile(session.user.id)
+        fetchProfile(session.user.id, session.user.email)
       }
     }
 
@@ -52,19 +57,28 @@ export default function SetupAccountPage() {
       if (typeof window === 'undefined') return
       const params = new URLSearchParams(window.location.search)
       const code = params.get('code')
+      const tokenHash = params.get('token_hash')
+      const type = params.get('type') as any
       
       if (code) {
         const { data, error } = await supabase.auth.exchangeCodeForSession(code)
         if (!error && data.session && mounted) {
           setUser(data.session.user)
-          fetchProfile(data.session.user.id)
+          fetchProfile(data.session.user.id, data.session.user.email)
           window.history.replaceState({}, document.title, window.location.pathname)
-        } else {
-          initSession()
+          return
         }
-      } else {
-        initSession()
+      } else if (tokenHash && type) {
+        const { data, error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type })
+        if (!error && data.session && mounted) {
+          setUser(data.session.user)
+          fetchProfile(data.session.user.id, data.session.user.email)
+          window.history.replaceState({}, document.title, window.location.pathname)
+          return
+        }
       }
+
+      initSession()
     }
 
     handleAuthFlow()
@@ -72,28 +86,32 @@ export default function SetupAccountPage() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (session?.user && mounted) {
         setUser(session.user)
-        fetchProfile(session.user.id)
+        fetchProfile(session.user.id, session.user.email)
       }
     })
 
-    // Fallback: if after 3.5 seconds we still don't have a user, it's probably invalid
+    // Fallback: if after 6 seconds we still don't have a user, prompt login
     const timer = setTimeout(() => {
       if (mounted && pageLoading) {
         supabase.auth.getSession().then(({ data }) => {
           if (!data.session?.user && mounted) {
-            toast.error('Invalid or expired invitation link')
+            toast.error('Invalid or expired invitation link. Please request a new invite or log in.')
+            setPageLoading(false)
             router.push('/login')
+          } else if (data.session?.user && mounted) {
+            setUser(data.session.user)
+            fetchProfile(data.session.user.id, data.session.user.email)
           }
         })
       }
-    }, 3500)
+    }, 6000)
 
     return () => {
       mounted = false
       subscription.unsubscribe()
       clearTimeout(timer)
     }
-  }, [supabase, router, pageLoading])
+  }, [supabase, router])
 
   const handleSetup = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -128,7 +146,7 @@ export default function SetupAccountPage() {
         if (profileError) throw profileError
       }
 
-      toast.success('Account setup successfully')
+      toast.success('Account set up successfully! Welcome to ByteSuite.')
       router.push('/dashboard')
       router.refresh()
     } catch (error: any) {
@@ -154,11 +172,24 @@ export default function SetupAccountPage() {
             <span className="text-2xl font-bold tracking-tight">ByteSuite</span>
           </Link>
           <h1 className="text-3xl font-semibold tracking-tight">Complete Setup</h1>
-          <p className="text-sm text-muted-foreground">Welcome! Please set your name and password to continue.</p>
+          <p className="text-sm text-muted-foreground">Welcome! Please set your name and password to activate your account.</p>
         </div>
 
         <form onSubmit={handleSetup} className="space-y-6">
           <div className="space-y-4">
+            {email && (
+              <div className="space-y-2">
+                <Label htmlFor="email">Email Address</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={email}
+                  disabled
+                  className="h-11 bg-zinc-900/50 text-zinc-400 border-zinc-800 cursor-not-allowed"
+                />
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label htmlFor="fullName">Full Name</Label>
               <Input
@@ -210,7 +241,7 @@ export default function SetupAccountPage() {
             </div>
           </div>
 
-          <Button type="submit" disabled={loading} className="w-full h-11">
+          <Button type="submit" disabled={loading} className="w-full h-11 bg-indigo-600 hover:bg-indigo-700 text-white">
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Save and Continue
           </Button>

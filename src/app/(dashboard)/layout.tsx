@@ -50,7 +50,7 @@ import { ChatWidget } from '@/components/chat/ChatWidget'
 const sidebarGroups = [
   {
     name: 'Main',
-    roles: ['owner', 'finance', 'cashier', 'kitchen'],
+    roles: ['owner', 'admin', 'finance', 'cashier', 'kitchen', 'viewer'],
     items: [
       { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
       { name: 'Point of Sale', href: '/pos', icon: CreditCard },
@@ -58,7 +58,7 @@ const sidebarGroups = [
   },
   {
     name: 'Finance & Procurement',
-    roles: ['owner', 'finance'],
+    roles: ['owner', 'admin', 'finance', 'viewer'],
     items: [
       { name: 'Invoices', href: '/invoices', icon: FileText },
       { name: 'Vendors', href: '/vendors', icon: Building2 },
@@ -68,14 +68,14 @@ const sidebarGroups = [
   },
   {
     name: 'Projects & Tasks',
-    roles: ['owner', 'finance', 'kitchen'],
+    roles: ['owner', 'admin', 'finance', 'kitchen', 'viewer'],
     items: [
       { name: 'Projects', href: '/projects', icon: FolderKanban },
     ]
   },
   {
     name: 'Operations',
-    roles: ['owner', 'kitchen', 'finance'],
+    roles: ['owner', 'admin', 'kitchen', 'finance', 'viewer'],
     items: [
       { name: 'Inventory', href: '/inventory', icon: Package },
       { name: 'Products', href: '/products', icon: Tag },
@@ -85,7 +85,7 @@ const sidebarGroups = [
   },
   {
     name: 'Administration',
-    roles: ['owner'],
+    roles: ['owner', 'admin'],
     items: [
       { name: 'Integrations', href: '/integrations', icon: Share2 },
       { name: 'Billing', href: '/billing', icon: CreditCard },

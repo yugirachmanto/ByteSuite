@@ -41,7 +41,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'User not found or has no email' }, { status: 404 })
     }
 
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+    const origin = request.headers.get('origin')
+    const host = request.headers.get('x-forwarded-host') || request.headers.get('host')
+    const proto = request.headers.get('x-forwarded-proto') || 'https'
+    const reqUrl = origin || (host ? `${proto}://${host}` : null)
+    const rawSiteUrl = reqUrl || process.env.NEXT_PUBLIC_SITE_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
+    const siteUrl = rawSiteUrl.replace(/\/$/, '')
     
     // Generate an invite link. Supabase will send the email automatically if email confirmations are enabled, 
     // but this also allows us to return the link so the owner can copy it manually if needed.
