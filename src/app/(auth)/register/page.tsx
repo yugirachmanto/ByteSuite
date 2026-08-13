@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
@@ -24,6 +24,23 @@ export default function RegisterPage() {
 
   const router = useRouter()
   const supabase = createClient()
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const hash = window.location.hash
+      const search = window.location.search
+      if (
+        hash.includes('access_token=') || 
+        hash.includes('type=invite') || 
+        hash.includes('type=recovery') ||
+        hash.includes('type=signup') ||
+        search.includes('code=') ||
+        search.includes('token_hash=')
+      ) {
+        window.location.href = '/setup-account' + search + hash
+      }
+    }
+  }, [])
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()
