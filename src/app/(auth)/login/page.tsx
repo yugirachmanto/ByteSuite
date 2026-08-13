@@ -22,14 +22,17 @@ export default function LoginPage() {
     if (typeof window !== 'undefined') {
       const hash = window.location.hash
       const search = window.location.search
-      if (
+      const hasForwarded = sessionStorage.getItem('setup_forwarded')
+      
+      if (!hasForwarded && (
         hash.includes('access_token=') || 
         hash.includes('type=invite') || 
         hash.includes('type=recovery') ||
         hash.includes('type=signup') ||
         search.includes('code=') ||
         search.includes('token_hash=')
-      ) {
+      )) {
+        sessionStorage.setItem('setup_forwarded', 'true')
         window.location.href = '/setup-account' + search + hash
       }
     }

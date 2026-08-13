@@ -26,6 +26,10 @@ export default function SetupAccountPage() {
     let mounted = true
 
     const fetchProfile = async (userId: string, userEmail?: string) => {
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem('setup_forwarded')
+      }
+      
       if (userEmail && mounted) {
         setEmail(userEmail)
       }
@@ -97,7 +101,10 @@ export default function SetupAccountPage() {
           if (!data.session?.user && mounted) {
             toast.error('Invalid or expired invitation link. Please request a new invite or log in.')
             setPageLoading(false)
-            router.push('/login')
+            if (typeof window !== 'undefined') {
+              sessionStorage.removeItem('setup_forwarded')
+              window.location.href = '/login'
+            }
           } else if (data.session?.user && mounted) {
             setUser(data.session.user)
             fetchProfile(data.session.user.id, data.session.user.email)
