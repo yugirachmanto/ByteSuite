@@ -42,6 +42,14 @@ export interface ExtractedInvoice {
 }
 
 async function extractTextFromPdf(base64: string): Promise<string> {
+  // pdfjs-dist (v4+) references DOMMatrix internally even for headless text
+  // extraction (no canvas rendering involved), which doesn't exist in Node.
+  // Polyfill it before importing pdfjs so `new DOMMatrix()` doesn't throw.
+  if (typeof (globalThis as any).DOMMatrix === 'undefined') {
+    const { default: DOMMatrixPolyfill } = await import('dommatrix')
+    ;(globalThis as any).DOMMatrix = DOMMatrixPolyfill
+  }
+
   // Use pdfjs-dist in legacy build mode (no worker needed for server-side)
   const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs')
   const buffer = Buffer.from(base64, 'base64')
