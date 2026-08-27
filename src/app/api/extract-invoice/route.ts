@@ -35,6 +35,18 @@ export async function POST(request: NextRequest) {
     }
     const org_id = (invoiceRecord.outlets as any).org_id
 
+    // Verify the caller actually belongs to the org that owns this invoice —
+    // without this, any authenticated user could extract/overwrite another org's invoice.
+    const { data: callerProfile } = await supabase
+      .from('user_profiles')
+      .select('org_id')
+      .eq('id', user.id)
+      .single()
+
+    if (!callerProfile || callerProfile.org_id !== org_id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
     // ── Resolve API key ────────────────────────────────────────────────────────
     // Priority 1: user's own key saved in Settings → Integrations
     // Priority 2: platform-level key from environment (only if set, e.g. self-hosted)
@@ -151,6 +163,11 @@ export async function POST(request: NextRequest) {
       })
     }
 
+    // Only persist money fields the AI returned as real finite numbers —
+    // a NaN/non-numeric extraction must not silently land in the DB.
+    const toFiniteOrNull = (v: unknown): number | null =>
+      typeof v === 'number' && Number.isFinite(v) ? v : null
+
     // Update invoice with extracted data
     const { error: updateError } = await supabase
       .from('invoices')
@@ -160,9 +177,9 @@ export async function POST(request: NextRequest) {
         vendor_id: vendor_id,
         invoice_no: extracted.invoice_no,
         invoice_date: extracted.invoice_date,
-        subtotal: extracted.subtotal,
-        tax_total: extracted.tax_total,
-        grand_total: extracted.grand_total,
+        subtotal: toFiniteOrNull(extracted.subtotal),
+        tax_total: toFiniteOrNull(extracted.tax_total),
+        grand_total: toFiniteOrNull(extracted.grand_total),
         status: 'extracted',
       })
       .eq('id', invoice_id)

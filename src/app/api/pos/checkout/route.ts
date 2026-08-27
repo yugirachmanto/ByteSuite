@@ -27,6 +27,20 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
+    // Verify the outlet actually belongs to the caller's org — process_pos_order is
+    // SECURITY DEFINER (bypasses RLS), so this check is the only thing standing between
+    // a caller and writing orders/stock/GL into another org's outlet.
+    const { data: outlet } = await supabase
+      .from('outlets')
+      .select('id')
+      .eq('id', outlet_id)
+      .eq('org_id', profile.org_id)
+      .single()
+
+    if (!outlet) {
+      return NextResponse.json({ error: 'Forbidden: outlet does not belong to your organization' }, { status: 403 })
+    }
+
     // 1. Calculate totals securely on the backend (don't trust frontend prices entirely, but for MVP we will use the prices from the DB if possible, or accept frontend if this is a closed system). 
     // Here we will do a simple recalculation based on product_prices to be safe.
     const itemIds = lines.map((l: any) => l.item_id)
@@ -65,7 +79,7 @@ export async function POST(request: Request) {
       .single()
 
     const taxRate = orgData?.pos_tax_rate || 0
-    const tax_amount = subtotal * (taxRate / 100)
+    const tax_amount = Math.round(subtotal * (taxRate / 100))
     const total_amount = subtotal + tax_amount
 
     // 2. Call the RPC to process the order

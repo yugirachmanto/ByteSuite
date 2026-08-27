@@ -62,6 +62,7 @@ export default function BOMPage() {
   const [costs, setCosts] = useState<Record<string, number>>({})
   
   const [orgId, setOrgId] = useState<string | null>(null)
+  const [bomEdges, setBomEdges] = useState<{ output_item_id: string; input_item_id: string }[]>([])
   const [coa, setCoa] = useState<any[]>([])
   const [newWipModalOpen, setNewWipModalOpen] = useState(false)
   const [newWipData, setNewWipData] = useState({
@@ -99,6 +100,13 @@ export default function BOMPage() {
       if (items) {
         setAllItems(items)
         setWipItems(items.filter(i => i.category === 'wip' || i.category === 'finished'))
+      }
+
+      const { data: edges } = await supabase
+        .from('bom')
+        .select('output_item_id, input_item_id')
+      if (edges) {
+        setBomEdges(edges)
       }
 
       const { data: accounts } = await supabase
@@ -206,6 +214,32 @@ export default function BOMPage() {
     fetchBOM()
   }, [selectedWipId, supabase])
 
+  // Would adding `candidateInputId` as an ingredient of `outputId` create a circular
+  // BOM reference (directly or transitively)? True if outputId is reachable by
+  // walking candidateInputId's own ingredient chain.
+  const wouldCreateCycle = (candidateInputId: string, outputId: string): string[] | null => {
+    const adjacency = new Map<string, string[]>()
+    for (const edge of bomEdges) {
+      const list = adjacency.get(edge.output_item_id) || []
+      list.push(edge.input_item_id)
+      adjacency.set(edge.output_item_id, list)
+    }
+
+    const visited = new Set<string>()
+    const stack: { id: string; path: string[] }[] = [{ id: candidateInputId, path: [candidateInputId] }]
+
+    while (stack.length > 0) {
+      const { id, path } = stack.pop()!
+      if (id === outputId) return path
+      if (visited.has(id)) continue
+      visited.add(id)
+      for (const nextId of adjacency.get(id) || []) {
+        stack.push({ id: nextId, path: [...path, nextId] })
+      }
+    }
+    return null
+  }
+
   const addIngredient = (item: any) => {
     // Prevent adding if already in BOM or if it's the WIP item itself
     if (bomLines.some(l => l.input_item_id === item.id)) {
@@ -216,8 +250,16 @@ export default function BOMPage() {
       toast.error('Cannot add the WIP item to its own BOM')
       return
     }
+    if (selectedWipId) {
+      const cyclePath = wouldCreateCycle(item.id, selectedWipId)
+      if (cyclePath) {
+        const names = cyclePath.map(id => allItems.find(i => i.id === id)?.name || id)
+        toast.error(`Would create a circular BOM reference: ${names.join(' → ')} → ${wipItems.find(w => w.id === selectedWipId)?.name || 'this item'}`)
+        return
+      }
+    }
 
-    setBomLines(prev => [...prev, { 
+    setBomLines(prev => [...prev, {
       id: crypto.randomUUID(), 
       input_item_id: item.id, 
       name: item.name,
@@ -276,6 +318,11 @@ export default function BOMPage() {
         if (error) throw error
       }
 
+      setBomEdges(prev => [
+        ...prev.filter(e => e.output_item_id !== selectedWipId),
+        ...linesToInsert.map(l => ({ output_item_id: l.output_item_id, input_item_id: l.input_item_id }))
+      ])
+
       toast.success('BOM updated successfully!')
     } catch (error: any) {
       toast.error(error.message || 'Failed to save BOM')
@@ -290,6 +337,7 @@ export default function BOMPage() {
       const { error } = await supabase.from('bom').delete().eq('output_item_id', itemId)
       if (error) throw error
       if (selectedWipId === itemId) setBomLines([])
+      setBomEdges(prev => prev.filter(e => e.output_item_id !== itemId))
       setDeleteTargetId(null)
       toast.success('BOM deleted successfully')
     } catch (error: any) {
