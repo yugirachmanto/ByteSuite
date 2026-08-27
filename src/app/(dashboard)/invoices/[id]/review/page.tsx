@@ -31,7 +31,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from 'sonner'
-import { Search, Loader2, Plus, ArrowLeft, ArrowRight, ArrowRightLeft, BookOpen, Check, Save, Trash2, Edit2, AlertCircle, Package, Receipt, Calculator, ChevronRight, Layers, LayoutGrid, Tag, FileText, CheckCircle2, History, TrendingUp, AlertTriangle, FileSpreadsheet, Download, Bot, Scissors } from 'lucide-react'
+import { Search, Loader2, Plus, ArrowLeft, ArrowRight, ArrowRightLeft, BookOpen, Check, Save, Trash2, Edit2, AlertCircle, Package, Receipt, Calculator, ChevronRight, Layers, LayoutGrid, Tag, FileText, CheckCircle2, History, TrendingUp, AlertTriangle, FileSpreadsheet, Download, Bot, Scissors, XCircle } from 'lucide-react'
 import { STANDARD_UOMS } from '@/lib/constants'
 import { formatRp } from '@/lib/format'
 
@@ -52,6 +52,7 @@ export default function InvoiceReviewPage() {
   const [loading, setLoading] = useState(true)
   const [posting, setPosting] = useState(false)
   const [approving, setApproving] = useState(false)
+  const [rejecting, setRejecting] = useState(false)
   const [saving, setSaving] = useState(false)
   const [retrying, setRetrying] = useState(false)
   const [invoice, setInvoice] = useState<any>(null)
@@ -890,6 +891,20 @@ export default function InvoiceReviewPage() {
     }
   }
 
+  const handleReject = async () => {
+    setRejecting(true)
+    try {
+      const payload = { status: 'rejected' }
+      await supabase.from('invoices').update(payload).eq('id', invoice.id)
+      setInvoice({ ...invoice, ...payload })
+      toast.success('Invoice rejected.')
+    } catch (error: any) {
+      toast.error('Failed to reject invoice.')
+    } finally {
+      setRejecting(false)
+    }
+  }
+
   const handleVoid = async () => {
     if (!invoice?.id) return
     setVoiding(true)
@@ -940,6 +955,11 @@ export default function InvoiceReviewPage() {
           </div>
         </div>
         <div className="flex gap-3">
+          {!isPosted && invoice.status === 'rejected' && (
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-red-950/40 border border-red-800/50 text-red-400 text-sm font-medium">
+              <XCircle className="h-3.5 w-3.5" /> Rejected
+            </div>
+          )}
           {isPosted && (
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-emerald-950/40 border border-emerald-800/50 text-emerald-400 text-sm font-medium">
@@ -957,13 +977,29 @@ export default function InvoiceReviewPage() {
             </div>
           )}
           {!isPosted && (
-            <Button variant="outline" className="border-zinc-800 bg-zinc-900 text-zinc-300" onClick={handleSaveDraft} disabled={retrying || saving || approving || posting}>
+            <Button variant="outline" className="border-zinc-800 bg-zinc-900 text-zinc-300" onClick={handleSaveDraft} disabled={retrying || saving || approving || rejecting || posting}>
               {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
               Save / Pending
             </Button>
           )}
+          {!isPosted && invoice?.status !== 'rejected' && (
+            <Button
+              variant="outline"
+              className="border-red-900/50 bg-red-950/10 text-red-400 hover:bg-red-900/20"
+              onClick={handleReject}
+              disabled={retrying || saving || approving || rejecting || posting}
+            >
+              {rejecting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <XCircle className="mr-2 h-4 w-4" />}
+              Reject
+            </Button>
+          )}
           {!isPosted && invoice?.status !== 'reviewed' && (
-            <Button className="bg-indigo-600 hover:bg-indigo-700 text-white" onClick={handleApprove} disabled={retrying || saving || approving || posting}>
+            <Button
+              className="bg-indigo-600 hover:bg-indigo-700 text-white"
+              onClick={handleApprove}
+              disabled={retrying || saving || approving || rejecting || posting || lineItems.length === 0}
+              title={lineItems.length === 0 ? 'Wait for AI extraction to finish (or add line items manually) before approving' : undefined}
+            >
               {approving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
               Approve
             </Button>

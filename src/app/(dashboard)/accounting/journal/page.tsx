@@ -25,6 +25,7 @@ export default function JournalPage() {
   const { startDate, endDate } = useDateWindow()
   const [loading, setLoading] = useState(true)
   const [entries, setEntries] = useState<any[]>([])
+  const [search, setSearch] = useState('')
 
   useEffect(() => {
     if (!selectedOutletId) return
@@ -57,6 +58,16 @@ export default function JournalPage() {
     fetchEntries()
   }, [selectedOutletId, supabase, startDate, endDate])
 
+  const filteredEntries = entries.filter(entry => {
+    if (!search.trim()) return true
+    const needle = search.trim().toLowerCase()
+    return (
+      entry.description?.toLowerCase().includes(needle) ||
+      entry.chart_of_accounts?.name?.toLowerCase().includes(needle) ||
+      entry.chart_of_accounts?.code?.toLowerCase().includes(needle)
+    )
+  })
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -83,9 +94,11 @@ export default function JournalPage() {
       <div className="flex items-center gap-4 py-4">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
-          <input 
+          <input
             className="w-full rounded-md border border-zinc-800 bg-zinc-950 py-2 pl-10 pr-4 text-sm text-zinc-100 focus:border-zinc-700 focus:outline-none"
             placeholder="Search description or account..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
           />
         </div>
         <Button variant="outline" className="border-zinc-800 bg-zinc-900 text-zinc-400">
@@ -113,14 +126,14 @@ export default function JournalPage() {
                   Loading entries...
                 </TableCell>
               </TableRow>
-            ) : entries.length === 0 ? (
+            ) : filteredEntries.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} className="h-24 text-center text-zinc-500">
-                  No entries found.
+                  {entries.length === 0 ? 'No entries found.' : 'No entries match your search.'}
                 </TableCell>
               </TableRow>
             ) : (
-              entries.map((entry) => (
+              filteredEntries.map((entry) => (
                 <TableRow key={entry.id} className="border-zinc-800 hover:bg-zinc-800/30">
                   <TableCell className="text-zinc-300">
                     {format(new Date(entry.entry_date), 'dd MMM yyyy')}

@@ -59,14 +59,20 @@ export async function POST(req: Request) {
     // 4. Call OpenAI API to parse MoM text against active project tasks
     const apiKey = process.env.OPENAI_API_KEY
     if (!apiKey) {
-      // Fallback dummy extractions if no OpenAI API Key configured
+      // No OpenAI key configured — these are NOT real AI extractions from momText,
+      // just a placeholder so the review flow has something to demo. Must be
+      // clearly distinguishable from real output: 'none' confidence (never used
+      // by the real prompt below, which only emits high/medium/low/none-as-no-match)
+      // plus an explicit marker in the evidence text, since MomReviewPanel renders
+      // both directly and a reviewer could otherwise apply fabricated progress
+      // numbers to real tasks without realizing they aren't AI-derived.
       const dummyExtractions = (tasks || []).slice(0, 2).map((t, idx) => ({
         id: `ext-${Date.now()}-${idx}`,
         task_id: t.id,
         action: 'update_progress',
         suggested_data: { progress_percent: Math.min(100, (t.progress_percent || 0) + 20) },
-        match_confidence: 'high',
-        evidence: `Berdasarkan MoM, pembahasan untuk ${t.title} menunjukkan progress berjalan lancar.`,
+        match_confidence: 'none' as const,
+        evidence: `[SIMULATED — no AI API key configured, this is not derived from your MoM text] Placeholder progress bump for "${t.title}".`,
         review_status: 'pending_review'
       }))
 
