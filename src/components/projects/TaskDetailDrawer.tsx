@@ -122,43 +122,52 @@ export function TaskDetailDrawer({ task, onClose, onTaskUpdated }: TaskDetailDra
     if (!files || files.length === 0) return
 
     setUploading(true)
-    const file = files[0]
-    const fileExt = file.name.split('.').pop()
-    const filePath = `attachments/${task.id}/${Date.now()}.${fileExt}`
+    try {
+      const file = files[0]
+      const fileExt = file.name.split('.').pop()
+      const filePath = `attachments/${task.id}/${Date.now()}.${fileExt}`
 
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        console.error('Cannot upload attachment: no authenticated user')
+        return
+      }
 
-    const { data: profile } = await supabase
-      .from('user_profiles')
-      .select('org_id')
-      .eq('id', user.id)
-      .single()
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('org_id')
+        .eq('id', user.id)
+        .single()
 
-    if (!profile?.org_id) return
+      if (!profile?.org_id) {
+        console.error('Cannot upload attachment: no organization found for user')
+        return
+      }
 
-    // Upload to Supabase Storage
-    const { error: uploadError } = await supabase.storage
-      .from('pm-attachments')
-      .upload(filePath, file)
+      // Upload to Supabase Storage
+      const { error: uploadError } = await supabase.storage
+        .from('pm-attachments')
+        .upload(filePath, file)
 
-    if (uploadError) {
-      console.warn('Storage upload error (fallback DB entry):', uploadError.message)
+      if (uploadError) {
+        console.warn('Storage upload error (fallback DB entry):', uploadError.message)
+      }
+
+      // Save Attachment Record
+      await supabase.from('pm_task_attachments').insert({
+        org_id: profile.org_id,
+        task_id: task.id,
+        file_path: filePath,
+        file_name: file.name,
+        mime_type: file.type,
+        file_size: file.size,
+        uploaded_by: user.id
+      })
+
+      fetchAttachments()
+    } finally {
+      setUploading(false)
     }
-
-    // Save Attachment Record
-    await supabase.from('pm_task_attachments').insert({
-      org_id: profile.org_id,
-      task_id: task.id,
-      file_path: filePath,
-      file_name: file.name,
-      mime_type: file.type,
-      file_size: file.size,
-      uploaded_by: user.id
-    })
-
-    setUploading(false)
-    fetchAttachments()
   }
 
   return (

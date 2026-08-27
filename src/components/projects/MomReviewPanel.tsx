@@ -73,7 +73,9 @@ export function MomReviewPanel({ projectId, onTasksUpdated }: MomReviewPanelProp
 
       // Add audit comment
       const { data: { user } } = await supabase.auth.getUser()
-      const { data: profile } = await supabase.from('user_profiles').select('org_id').single()
+      const { data: profile } = user
+        ? await supabase.from('user_profiles').select('org_id').eq('id', user.id).single()
+        : { data: null }
 
       if (profile?.org_id) {
         await supabase.from('pm_task_comments').insert({

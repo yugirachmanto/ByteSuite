@@ -32,24 +32,36 @@ export default function AccountingReportsPage() {
 
     async function fetchBalances() {
       setLoading(true)
-      const startStr = startDate.toISOString()
-      const endStr = endDate.toISOString()
       const { data: coa } = await supabase
         .from('chart_of_accounts')
         .select('id, code, name, type')
         .eq('is_active', true)
-      
-      const { data: entries } = await supabase
-        .from('gl_entries')
-        .select('coa_id, debit, credit')
-        .eq('outlet_id', selectedOutletId)
-        .gte('created_at', startStr)
-        .lte('created_at', endStr)
 
-      // Tax Data Fetching
+      // Real (Balance Sheet: asset/liability/equity) accounts are cumulative-to-date —
+      // bounded only by entry_date <= endDate, no lower bound. Nominal (P&L:
+      // income/expense) accounts are a period total, bounded to [startDate, endDate].
+      // Both must filter on entry_date (the business date), not created_at (an
+      // audit-trail timestamp) — a backfilled entry dated in an earlier period was
+      // previously excluded from that period's report and wrongly counted in whichever
+      // period it happened to be entered on.
       const startIsoDate = startDate.toISOString().split('T')[0]
       const endIsoDate = endDate.toISOString().split('T')[0]
 
+      const [{ data: bsEntries }, { data: plEntries }] = await Promise.all([
+        supabase
+          .from('gl_entries')
+          .select('coa_id, debit, credit')
+          .eq('outlet_id', selectedOutletId)
+          .lte('entry_date', endIsoDate),
+        supabase
+          .from('gl_entries')
+          .select('coa_id, debit, credit')
+          .eq('outlet_id', selectedOutletId)
+          .gte('entry_date', startIsoDate)
+          .lte('entry_date', endIsoDate),
+      ])
+
+      // Tax Data Fetching
       const { data: invData } = await supabase
         .from('invoices')
         .select('invoice_date, invoice_no, vendor, subtotal, tax_total')
@@ -86,7 +98,9 @@ export default function AccountingReportsPage() {
       setOutputTax(filteredPosData)
 
       const balances = coa?.map(acc => {
-        const accEntries = entries?.filter(e => e.coa_id === acc.id) || []
+        const isRealAccount = ['asset', 'liability', 'equity'].includes(acc.type)
+        const sourceEntries = isRealAccount ? bsEntries : plEntries
+        const accEntries = sourceEntries?.filter(e => e.coa_id === acc.id) || []
         const totalDebit = accEntries.reduce((sum, e) => sum + (e.debit || 0), 0)
         const totalCredit = accEntries.reduce((sum, e) => sum + (e.credit || 0), 0)
         const net = totalDebit - totalCredit

@@ -25,14 +25,20 @@ export async function POST(req: Request) {
     const weekStart = new Date(now.setDate(now.getDate() - now.getDay())).toISOString().split('T')[0]
     const weekEnd = new Date(now.setDate(now.getDate() - now.getDay() + 6)).toISOString().split('T')[0]
 
-    // Completed tasks in current week
+    // Completed tasks in current week. pm_tasks has no dedicated completed_at
+    // column, so updated_at (bumped whenever status changes, including to
+    // 'done') is the best available proxy for "finished this week".
     const { data: completedTasks } = await supabase
       .from('pm_tasks')
       .select('id, task_number, title')
       .eq('org_id', profile.org_id)
       .eq('status', 'done')
+      .gte('updated_at', `${weekStart}T00:00:00`)
+      .lte('updated_at', `${weekEnd}T23:59:59`)
 
-    // Upcoming tasks
+    // Upcoming tasks: this is a live snapshot of currently open work (not an
+    // accumulating list like completedTasks above), so it's intentionally not
+    // date-bounded — an undated backlog item is still worth surfacing here.
     const { data: upcomingTasks } = await supabase
       .from('pm_tasks')
       .select('id, task_number, title')

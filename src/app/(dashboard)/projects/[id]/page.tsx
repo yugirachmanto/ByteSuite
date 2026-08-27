@@ -90,32 +90,73 @@ export default function ProjectDetailPage({ params }: ProjectDetailProps) {
     if (!newTaskTitle.trim() || savingTask) return
 
     setSavingTask(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        console.error('Cannot create task: no authenticated user')
+        return
+      }
 
-    const { data: profile } = await supabase
-      .from('user_profiles')
-      .select('org_id')
-      .eq('id', user.id)
-      .single()
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('org_id')
+        .eq('id', user.id)
+        .single()
 
-    if (!profile?.org_id) return
+      if (!profile?.org_id) {
+        console.error('Cannot create task: no organization found for user')
+        return
+      }
+
+      const { error } = await supabase
+        .from('pm_tasks')
+        .insert({
+          org_id: profile.org_id,
+          project_id: projectId,
+          title: newTaskTitle.trim(),
+          status: newTaskStatus,
+          reporter_id: user.id
+        })
+
+      if (!error) {
+        setNewTaskTitle('')
+        setIsCreatingTask(false)
+        fetchProjectAndTasks()
+      }
+    } finally {
+      setSavingTask(false)
+    }
+  }
+
+  const handleMoveTask = async (taskId: string, newStatus: Task['status']) => {
+    const previousTasks = tasks
+    const task = tasks.find((t) => t.id === taskId)
+    if (!task) return
+
+    // Mirrors TaskDetailDrawer's handleUpdateStatus convention: done forces
+    // progress to 100, todo forces it back to 0.
+    let newProgress = task.progress_percent
+    if (newStatus === 'done') newProgress = 100
+    if (newStatus === 'todo') newProgress = 0
+
+    // Optimistic update — a drag gesture is a poor place for a loading spinner,
+    // and fetchProjectAndTasks() would flash the whole page's loading state.
+    setTasks((prev) =>
+      prev.map((t) => (t.id === taskId ? { ...t, status: newStatus, progress_percent: newProgress } : t))
+    )
 
     const { error } = await supabase
       .from('pm_tasks')
-      .insert({
-        org_id: profile.org_id,
-        project_id: projectId,
-        title: newTaskTitle.trim(),
-        status: newTaskStatus,
-        reporter_id: user.id
+      .update({
+        status: newStatus,
+        progress_percent: newProgress,
+        updated_at: new Date().toISOString()
       })
+      .eq('id', taskId)
 
-    setSavingTask(false)
-    if (!error) {
-      setNewTaskTitle('')
-      setIsCreatingTask(false)
-      fetchProjectAndTasks()
+    if (error) {
+      console.error('Failed to move task:', error.message)
+      setTasks(previousTasks)
     }
   }
 
@@ -305,6 +346,7 @@ export default function ProjectDetailPage({ params }: ProjectDetailProps) {
             setNewTaskStatus(st)
             setIsCreatingTask(true)
           }}
+          onMoveTask={handleMoveTask}
         />
       )}
 

@@ -9,6 +9,7 @@ interface TaskKanbanBoardProps {
   tasks: Task[]
   onSelectTask: (task: Task) => void
   onQuickCreateTask: (status: Task['status']) => void
+  onMoveTask: (taskId: string, newStatus: Task['status']) => void
 }
 
 const COLUMNS: { id: Task['status']; label: string; color: string }[] = [
@@ -19,16 +20,41 @@ const COLUMNS: { id: Task['status']; label: string; color: string }[] = [
   { id: 'done', label: 'Done', color: 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10' },
 ]
 
-export function TaskKanbanBoard({ tasks, onSelectTask, onQuickCreateTask }: TaskKanbanBoardProps) {
+export function TaskKanbanBoard({ tasks, onSelectTask, onQuickCreateTask, onMoveTask }: TaskKanbanBoardProps) {
+  const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null)
+  const [dragOverColumn, setDragOverColumn] = useState<Task['status'] | null>(null)
+
+  const handleDrop = (columnId: Task['status']) => {
+    if (draggedTaskId) {
+      const task = tasks.find((t) => t.id === draggedTaskId)
+      if (task && task.status !== columnId) {
+        onMoveTask(draggedTaskId, columnId)
+      }
+    }
+    setDraggedTaskId(null)
+    setDragOverColumn(null)
+  }
+
   return (
     <div className="flex gap-3 w-full">
       {COLUMNS.map((column) => {
         const columnTasks = tasks.filter((t) => t.status === column.id)
 
         return (
-          <div 
+          <div
             key={column.id}
-            className="flex flex-col bg-zinc-900/40 border border-zinc-800/80 rounded-2xl p-3 flex-1 min-w-0 max-h-[750px]"
+            onDragOver={(e) => {
+              e.preventDefault()
+              if (dragOverColumn !== column.id) setDragOverColumn(column.id)
+            }}
+            onDragLeave={() => setDragOverColumn((prev) => (prev === column.id ? null : prev))}
+            onDrop={(e) => {
+              e.preventDefault()
+              handleDrop(column.id)
+            }}
+            className={`flex flex-col bg-zinc-900/40 border rounded-2xl p-3 flex-1 min-w-0 max-h-[750px] transition-colors ${
+              dragOverColumn === column.id ? 'border-indigo-500/60 bg-indigo-500/5' : 'border-zinc-800/80'
+            }`}
           >
             {/* Column Header */}
             <div className="flex items-center justify-between p-2 mb-2">
@@ -58,8 +84,19 @@ export function TaskKanbanBoard({ tasks, onSelectTask, onQuickCreateTask }: Task
                 columnTasks.map((task) => (
                   <div
                     key={task.id}
+                    draggable
+                    onDragStart={(e) => {
+                      setDraggedTaskId(task.id)
+                      e.dataTransfer.effectAllowed = 'move'
+                    }}
+                    onDragEnd={() => {
+                      setDraggedTaskId(null)
+                      setDragOverColumn(null)
+                    }}
                     onClick={() => onSelectTask(task)}
-                    className="group bg-zinc-900 hover:bg-zinc-850 border border-zinc-800/90 hover:border-indigo-500/40 rounded-xl p-3.5 cursor-pointer transition-all duration-150 space-y-3 shadow-xs"
+                    className={`group bg-zinc-900 hover:bg-zinc-850 border border-zinc-800/90 hover:border-indigo-500/40 rounded-xl p-3.5 cursor-grab active:cursor-grabbing transition-all duration-150 space-y-3 shadow-xs ${
+                      draggedTaskId === task.id ? 'opacity-40' : ''
+                    }`}
                   >
                     <div className="flex items-center justify-between gap-2 text-[10px]">
                       <span className="font-mono text-zinc-400 px-1.5 py-0.5 rounded bg-zinc-800">

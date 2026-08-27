@@ -78,68 +78,82 @@ export function TaskChatThread({ taskId, taskTitle }: TaskChatThreadProps) {
     setInputMessage('')
     setSending(true)
 
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-
-    const { data: profile } = await supabase
-      .from('user_profiles')
-      .select('org_id')
-      .eq('id', user.id)
-      .single()
-
-    if (!profile?.org_id) return
-
-    // 1. Insert user message
-    const { error } = await supabase
-      .from('pm_task_comments')
-      .insert({
-        org_id: profile.org_id,
-        task_id: taskId,
-        author_id: user.id,
-        author_type: 'user',
-        message: msgText
-      })
-
-    if (error) {
-      console.error('Error posting comment:', error.message)
-    }
-
-    // 2. If message mentions @AI or starts with /ai, trigger AI response route
-    if (msgText.toLowerCase().includes('@ai') || msgText.toLowerCase().startsWith('/ai')) {
-      try {
-        await fetch('/api/projects/ai-chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            taskId,
-            userMessage: msgText,
-            orgId: profile.org_id
-          })
-        })
-      } catch (err) {
-        console.error('AI chat trigger failed:', err)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        console.error('Cannot send message: no authenticated user')
+        return
       }
-    }
 
-    setSending(false)
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('org_id')
+        .eq('id', user.id)
+        .single()
+
+      if (!profile?.org_id) {
+        console.error('Cannot send message: no organization found for user')
+        return
+      }
+
+      // 1. Insert user message
+      const { error } = await supabase
+        .from('pm_task_comments')
+        .insert({
+          org_id: profile.org_id,
+          task_id: taskId,
+          author_id: user.id,
+          author_type: 'user',
+          message: msgText
+        })
+
+      if (error) {
+        console.error('Error posting comment:', error.message)
+      }
+
+      // 2. If message mentions @AI or starts with /ai, trigger AI response route
+      if (msgText.toLowerCase().includes('@ai') || msgText.toLowerCase().startsWith('/ai')) {
+        try {
+          await fetch('/api/projects/ai-chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              taskId,
+              userMessage: msgText,
+              orgId: profile.org_id
+            })
+          })
+        } catch (err) {
+          console.error('AI chat trigger failed:', err)
+        }
+      }
+    } finally {
+      setSending(false)
+    }
   }
 
   const triggerAiHelp = async () => {
     if (sending) return
     setSending(true)
 
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-
-    const { data: profile } = await supabase
-      .from('user_profiles')
-      .select('org_id')
-      .eq('id', user.id)
-      .single()
-
-    if (!profile?.org_id) return
-
     try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        console.error('Cannot trigger AI help: no authenticated user')
+        return
+      }
+
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('org_id')
+        .eq('id', user.id)
+        .single()
+
+      if (!profile?.org_id) {
+        console.error('Cannot trigger AI help: no organization found for user')
+        return
+      }
+
       await fetch('/api/projects/ai-chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -151,9 +165,9 @@ export function TaskChatThread({ taskId, taskTitle }: TaskChatThreadProps) {
       })
     } catch (err) {
       console.error('AI trigger failed:', err)
+    } finally {
+      setSending(false)
     }
-
-    setSending(false)
   }
 
   return (

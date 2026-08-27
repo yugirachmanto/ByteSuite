@@ -35,10 +35,16 @@ export default async function proxy(request: NextRequest) {
   } = await supabase.auth.getUser()
 
   const { pathname } = request.nextUrl
-  const isAuthPage = pathname.startsWith('/login') || pathname.startsWith('/register')
+  // /setup-account carries one-time invite/recovery tokens (code, token_hash, or an
+  // #access_token hash fragment the server never even sees) that the page's own
+  // client-side JS exchanges for a session — there is no session yet on first load,
+  // so it must be reachable pre-auth or middleware bounces the user to /login before
+  // that exchange can ever run.
+  const isAuthPage = pathname.startsWith('/login') || pathname.startsWith('/register') || pathname.startsWith('/setup-account')
+  const isForgotPassword = pathname.startsWith('/forgot-password')
   const isApiRoute = pathname.startsWith('/api')
   const isLandingPage = pathname === '/'
-  const isPublicRoute = isAuthPage || isApiRoute || isLandingPage
+  const isPublicRoute = isAuthPage || isForgotPassword || isApiRoute || isLandingPage
 
   // Protect dashboard routes — redirect unauthenticated users to /login
   if (!user && !isPublicRoute) {

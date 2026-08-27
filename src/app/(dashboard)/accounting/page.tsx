@@ -79,8 +79,10 @@ export default function AccountingPage() {
           sums.cashBank += amount
         } else if (code.startsWith('1-2-')) {
           sums.ar += amount
-        } else if (code.startsWith('2-1-10')) {
-          sums.ap -= amount 
+        } else if (code.startsWith('2-1')) {
+          // post_invoice's own fallback resolves AP to code '2-1-001' — the prior
+          // '2-1-10' prefix here never matched it, so this tile always showed 0.
+          sums.ap -= amount
         }
 
         // Revenue/Expenses (Nominal accounts) - Period Total

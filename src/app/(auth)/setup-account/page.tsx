@@ -63,7 +63,15 @@ export default function SetupAccountPage() {
       const code = params.get('code')
       const tokenHash = params.get('token_hash')
       const type = params.get('type') as any
-      
+
+      // Implicit-flow invite/recovery links carry #access_token=...&refresh_token=...
+      // in the hash fragment, which the server never sees. Parse and exchange it
+      // explicitly rather than racing the Supabase SDK's automatic detectSessionInUrl
+      // listener against the initSession() fallback below.
+      const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+      const accessToken = hashParams.get('access_token')
+      const refreshToken = hashParams.get('refresh_token')
+
       if (code) {
         const { data, error } = await supabase.auth.exchangeCodeForSession(code)
         if (!error && data.session && mounted) {
@@ -74,6 +82,14 @@ export default function SetupAccountPage() {
         }
       } else if (tokenHash && type) {
         const { data, error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type })
+        if (!error && data.session && mounted) {
+          setUser(data.session.user)
+          fetchProfile(data.session.user.id, data.session.user.email)
+          window.history.replaceState({}, document.title, window.location.pathname)
+          return
+        }
+      } else if (accessToken && refreshToken) {
+        const { data, error } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
         if (!error && data.session && mounted) {
           setUser(data.session.user)
           fetchProfile(data.session.user.id, data.session.user.email)

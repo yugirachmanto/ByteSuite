@@ -145,8 +145,26 @@ export async function PATCH(request: Request) {
     // If we are marking as paid, perform auto-journaling
     if (status === 'paid') {
       const { data: invoice } = await adminClient.from('tenant_invoices').select('*').eq('id', id).single()
-      
-      if (invoice && invoice.status !== 'paid' && invoice.payment_outlet_id && invoice.payment_asset_coa_id && invoice.payment_expense_coa_id) {
+
+      if (!invoice) {
+        return NextResponse.json({ error: 'Tenant invoice not found' }, { status: 404 })
+      }
+
+      const alreadyJournaled = invoice.status === 'paid'
+      const hasPaymentConfig = invoice.payment_outlet_id && invoice.payment_asset_coa_id && invoice.payment_expense_coa_id
+
+      // The GL-journaling block below only runs when payment config is present.
+      // Previously the status update after this block ran unconditionally, so an
+      // invoice could be marked 'paid' with zero accounting entries whenever the
+      // config was missing. Block that instead of silently skipping the journal.
+      if (!alreadyJournaled && !hasPaymentConfig) {
+        return NextResponse.json(
+          { error: 'Cannot mark as paid: payment outlet and GL accounts are not configured for this invoice' },
+          { status: 400 }
+        )
+      }
+
+      if (!alreadyJournaled) {
         // Create 2 GL entries: Debit Expense, Credit Asset
         const today = new Date().toISOString().split('T')[0]
         const description = `Payment for Invoice #${invoice.id.split('-')[0].toUpperCase()}`
