@@ -98,6 +98,7 @@ export default function ProductDetailPage() {
         .from('item_master')
         .select('id, name, unit')
         .neq('id', params.id) // Can't add itself as ingredient
+        .neq('category', 'recipe') // Recipe-tier items are never stocked, can't be a BOM input
         .order('name')
       
       if (itemsError) {
@@ -265,7 +266,7 @@ export default function ProductDetailPage() {
 
   const filteredIngredients = allInventory.filter(item => 
     item.name.toLowerCase().includes(ingredientSearch.toLowerCase()) &&
-    !bom.some(b => b.component_item_id === item.id)
+    !bom.some(b => b.input_item_id === item.id)
   ).slice(0, 5)
 
   return (

@@ -87,108 +87,29 @@ export default function NewOpnamePage() {
       const { data: { user } } = await supabase.auth.getUser()
       const { data: profile } = await supabase.from('user_profiles').select('org_id').eq('id', user?.id).single()
 
-      const entries = items.map(item => ({
-        outlet_id: selectedOutletId,
+      if (!profile?.org_id) throw new Error('Organization not found')
+
+      const payloadItems = items.map(item => ({
         item_id: item.item_id,
+        item_name: item.item_master?.name || null,
+        item_category: item.item_master?.category || null,
         system_qty: item.qty_on_hand,
         physical_qty: item.physical_qty,
-        opname_date: opnameDate,
+        inventory_value: item.inventory_value,
         variance_reason: item.variance_reason
       }))
 
-      const { data: insertedLogs, error } = await supabase
-        .from('opname_log')
-        .insert(entries)
-        .select('id, item_id, physical_qty, system_qty')
+      // Single atomic RPC: log + balance/ledger/GL updates for every item in
+      // one transaction, so a failure partway through leaves nothing partially applied.
+      const { error } = await supabase.rpc('submit_opname', {
+        p_outlet_id: selectedOutletId,
+        p_org_id: profile.org_id,
+        p_opname_date: opnameDate,
+        p_items: payloadItems
+      })
       if (error) throw error
 
-      // Apply adjustments for items with variance
-      const adjustedItems = items.filter(item => item.physical_qty !== item.qty_on_hand)
-
-      for (const item of adjustedItems) {
-        const variance = item.physical_qty - item.qty_on_hand
-        const logId = insertedLogs?.find(l => l.item_id === item.item_id)?.id
-
-        // Calculate value adjustment based on average cost
-        const avgCost = item.qty_on_hand > 0 ? (item.inventory_value / item.qty_on_hand) : 0
-        const valueAdjustment = variance * avgCost
-        const newInventoryValue = item.inventory_value + valueAdjustment
-
-        // Update inventory_balance to match physical count and new value
-        await supabase
-          .from('inventory_balance')
-          .update({
-            qty_on_hand: item.physical_qty,
-            inventory_value: Math.max(0, newInventoryValue), // prevent negative value
-            updated_at: new Date().toISOString()
-          })
-          .eq('outlet_id', selectedOutletId)
-          .eq('item_id', item.item_id)
-
-        // Write stock_ledger entry for the adjustment
-        await supabase.from('stock_ledger').insert({
-          outlet_id: selectedOutletId,
-          item_id: item.item_id,
-          txn_type: 'OPNAME_ADJ',
-          qty: variance,
-          unit_cost: avgCost,
-          total_value: Math.abs(valueAdjustment),
-          reference_type: 'opname',
-          reference_id: logId || null
-        })
-
-        // If it's a negative variance (loss) with a reason, generate a GL Journal
-        if (variance < 0 && item.variance_reason) {
-          // Find correct expense COA
-          let expenseCoaCode = '5-3-00-050' // Default to Cost of Variance
-          if (item.variance_reason === 'spoilage' || item.variance_reason === 'waste') {
-            if (item.item_master?.category === 'raw' || item.item_master?.category === 'wip' || item.item_master?.category === 'finished') {
-              // Food or generic
-              expenseCoaCode = '5-1-10-030' // Cost of Food Spoil / Waste
-              // Note: If we had a clear way to distinguish Beverage vs Food here, we'd use '5-2-00-040'
-            }
-          }
-
-          // Fetch COAs
-          const { data: coas } = await supabase.from('chart_of_accounts').select('id, code').eq('org_id', profile?.org_id)
-          const inventoryCoa = coas?.find(c => c.code === '1-3-00-000') // INVENTORIES (Asset)
-          const expenseCoa = coas?.find(c => c.code === expenseCoaCode)
-
-          if (inventoryCoa && expenseCoa && Math.abs(valueAdjustment) > 0) {
-            // Create Journal
-            const { data: journal } = await supabase.from('gl_journals').insert({
-              org_id: profile?.org_id,
-              outlet_id: selectedOutletId,
-              journal_number: `OPJ-${Date.now()}-${item.item_id.substring(0,4)}`,
-              date: opnameDate,
-              description: `Opname Adjustment (${item.variance_reason}) for ${item.item_master?.name}`,
-              status: 'posted',
-              source_system: 'inventory'
-            }).select('id').single()
-
-            if (journal) {
-              await supabase.from('gl_journal_lines').insert([
-                {
-                  journal_id: journal.id,
-                  coa_id: expenseCoa.id,
-                  debit: Math.abs(valueAdjustment),
-                  credit: 0,
-                  description: `Spoilage/Waste Expense - ${item.item_master?.name}`
-                },
-                {
-                  journal_id: journal.id,
-                  coa_id: inventoryCoa.id,
-                  debit: 0,
-                  credit: Math.abs(valueAdjustment),
-                  description: `Inventory Asset Reduction - ${item.item_master?.name}`
-                }
-              ])
-            }
-          }
-        }
-      }
-
-      const adjCount = adjustedItems.length
+      const adjCount = items.filter(item => item.physical_qty !== item.qty_on_hand).length
       toast.success(
         adjCount > 0
           ? `Opname posted! ${adjCount} item(s) adjusted to match physical count.`

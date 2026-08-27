@@ -62,7 +62,7 @@ export default function NewJournalPage() {
 
   const totalDebit = lines.reduce((sum, l) => sum + (parseFloat(l.debit) || 0), 0)
   const totalCredit = lines.reduce((sum, l) => sum + (parseFloat(l.credit) || 0), 0)
-  const isBalanced = totalDebit === totalCredit && totalDebit > 0
+  const isBalanced = Math.round(totalDebit) === Math.round(totalCredit) && totalDebit > 0
 
   const handleSave = async () => {
     if (!isBalanced) {
@@ -85,8 +85,16 @@ export default function NewJournalPage() {
 
     setSaving(true)
     try {
+      const { data: { user } } = await supabase.auth.getUser()
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('org_id')
+        .eq('id', user?.id)
+        .single()
+
       const journalId = crypto.randomUUID()
       const entriesToInsert = lines.map(line => ({
+        org_id: profile?.org_id,
         outlet_id: selectedOutletId,
         entry_date: date,
         coa_id: line.coa_id,
