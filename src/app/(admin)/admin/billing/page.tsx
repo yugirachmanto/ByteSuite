@@ -22,13 +22,25 @@ import {
 } from '@/components/ui/dialog'
 import Link from 'next/link'
 import { format } from 'date-fns'
+import { createClient } from '@/lib/supabase/client'
+import { getSignedFileUrl } from '@/lib/storage'
 
 export default function AdminBillingPage() {
+  const supabase = createClient()
   const [invoices, setInvoices] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
   // Receipt Modal State
   const [viewingReceipt, setViewingReceipt] = useState<any>(null)
+
+  // The receipts bucket is private — resolve a fresh signed URL whenever the
+  // modal is opened for an invoice, rather than trusting the stored public-style URL.
+  const handleViewReceipt = async (inv: any) => {
+    setViewingReceipt(inv)
+    if (!inv.receipt_url) return
+    const signed = await getSignedFileUrl(supabase, 'receipts', inv.receipt_url)
+    setViewingReceipt((prev: any) => (prev?.id === inv.id ? { ...prev, signedReceiptUrl: signed } : prev))
+  }
 
   useEffect(() => {
     fetchInvoices()
@@ -157,7 +169,7 @@ export default function AdminBillingPage() {
                             variant="ghost" 
                             size="sm" 
                             className="h-7 text-xs text-indigo-400 hover:text-indigo-300 hover:bg-indigo-950/30"
-                            onClick={() => setViewingReceipt(inv)}
+                            onClick={() => handleViewReceipt(inv)}
                           >
                             Receipt
                           </Button>
@@ -243,7 +255,7 @@ export default function AdminBillingPage() {
                             variant="ghost" 
                             size="sm" 
                             className="h-7 text-xs text-indigo-400 hover:text-indigo-300 hover:bg-indigo-950/30"
-                            onClick={() => setViewingReceipt(inv)}
+                            onClick={() => handleViewReceipt(inv)}
                           >
                             Receipt
                           </Button>
@@ -268,15 +280,15 @@ export default function AdminBillingPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="py-4 flex justify-center bg-zinc-900 rounded-md overflow-hidden relative min-h-[200px]">
-            {viewingReceipt?.receipt_url ? (
-              viewingReceipt.receipt_url.toLowerCase().endsWith('.pdf') ? (
-                <iframe src={viewingReceipt.receipt_url} className="w-full h-[60vh] border-0 bg-white" />
-              ) : (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={viewingReceipt.receipt_url} alt="Receipt" className="max-w-full max-h-[60vh] object-contain" />
-              )
-            ) : (
+            {!viewingReceipt?.receipt_url ? (
               <span className="text-zinc-500 my-auto">No receipt found.</span>
+            ) : !viewingReceipt.signedReceiptUrl ? (
+              <Loader2 className="h-5 w-5 animate-spin text-zinc-500 my-auto" />
+            ) : viewingReceipt.receipt_url.toLowerCase().endsWith('.pdf') ? (
+              <iframe src={viewingReceipt.signedReceiptUrl} className="w-full h-[60vh] border-0 bg-white" />
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={viewingReceipt.signedReceiptUrl} alt="Receipt" className="max-w-full max-h-[60vh] object-contain" />
             )}
           </div>
           <DialogFooter>

@@ -18,6 +18,7 @@ import { format } from 'date-fns'
 import { formatRp } from '@/lib/format'
 import { Loader2, ArrowRightLeft, FileText, Download } from 'lucide-react'
 import { toast } from 'sonner'
+import { getSignedFileUrl } from '@/lib/storage'
 
 export default function LedgerPage() {
   const supabase = createClient()
@@ -110,6 +111,19 @@ export default function LedgerPage() {
 
     fetchLedger()
   }, [selectedOutletId, selectedAccountId, supabase])
+
+  const handleViewInvoiceImage = async (imageUrl: string) => {
+    // The invoices bucket is private — resolve a fresh short-lived signed URL
+    // on click rather than eagerly signing every row's link up front (most
+    // never get clicked, and a signed URL generated on page load could expire
+    // before the user clicks it on a long-open ledger page).
+    const signed = await getSignedFileUrl(supabase, 'invoices', imageUrl)
+    if (signed) {
+      window.open(signed, '_blank', 'noopener,noreferrer')
+    } else {
+      toast.error('Failed to load invoice document')
+    }
+  }
 
   const exportToCSV = () => {
     if (entries.length === 0) {
@@ -257,15 +271,14 @@ export default function LedgerPage() {
                         <div className="flex items-center gap-2">
                           <span>{entry.description}</span>
                           {entry.imageUrl && (
-                            <a 
-                              href={entry.imageUrl} 
-                              target="_blank" 
-                              rel="noreferrer" 
+                            <button
+                              type="button"
+                              onClick={() => handleViewInvoiceImage(entry.imageUrl)}
                               title="View Invoice digital copy"
                               className="text-indigo-400 hover:text-indigo-300 transition-colors inline-flex items-center"
                             >
                               <FileText className="h-3.5 w-3.5" />
-                            </a>
+                            </button>
                           )}
                         </div>
                       </TableCell>

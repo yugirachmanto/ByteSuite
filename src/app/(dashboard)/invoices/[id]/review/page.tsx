@@ -34,6 +34,7 @@ import { toast } from 'sonner'
 import { Search, Loader2, Plus, ArrowLeft, ArrowRight, ArrowRightLeft, BookOpen, Check, Save, Trash2, Edit2, AlertCircle, Package, Receipt, Calculator, ChevronRight, Layers, LayoutGrid, Tag, FileText, CheckCircle2, History, TrendingUp, AlertTriangle, FileSpreadsheet, Download, Bot, Scissors } from 'lucide-react'
 import { STANDARD_UOMS } from '@/lib/constants'
 import { formatRp } from '@/lib/format'
+import { getSignedFileUrl } from '@/lib/storage'
 
 const UOM_AUTO_CONVERSIONS: Record<string, { purchase_unit: string; conversion_factor: number }> = {
   GR:  { purchase_unit: 'KG',   conversion_factor: 0.001 },
@@ -55,6 +56,7 @@ export default function InvoiceReviewPage() {
   const [saving, setSaving] = useState(false)
   const [retrying, setRetrying] = useState(false)
   const [invoice, setInvoice] = useState<any>(null)
+  const [signedImageUrl, setSignedImageUrl] = useState<string | null>(null)
   const [lineItems, setLineItems] = useState<any[]>([])
   const [itemMaster, setItemMaster] = useState<any[]>([])
   const [coa, setCoa] = useState<any[]>([])
@@ -522,6 +524,32 @@ export default function InvoiceReviewPage() {
     ppnCoaId,
     freightCoaId
   ])
+
+  // The invoices bucket is private — invoice.image_url (whether a legacy public
+  // URL or a bare path) must be resolved to a short-lived signed URL before it
+  // can be rendered. External references (e.g. a pasted Google Drive link)
+  // aren't Supabase storage objects at all and are used as-is.
+  useEffect(() => {
+    let cancelled = false
+
+    async function resolve() {
+      if (!invoice?.image_url) {
+        setSignedImageUrl(null)
+        return
+      }
+      if (invoice.image_url.includes('drive.google.com')) {
+        setSignedImageUrl(invoice.image_url)
+        return
+      }
+      const signed = await getSignedFileUrl(supabase, 'invoices', invoice.image_url)
+      if (!cancelled) setSignedImageUrl(signed || invoice.image_url)
+    }
+
+    resolve()
+    return () => {
+      cancelled = true
+    }
+  }, [invoice?.image_url, supabase])
 
   const handleCreateNewItem = async () => {
     if (!newItemData.name || !newItemData.unit) {
@@ -1002,7 +1030,7 @@ export default function InvoiceReviewPage() {
                   </button>
                 )}
                 <a
-                  href={invoice.image_url}
+                  href={signedImageUrl || undefined}
                   target="_blank"
                   rel="noreferrer"
                   className="text-[11px] text-blue-400 hover:text-blue-300 flex items-center gap-1.5 transition-colors"
@@ -1012,11 +1040,15 @@ export default function InvoiceReviewPage() {
               </div>
             </CardHeader>
             <CardContent className="p-0 bg-black" style={{ height: '75vh' }}>
-              {invoice.image_url?.includes('drive.google.com') ? (
+              {!signedImageUrl ? (
+                <div className="flex items-center justify-center w-full h-full text-zinc-600 text-sm">
+                  <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading document...
+                </div>
+              ) : invoice.image_url?.includes('drive.google.com') ? (
                 <iframe
                   src={(() => {
-                    const match = invoice.image_url.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/);
-                    return match && match[1] ? `https://drive.google.com/file/d/${match[1]}/preview` : invoice.image_url;
+                    const match = signedImageUrl.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/);
+                    return match && match[1] ? `https://drive.google.com/file/d/${match[1]}/preview` : signedImageUrl;
                   })()}
                   className="w-full h-full border-0"
                   title="Invoice Google Drive Preview"
@@ -1024,13 +1056,13 @@ export default function InvoiceReviewPage() {
                 />
               ) : invoice.image_url?.toLowerCase()?.includes('.pdf') ? (
                 <iframe
-                  src={`${invoice.image_url}#toolbar=1&navpanes=1&scrollbar=1`}
+                  src={`${signedImageUrl}#toolbar=1&navpanes=1&scrollbar=1`}
                   className="w-full h-full border-0"
                   title="Invoice PDF Preview"
                 />
               ) : (
                 <div className="flex items-center justify-center w-full h-full min-h-[500px]">
-                  <img src={invoice.image_url} alt="Invoice" className="max-w-full h-auto max-h-full object-contain" />
+                  <img src={signedImageUrl} alt="Invoice" className="max-w-full h-auto max-h-full object-contain" />
                 </div>
               )}
             </CardContent>

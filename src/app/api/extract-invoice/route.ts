@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { extractInvoice } from '../../../lib/ai/invoice-parser'
+import { getSignedFileUrl } from '@/lib/storage'
 
 export const dynamic = 'force-dynamic'
 
@@ -66,8 +67,15 @@ export async function POST(request: NextRequest) {
     }
     // ──────────────────────────────────────────────────────────────────────────
 
-    // Fetch image and convert to base64
-    const imageResponse = await fetch(image_url)
+    // Fetch image and convert to base64. The invoices bucket is private, so a
+    // stored public-style URL 403s — resolve a short-lived signed URL first
+    // (skipped for external references like a pasted Google Drive link, which
+    // aren't a Supabase storage object at all).
+    const fetchUrl = image_url.includes('drive.google.com')
+      ? image_url
+      : (await getSignedFileUrl(supabase, 'invoices', image_url)) || image_url
+
+    const imageResponse = await fetch(fetchUrl)
     if (!imageResponse.ok) {
       throw new Error(`Failed to fetch invoice image: ${imageResponse.status}`)
     }
