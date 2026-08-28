@@ -129,14 +129,20 @@ export default function AccountingSettingsPage() {
     fetchData()
   }, [supabase])
 
-  const handleSaveSettings = async () => {
+  // Previously this page had two independent save actions ("Save Settings" for
+  // account mappings/org settings, "Save Rules" for PPH rules) in two separate
+  // cards. That's how a real report happened: a mapping was set, but the button
+  // actually clicked was the *other* card's save action — it succeeded and
+  // showed its own "Tax rules updated" toast, so nothing looked wrong, but the
+  // account mapping was never sent to the server at all. One save action for
+  // the whole page removes that failure mode structurally instead of relying on
+  // the user reading which of two similarly-styled buttons they're clicking.
+  const handleSaveAll = async () => {
     if (!orgId) return
     setSaving(true)
     try {
-      // Clear existing mappings
+      // Clear and re-save account mappings
       await supabase.from('default_coa_mappings').delete().eq('org_id', orgId)
-      
-      // Insert new mappings
       const validMappings = mappings.filter(m => m.coa_id && m.account_role)
       if (validMappings.length > 0) {
         const { error } = await supabase.from('default_coa_mappings').insert(
@@ -146,45 +152,24 @@ export default function AccountingSettingsPage() {
             coa_id: m.coa_id
           }))
         )
-        if (error) throw error
+        if (error) throw new Error(`Account mappings: ${error.message}`)
       }
 
-      // Update POS tax rate
+      // Update POS tax rate / bank details
       const { error: orgError } = await supabase
         .from('organizations')
-        .update({ 
-          pos_tax_rate: posTaxRate, 
+        .update({
+          pos_tax_rate: posTaxRate,
           qris_image_url: qrisImageUrl || null,
           bank_name: bankName || null,
           bank_account_number: bankAccountNumber || null,
           bank_account_holder: bankAccountHolder || null
         })
         .eq('id', orgId)
-      if (orgError) throw orgError
+      if (orgError) throw new Error(`Organization settings: ${orgError.message}`)
 
-      // Confirms how many mappings actually persisted — the org-settings update
-      // above can succeed on its own even when validMappings was empty (e.g. a
-      // header account got selected and silently didn't register before this
-      // fix), which previously showed the same generic success toast either way.
-      toast.success(
-        validMappings.length > 0
-          ? `System settings updated (${validMappings.length} account mapping${validMappings.length > 1 ? 's' : ''} saved)`
-          : 'System settings updated (no account mappings were set)'
-      )
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to save settings')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const handleSavePphRules = async () => {
-    if (!orgId) return
-    setSaving(true)
-    try {
-      // Clear existing rules
+      // Clear and re-save PPH withholding tax rules
       await supabase.from('pph_rules').delete().eq('org_id', orgId)
-      
       const validRules = pphRules.filter(r => r.pasal && r.rate_percent && r.coa_role)
       if (validRules.length > 0) {
         const { error } = await supabase.from('pph_rules').insert(
@@ -196,11 +181,14 @@ export default function AccountingSettingsPage() {
             coa_role: r.coa_role
           }))
         )
-        if (error) throw error
+        if (error) throw new Error(`Tax rules: ${error.message}`)
       }
-      toast.success('Tax rules updated')
+
+      toast.success(
+        `Saved (${validMappings.length} account mapping${validMappings.length === 1 ? '' : 's'}, ${validRules.length} tax rule${validRules.length === 1 ? '' : 's'})`
+      )
     } catch (error: any) {
-      toast.error(error.message || 'Failed to save tax rules')
+      toast.error(error.message || 'Failed to save settings')
     } finally {
       setSaving(false)
     }
@@ -241,16 +229,21 @@ export default function AccountingSettingsPage() {
 
   return (
     <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-zinc-100">Accounting Settings</h2>
+          <p className="text-sm text-zinc-400">One save applies everything on this page — account mappings, POS/bank settings, and withholding tax rules together.</p>
+        </div>
+        <Button className="bg-zinc-100 text-zinc-900 hover:bg-zinc-200" onClick={handleSaveAll} disabled={saving}>
+          {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+          Save All Changes
+        </Button>
+      </div>
+
       <Card className="border-zinc-800 bg-zinc-900/50">
-        <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <div>
-            <CardTitle className="text-zinc-100">System Accounts & Preferences</CardTitle>
-            <CardDescription className="text-zinc-400">Map specific roles to your chart of accounts and configure global settings like POS tax.</CardDescription>
-          </div>
-          <Button className="bg-zinc-100 text-zinc-900 hover:bg-zinc-200" onClick={handleSaveSettings} disabled={saving}>
-            {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-            Save Settings
-          </Button>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-zinc-100">System Accounts & Preferences</CardTitle>
+          <CardDescription className="text-zinc-400">Map specific roles to your chart of accounts and configure global settings like POS tax.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6 pt-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center border-b border-zinc-800/50 pb-4">
@@ -392,16 +385,10 @@ export default function AccountingSettingsPage() {
             <CardTitle className="text-zinc-100">Withholding Tax Rules (PPH)</CardTitle>
             <CardDescription className="text-zinc-400">Automatically calculate PPH based on invoice line item keywords.</CardDescription>
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline" className="border-zinc-800 text-zinc-300 hover:bg-zinc-800" onClick={addPphRule}>
-              <Plus className="mr-2 h-4 w-4" />
-              Add Rule
-            </Button>
-            <Button className="bg-zinc-100 text-zinc-900 hover:bg-zinc-200" onClick={handleSavePphRules} disabled={saving}>
-              {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-              Save Rules
-            </Button>
-          </div>
+          <Button variant="outline" className="border-zinc-800 text-zinc-300 hover:bg-zinc-800" onClick={addPphRule}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add Rule
+          </Button>
         </CardHeader>
         <CardContent className="pt-4">
           <Table>
