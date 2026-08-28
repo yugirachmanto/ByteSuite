@@ -44,6 +44,28 @@ const UOM_AUTO_CONVERSIONS: Record<string, { purchase_unit: string; conversion_f
   MG:  { purchase_unit: 'KG',   conversion_factor: 0.000001 },
 }
 
+// Spreads the header-level Discount proportionally across line items (by their
+// share of the pre-discount subtotal), so each line's total/unit_price reflects
+// its share of the discount for posting purposes. Rounds to whole Rupiah —
+// unrounded division here previously left fractional-Rupiah values (e.g.
+// 0.9994...) visible in the unit price/total inputs, including on a brand-new
+// line whose price the user had just typed and hadn't even seen displayed yet.
+function redistributeDiscount(lines: any[], discountVal: number) {
+  const baseSubtotal = lines.reduce((acc, item) => acc + (item.original_total ?? item.total ?? 0), 0)
+  return lines.map(item => {
+    const itemBaseTotal = item.original_total ?? item.total ?? 0
+    const itemShare = baseSubtotal > 0 ? itemBaseTotal / baseSubtotal : 0
+    const itemDiscountShare = itemShare * discountVal
+    const newTotal = Math.round(Math.max(0, itemBaseTotal - itemDiscountShare))
+    return {
+      ...item,
+      original_total: itemBaseTotal,
+      total: newTotal,
+      unit_price: item.qty > 0 ? Math.round(newTotal / item.qty) : 0
+    }
+  })
+}
+
 export default function InvoiceReviewPage() {
   const params = useParams()
   const router = useRouter()
@@ -225,21 +247,7 @@ export default function InvoiceReviewPage() {
         })
 
         // Apply discount distribution immediately on load if discount exists
-        const baseSubtotal = initialLines.reduce((acc: number, item: any) => acc + (item.original_total ?? item.total ?? 0), 0)
-        const distributedLines = initialLines.map((item: any) => {
-          const itemBaseTotal = item.original_total ?? item.total ?? 0
-          const itemShare = baseSubtotal > 0 ? itemBaseTotal / baseSubtotal : 0
-          const itemDiscountShare = itemShare * discountVal
-          const newTotal = Math.max(0, itemBaseTotal - itemDiscountShare)
-          
-          return {
-            ...item,
-            total: newTotal,
-            unit_price: item.qty > 0 ? newTotal / item.qty : 0
-          }
-        })
-
-        setLineItems(distributedLines)
+        setLineItems(redistributeDiscount(initialLines, discountVal))
 
         // Pre-fill transport fee from AI-extracted shipping_cost
         if (inv.extracted_data.shipping_cost && inv.extracted_data.shipping_cost > 0) {
@@ -299,24 +307,7 @@ export default function InvoiceReviewPage() {
 
   const handleDiscountChange = (discountVal: number) => {
     setInvoice((prev: any) => ({ ...prev, discount: discountVal }))
-    
-    setLineItems(prev => {
-      const baseSubtotal = prev.reduce((acc, item) => acc + (item.original_total ?? item.total ?? 0), 0)
-      
-      return prev.map(item => {
-        const itemBaseTotal = item.original_total ?? item.total ?? 0
-        const itemShare = baseSubtotal > 0 ? itemBaseTotal / baseSubtotal : 0
-        const itemDiscountShare = itemShare * discountVal
-        const newTotal = Math.max(0, itemBaseTotal - itemDiscountShare)
-        
-        return {
-          ...item,
-          original_total: itemBaseTotal,
-          total: newTotal,
-          unit_price: item.qty > 0 ? newTotal / item.qty : 0
-        }
-      })
-    })
+    setLineItems(prev => redistributeDiscount(prev, discountVal))
   }
 
   const updateLineItem = (id: number | string, field: string, value: any) => {
@@ -348,46 +339,15 @@ export default function InvoiceReviewPage() {
       })
 
       // Immediately distribute current discount across all lines
-      const discountVal = invoice?.discount || 0
-      const baseSubtotal = updatedLines.reduce((acc, item) => acc + (item.original_total ?? item.total ?? 0), 0)
-      
-      return updatedLines.map(item => {
-        const itemBaseTotal = item.original_total ?? item.total ?? 0
-        const itemShare = baseSubtotal > 0 ? itemBaseTotal / baseSubtotal : 0
-        const itemDiscountShare = itemShare * discountVal
-        const newTotal = Math.max(0, itemBaseTotal - itemDiscountShare)
-        
-        return {
-          ...item,
-          original_total: itemBaseTotal,
-          total: newTotal,
-          unit_price: item.qty > 0 ? newTotal / item.qty : 0
-        }
-      })
+      return redistributeDiscount(updatedLines, invoice?.discount || 0)
     })
   }
 
   const removeLineItem = (id: number | string) => {
     setLineItems(prev => {
       const remainingLines = prev.filter(item => String(item.id) !== String(id))
-      
       // Redistribute discount over remaining lines
-      const discountVal = invoice?.discount || 0
-      const baseSubtotal = remainingLines.reduce((acc, item) => acc + (item.original_total ?? item.total ?? 0), 0)
-      
-      return remainingLines.map(item => {
-        const itemBaseTotal = item.original_total ?? item.total ?? 0
-        const itemShare = baseSubtotal > 0 ? itemBaseTotal / baseSubtotal : 0
-        const itemDiscountShare = itemShare * discountVal
-        const newTotal = Math.max(0, itemBaseTotal - itemDiscountShare)
-        
-        return {
-          ...item,
-          original_total: itemBaseTotal,
-          total: newTotal,
-          unit_price: item.qty > 0 ? newTotal / item.qty : 0
-        }
-      })
+      return redistributeDiscount(remainingLines, invoice?.discount || 0)
     })
   }
 
@@ -425,12 +385,12 @@ export default function InvoiceReviewPage() {
           processedLines = processedLines.map(item => {
             const itemFreightShare = (((item.total || 0) / totalSubtotal) * transportFee)
             if (item.is_inventory) {
-              const itemLanded = (item.total || 0) + itemFreightShare
+              const itemLanded = Math.round((item.total || 0) + itemFreightShare)
               distributedFreight += itemFreightShare
               return {
                 ...item,
                 total: itemLanded,
-                unit_price: item.qty > 0 ? itemLanded / item.qty : 0
+                unit_price: item.qty > 0 ? Math.round(itemLanded / item.qty) : 0
               }
             }
             return item
@@ -1480,34 +1440,30 @@ export default function InvoiceReviewPage() {
                       <Button
                         type="button"
                         variant="outline"
-                        className={`h-8 text-xs font-semibold rounded-md border transition-all ${
+                        className={`h-8 text-xs font-semibold rounded-md border transition-all flex items-center justify-center gap-1.5 ${
                           ongkirOption === 'distribute'
-                            ? 'bg-zinc-100 text-zinc-900 border-zinc-100 hover:bg-zinc-200'
-                            : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:bg-zinc-900 hover:text-zinc-300'
+                            ? 'bg-zinc-100 text-zinc-900 border-zinc-100 hover:bg-zinc-200 ring-2 ring-emerald-500/60'
+                            : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:bg-zinc-900 hover:text-zinc-300 disabled:opacity-40 disabled:hover:bg-zinc-950 disabled:cursor-not-allowed'
                         }`}
-                        onClick={() => {
-                          setOngkirOption('distribute')
-                          setTimeout(() => handleRefreshPreview(), 100)
-                        }}
+                        onClick={() => setOngkirOption('distribute')}
                         disabled={!lineItems.some(item => item.is_inventory) || isPosted}
                         title={!lineItems.some(item => item.is_inventory) ? 'No inventory items to distribute to' : ''}
                       >
+                        {ongkirOption === 'distribute' && <Check className="h-3 w-3" />}
                         Landed Cost
                       </Button>
                       <Button
                         type="button"
                         variant="outline"
-                        className={`h-8 text-xs font-semibold rounded-md border transition-all ${
+                        className={`h-8 text-xs font-semibold rounded-md border transition-all flex items-center justify-center gap-1.5 ${
                           ongkirOption === 'expense'
-                            ? 'bg-zinc-100 text-zinc-900 border-zinc-100 hover:bg-zinc-200'
-                            : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:bg-zinc-900 hover:text-zinc-300'
+                            ? 'bg-zinc-100 text-zinc-900 border-zinc-100 hover:bg-zinc-200 ring-2 ring-emerald-500/60'
+                            : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:bg-zinc-900 hover:text-zinc-300 disabled:opacity-40 disabled:hover:bg-zinc-950 disabled:cursor-not-allowed'
                         }`}
-                        onClick={() => {
-                          setOngkirOption('expense')
-                          setTimeout(() => handleRefreshPreview(), 100)
-                        }}
+                        onClick={() => setOngkirOption('expense')}
                         disabled={isPosted}
                       >
+                        {ongkirOption === 'expense' && <Check className="h-3 w-3" />}
                         Freight Expense
                       </Button>
                     </div>
