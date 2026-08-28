@@ -23,6 +23,7 @@ import {
 } from 'lucide-react'
 import { formatRp } from '@/lib/format'
 import Link from 'next/link'
+import { SetupChecklist } from '@/components/dashboard/SetupChecklist'
 
 export default function DashboardPage() {
   const supabase = createClient()
@@ -316,6 +317,9 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* ── Setup Checklist (self-hides once complete or dismissed) ──────── */}
+      <SetupChecklist />
 
       {/* ── Stat Cards ────────────────────────────────────────────────── */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
