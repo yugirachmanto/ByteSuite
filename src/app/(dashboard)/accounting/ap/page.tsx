@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useOutlet } from '@/lib/contexts/outlet-context'
-import { useDateWindow } from '@/lib/contexts/date-window-context'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -40,9 +39,8 @@ import { formatRp } from '@/lib/format'
 export default function APDashboardPage() {
   const supabase = createClient()
   const { selectedOutletId } = useOutlet()
-  const { startDate, endDate } = useDateWindow()
   const [loading, setLoading] = useState(true)
-  const [invoices, setInvoices] = useState<any[]>([])         // date-windowed (for table)
+  const [invoices, setInvoices] = useState<any[]>([])         // all-time — AP is an ongoing balance, not a period report
   const [allOutstanding, setAllOutstanding] = useState<any[]>([]) // all-time unpaid (for header total)
   const [coa, setCoa] = useState<any[]>([])
   const [search, setSearch] = useState('')
@@ -82,9 +80,6 @@ export default function APDashboardPage() {
       setOrgId(currentOrgId)
 
       if (currentOrgId) {
-        const startIso = startDate.toISOString()
-        const endIso   = endDate.toISOString()
-
         // ── 1. ALL-TIME outstanding invoices (no date filter) ─────────────────
         // Used for the header "Total Outstanding" card.
         const { data: allInvData } = await supabase
@@ -94,7 +89,14 @@ export default function APDashboardPage() {
           .eq('status', 'posted')
         setAllOutstanding(allInvData || [])
 
-        // ── 2. Combined Outstanding (All-Time) & Paid (Date-Windowed) Invoices for Table ──
+        // ── 2. Combined Outstanding & Paid Invoices for Table (both all-time) ──
+        // The Paid tab previously filtered by invoice_date against the page's
+        // date-window selector — but a paid invoice's own date can easily fall
+        // outside whatever window happens to be selected (paying down an older
+        // debt is the normal case on an AP screen), so it vanished from both
+        // tabs: excluded from Outstanding because it's paid, excluded from Paid
+        // because its invoice_date was out of range. AP is an ongoing-balance
+        // view, not a period report — both tabs are all-time, matching each other.
         const { data: outstandingData } = await supabase
           .from('invoices')
           .select('*')
@@ -109,8 +111,6 @@ export default function APDashboardPage() {
           .eq('outlet_id', selectedOutletId)
           .eq('status', 'posted')
           .eq('payment_status', 'paid')
-          .gte('invoice_date', startIso)
-          .lte('invoice_date', endIso)
           .order('invoice_date', { ascending: false })
 
         const combined = [
@@ -132,7 +132,7 @@ export default function APDashboardPage() {
       setLoading(false)
     }
     fetchData()
-  }, [supabase, selectedOutletId, startDate, endDate])
+  }, [supabase, selectedOutletId])
 
   const openPaymentModal = (invoice: any) => {
     setSelectedInvoice(invoice)
@@ -196,8 +196,6 @@ export default function APDashboardPage() {
         .eq('status', 'posted')
       setAllOutstanding(allInvData || [])
 
-      const startIso = startDate.toISOString()
-      const endIso = endDate.toISOString()
       const { data: outstandingData } = await supabase
         .from('invoices')
         .select('*')
@@ -212,8 +210,6 @@ export default function APDashboardPage() {
         .eq('outlet_id', selectedOutletId)
         .eq('status', 'posted')
         .eq('payment_status', 'paid')
-        .gte('invoice_date', startIso)
-        .lte('invoice_date', endIso)
         .order('invoice_date', { ascending: false })
 
       const combined = [
