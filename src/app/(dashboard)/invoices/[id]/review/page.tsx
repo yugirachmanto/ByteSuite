@@ -239,7 +239,14 @@ export default function InvoiceReviewPage() {
             id: item.id !== undefined ? item.id : idx,
             item_master_id: item.item_master_id || matchedItem?.id || null,
             coa_id: item.coa_id || matchedItem?.default_coa_id || null,
-            is_inventory: item.is_inventory !== undefined ? item.is_inventory : (!!(item.item_master_id || matchedItem?.id) || true),
+            // The AI now always decides is_inventory (see invoice-parser.ts). The
+            // `!!(...) || true` fallback below previously evaluated to `true`
+            // unconditionally regardless of the match check — dead logic that
+            // meant the toggle could never come out off for AI-extracted items.
+            // Kept only as a last-resort default for legacy extracted_data that
+            // predates the AI setting this field.
+            is_inventory: item.is_inventory !== undefined ? item.is_inventory : !!(item.item_master_id || matchedItem?.id),
+            match_source: item.match_source ?? null,
             original_total: baseTotal,
             total: baseTotal,
             unit_price: parseFloat(item.unit_price) || 0
@@ -274,30 +281,64 @@ export default function InvoiceReviewPage() {
         }
       }
 
+      // Prefer a vendor-specific historical closing account over the org-wide
+      // default: different vendors are often paid via different accounts
+      // (cash vs. hutang usaha), and the org-wide default has no memory of
+      // that at all. Only past POSTED invoices count — those credit entries
+      // were what a human actually confirmed and posted.
+      let vendorCreditCoaId: string | null = null
+      if (updatedInv.vendor_id) {
+        const { data: vendorInvoices } = await supabase
+          .from('invoices')
+          .select('id')
+          .eq('vendor_id', updatedInv.vendor_id)
+          .eq('status', 'posted')
+          .limit(50)
+
+        const vendorInvoiceIds = (vendorInvoices || []).map((v: any) => v.id)
+        if (vendorInvoiceIds.length > 0) {
+          const { data: vendorCredits } = await supabase
+            .from('gl_entries')
+            .select('coa_id')
+            .in('reference_id', vendorInvoiceIds)
+            .eq('reference_type', 'invoice')
+            .gt('credit', 0)
+
+          if (vendorCredits && vendorCredits.length > 0) {
+            const counts = new Map<string, number>()
+            for (const c of vendorCredits) counts.set(c.coa_id, (counts.get(c.coa_id) || 0) + 1)
+            vendorCreditCoaId = Array.from(counts.entries()).sort((a, b) => b[1] - a[1])[0][0]
+          }
+        }
+      }
+
       // Fetch default mappings to resolve credit COA, PPN, and Freight COAs
       const { data: allMappings } = await supabase
         .from('default_coa_mappings')
         .select('account_role, coa_id')
         .eq('org_id', profile?.org_id)
 
-      if (allMappings) {
+      if (vendorCreditCoaId) {
+        setSelectedCreditCoaId(vendorCreditCoaId)
+      } else if (allMappings) {
         const apMap = allMappings.find(m => m.account_role === 'accounts_payable')
-        const ppnMap = allMappings.find(m => m.account_role === 'ppn_masukan')
-        const freightMap = allMappings.find(m => m.account_role === 'freight_expense')
-
         if (apMap?.coa_id) {
           setSelectedCreditCoaId(apMap.coa_id)
         } else {
           const apAccount = accounts?.find(acc => acc.code === '2-1-001')
           if (apAccount) setSelectedCreditCoaId(apAccount.id)
         }
-
-        if (ppnMap?.coa_id) setPpnCoaId(ppnMap.coa_id)
-        if (freightMap?.coa_id) setFreightCoaId(freightMap.coa_id)
       } else {
         // Fallback to hardcoded code '2-1-001'
         const apAccount = accounts?.find(acc => acc.code === '2-1-001')
         if (apAccount) setSelectedCreditCoaId(apAccount.id)
+      }
+
+      if (allMappings) {
+        const ppnMap = allMappings.find(m => m.account_role === 'ppn_masukan')
+        const freightMap = allMappings.find(m => m.account_role === 'freight_expense')
+        if (ppnMap?.coa_id) setPpnCoaId(ppnMap.coa_id)
+        if (freightMap?.coa_id) setFreightCoaId(freightMap.coa_id)
       }
       setLoading(false)
     }
@@ -1165,15 +1206,32 @@ export default function InvoiceReviewPage() {
                             disabled={isPosted}
                           />
                           <div className="grid grid-cols-2 gap-2">
-                            <CoaCombobox
-                              coas={coa}
-                              value={item.coa_id || ''}
-                              onChange={(val) => updateLineItem(item.id, 'coa_id', val)}
-                              disabled={isPosted}
-                              placeholder="Select Account..."
-                              className="bg-zinc-950 border-zinc-800"
-                            />
-                            
+                            <div className="flex items-center gap-1.5">
+                              <CoaCombobox
+                                coas={coa}
+                                value={item.coa_id || ''}
+                                onChange={(val) => updateLineItem(item.id, 'coa_id', val)}
+                                disabled={isPosted}
+                                placeholder="Select Account..."
+                                className="bg-zinc-950 border-zinc-800"
+                              />
+                              {item.match_source === 'history' && (
+                                <span title="Matched from a past invoice you already confirmed — likely correct.">
+                                  <History className="h-3.5 w-3.5 text-emerald-400 flex-shrink-0" />
+                                </span>
+                              )}
+                              {item.match_source === 'item_master' && (
+                                <span title="From this item's default account in Item Master.">
+                                  <Package className="h-3.5 w-3.5 text-zinc-500 flex-shrink-0" />
+                                </span>
+                              )}
+                              {item.match_source === 'guess' && (
+                                <span title="AI guess with no matching history — please verify this account.">
+                                  <AlertTriangle className="h-3.5 w-3.5 text-amber-400 flex-shrink-0" />
+                                </span>
+                              )}
+                            </div>
+
                             {item.is_inventory ? (
                               <div className="flex gap-1 items-center">
                                 <select 

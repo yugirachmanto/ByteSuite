@@ -106,22 +106,82 @@ export async function POST(request: NextRequest) {
     let coaAccounts: { id: string; code: string; name: string }[] = []
     let existingVendors: { id: string; name: string }[] = []
     let itemMasters: { id: string; name: string; unit: string; default_coa_id: string }[] = []
+    let historicalPatterns: { description: string; coa_id: string; is_inventory: boolean; item_master_id: string | null; count: number }[] = []
 
     try {
-      const [coas, vends, items] = await Promise.all([
-        supabase.from('chart_of_accounts').select('id, code, name').eq('org_id', org_id).eq('is_active', true),
+      const [coas, vends, items, outletsRes] = await Promise.all([
+        // is_header accounts can't receive postings — excluding them here means
+        // the AI physically cannot be offered one as a choice, instead of relying
+        // on prompt text ("only select leaf accounts") to stop it after the fact.
+        supabase.from('chart_of_accounts').select('id, code, name').eq('org_id', org_id).eq('is_active', true).eq('is_header', false),
         supabase.from('vendors').select('id, name').eq('org_id', org_id),
-        supabase.from('item_master').select('id, name, unit, default_coa_id').eq('org_id', org_id)
+        supabase.from('item_master').select('id, name, unit, default_coa_id').eq('org_id', org_id),
+        supabase.from('outlets').select('id').eq('org_id', org_id)
       ])
       if (coas.data) coaAccounts = coas.data
       if (vends.data) existingVendors = vends.data
       if (items.data) itemMasters = items.data
+
+      // Build historical line-item patterns from previously POSTED invoices —
+      // those are the ones a human actually reviewed and confirmed, i.e.
+      // verified ground truth the AI can learn from instead of guessing fresh
+      // every time. Unposted/draft invoices are excluded since their coa_id/
+      // is_inventory may just be an earlier (possibly wrong) AI guess.
+      const outletIds = (outletsRes.data || []).map(o => o.id)
+      if (outletIds.length > 0) {
+        const { data: postedInvoiceIds } = await supabase
+          .from('invoices')
+          .select('id')
+          .in('outlet_id', outletIds)
+          .eq('status', 'posted')
+          .order('created_at', { ascending: false })
+          .limit(150)
+
+        const invoiceIds = (postedInvoiceIds || []).map(i => i.id)
+        if (invoiceIds.length > 0) {
+          const { data: pastLines } = await supabase
+            .from('invoice_lines')
+            .select('description, coa_id, is_inventory, item_master_id')
+            .in('invoice_id', invoiceIds)
+            .not('coa_id', 'is', null)
+            .not('description', 'is', null)
+
+          // Aggregate by normalized description -> mode coa_id / is_inventory + count
+          const groups = new Map<string, { coa_id: string; is_inventory: boolean; item_master_id: string | null; count: number; coaCounts: Map<string, number>; invCounts: Map<string, number> }>()
+          for (const line of pastLines || []) {
+            const key = (line.description || '').trim().toLowerCase()
+            if (!key || !line.coa_id) continue
+            let g = groups.get(key)
+            if (!g) {
+              g = { coa_id: line.coa_id, is_inventory: !!line.is_inventory, item_master_id: line.item_master_id, count: 0, coaCounts: new Map(), invCounts: new Map() }
+              groups.set(key, g)
+            }
+            g.count++
+            g.coaCounts.set(line.coa_id, (g.coaCounts.get(line.coa_id) || 0) + 1)
+            const invKey = String(!!line.is_inventory)
+            g.invCounts.set(invKey, (g.invCounts.get(invKey) || 0) + 1)
+            if (!g.item_master_id && line.item_master_id) g.item_master_id = line.item_master_id
+          }
+
+          // Cap the payload sent to the AI — orgs with a lot of history could
+          // otherwise bloat prompt size/cost. Keep the most-frequently-confirmed
+          // patterns first, since those are the strongest signal anyway.
+          historicalPatterns = Array.from(groups.entries())
+            .map(([description, g]) => {
+              const modeCoaId = Array.from(g.coaCounts.entries()).sort((a, b) => b[1] - a[1])[0][0]
+              const modeIsInventory = Array.from(g.invCounts.entries()).sort((a, b) => b[1] - a[1])[0][0] === 'true'
+              return { description, coa_id: modeCoaId, is_inventory: modeIsInventory, item_master_id: g.item_master_id, count: g.count }
+            })
+            .sort((a, b) => b.count - a.count)
+            .slice(0, 200)
+        }
+      }
     } catch (dbError) {
       console.error('Failed to load AI context data:', dbError)
     }
 
     // Call OpenAI
-    const extracted = await extractInvoice(base64, mediaType, outlet_name || '', apiKey, coaAccounts, existingVendors, itemMasters)
+    const extracted = await extractInvoice(base64, mediaType, outlet_name || '', apiKey, coaAccounts, existingVendors, itemMasters, historicalPatterns)
 
     let vendor_id = extracted.vendor?.id || null
 

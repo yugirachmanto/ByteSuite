@@ -33,6 +33,8 @@ export interface ExtractedInvoice {
     total: number
     tax?: number
     coa_id?: string | null
+    is_inventory?: boolean
+    match_source?: 'history' | 'item_master' | 'guess'
   }[]
   subtotal: number
   discount: number           // total discount amount, 0 if none
@@ -74,7 +76,8 @@ const SYSTEM_PROMPT = (
   outletName: string,
   coaAccounts?: { id: string; code: string; name: string }[],
   vendors?: { id: string; name: string }[],
-  items?: { id: string; name: string; unit: string; default_coa_id: string }[]
+  items?: { id: string; name: string; unit: string; default_coa_id: string }[],
+  historicalPatterns?: { description: string; coa_id: string; is_inventory: boolean; item_master_id: string | null; count: number }[]
 ) => `
 You are an invoice data extraction specialist for an Indonesian F&B business called "${outletName}".
 Today's date is ${today} (${todayISO}). Use this to resolve any relative or ambiguous dates on the invoice.
@@ -95,7 +98,7 @@ Use this exact schema:
   "invoice_no": string,
   "invoice_date": "YYYY-MM-DD",
   "currency": "IDR",
-  "line_items": [{ "description": string, "item_master_id": string | null, "qty": number, "unit": string, "unit_price": number, "total": number, "coa_id": string | null }],
+  "line_items": [{ "description": string, "item_master_id": string | null, "qty": number, "unit": string, "unit_price": number, "total": number, "coa_id": string | null, "is_inventory": boolean, "match_source": "history" | "item_master" | "guess" }],
   "subtotal": number,
   "discount": number,
   "tax_total": number,
@@ -115,7 +118,9 @@ Rules:
 - "vendor.id": Check the "Available Vendors" list below. If the vendor name perfectly or closely matches an existing vendor, output its ID here. Otherwise, output null.
 - "vendor": Extract as much detail as you can find for the vendor (bank details, address, email, phone). Do NOT hallucinate. Only extract what is clearly written on the invoice.
 - "item_master_id": For each line item, try to find a semantic match from the "Available Item Master" list below. If there is a good match, set this to the item's exact UUID.
-- "coa_id": If you matched an item master, set this to that item's "default_coa_id". If you couldn't match an item master, match it to the "Available COA Accounts" list below and output the exact UUID from the "ID" field (e.g. "123e4567-e89b-12d3..."). DO NOT output the "Code" (like "5-3-00-030"). Only select leaf accounts.
+- "coa_id": Resolve in this priority order — (1) if the item's description closely matches an entry in "Historical Patterns" below, use that entry's coa_id (a human already confirmed this exact coding on a past invoice — trust it over a fresh guess); (2) else if you matched an item master, use that item's "default_coa_id"; (3) else pick the closest match from "Available COA Accounts" and output the exact UUID from the "ID" field (e.g. "123e4567-e89b-12d3..."). DO NOT output the "Code" (like "5-3-00-030"). Every account in that list is already a leaf/postable account.
+- "is_inventory": true if this is a physical, stocked good — raw materials, ingredients, packaging, retail/resale goods, anything counted or weighed and kept as inventory. false for services, one-time fees, delivery/admin/bank/handling charges, and anything else not tracked as stock. If a "Historical Patterns" entry matches, use its is_inventory value.
+- "match_source": report which source you actually used for that line's coa_id — "history" if from Historical Patterns, "item_master" if from the Item Master's default_coa_id, "guess" if you picked from the COA list with no history or item master match.
 
 ${vendors && vendors.length > 0 ? `
 Available Vendors:
@@ -128,8 +133,13 @@ ${items.map(i => `- ID: "${i.id}", Name: "${i.name}", default_coa_id: "${i.defau
 ` : ''}
 
 ${coaAccounts && coaAccounts.length > 0 ? `
-Available COA Accounts (fallback if no Item Master match):
+Available COA Accounts (fallback if no Historical Pattern or Item Master match):
 ${coaAccounts.map(a => `- ID: "${a.id}", Code: "${a.code}", Name: "${a.name}"`).join('\n')}
+` : ''}
+
+${historicalPatterns && historicalPatterns.length > 0 ? `
+Historical Patterns from Previously Confirmed Invoices (highest-priority source for coa_id/is_inventory — these were manually reviewed and approved by a human on a past invoice; if a line item's description closely or exactly matches one of these, strongly prefer using its coa_id and is_inventory value):
+${historicalPatterns.map(p => `- Description: "${p.description}", coa_id: "${p.coa_id}", is_inventory: ${p.is_inventory}, confirmed ${p.count} time${p.count === 1 ? '' : 's'}`).join('\n')}
 ` : ''}
 `.trim()
 
@@ -140,7 +150,8 @@ export async function extractInvoice(
   apiKey?: string,
   coaAccounts?: { id: string; code: string; name: string }[],
   vendors?: { id: string; name: string }[],
-  items?: { id: string; name: string; unit: string; default_coa_id: string }[]
+  items?: { id: string; name: string; unit: string; default_coa_id: string }[],
+  historicalPatterns?: { description: string; coa_id: string; is_inventory: boolean; item_master_id: string | null; count: number }[]
 ): Promise<ExtractedInvoice> {
   const client = apiKey ? new OpenAI({ apiKey }) : getDefaultClient()
 
@@ -149,7 +160,7 @@ export async function extractInvoice(
     timeZone: 'Asia/Jakarta',
   })
   const todayISO = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Jakarta' })
-  const systemPrompt = SYSTEM_PROMPT(today, todayISO, outletName, coaAccounts, vendors, items)
+  const systemPrompt = SYSTEM_PROMPT(today, todayISO, outletName, coaAccounts, vendors, items, historicalPatterns)
 
   let userContent: any[]
 
