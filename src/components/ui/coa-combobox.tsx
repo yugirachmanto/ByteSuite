@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react'
 import { cn } from '@/lib/utils'
 import { ChevronDown, Search, Check } from 'lucide-react'
 import { Input } from './input'
+import { toast } from 'sonner'
 
 interface Coa {
   id: string
@@ -150,10 +151,15 @@ export function CoaCombobox({
                       !isDisabled && "cursor-pointer"
                     )}
                     onClick={() => {
-                      if (!isDisabled) {
-                        onChange(coa.id)
-                        setIsOpen(false)
+                      if (isDisabled) {
+                        // Previously a silent no-op — clicking a header account did
+                        // nothing at all (dropdown stayed open, no selection made),
+                        // which reads as "I picked it" while nothing was actually saved.
+                        toast.error(`"${coa.name}" is a header account and can't be selected directly — choose one of its sub-accounts.`)
+                        return
                       }
+                      onChange(coa.id)
+                      setIsOpen(false)
                     }}
                   >
                     <span className="flex-1 whitespace-normal break-words">

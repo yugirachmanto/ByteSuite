@@ -162,7 +162,15 @@ export default function AccountingSettingsPage() {
         .eq('id', orgId)
       if (orgError) throw orgError
 
-      toast.success('System settings updated')
+      // Confirms how many mappings actually persisted — the org-settings update
+      // above can succeed on its own even when validMappings was empty (e.g. a
+      // header account got selected and silently didn't register before this
+      // fix), which previously showed the same generic success toast either way.
+      toast.success(
+        validMappings.length > 0
+          ? `System settings updated (${validMappings.length} account mapping${validMappings.length > 1 ? 's' : ''} saved)`
+          : 'System settings updated (no account mappings were set)'
+      )
     } catch (error: any) {
       toast.error(error.message || 'Failed to save settings')
     } finally {
