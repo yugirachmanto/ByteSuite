@@ -5,9 +5,12 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useOutlet } from '@/lib/contexts/outlet-context'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import {
   Upload, X, FileImage, FileText, Loader2,
-  ArrowLeft, Sparkles, Brain, CheckCircle2, Cpu
+  ArrowLeft, Sparkles, Brain, CheckCircle2, Cpu, KeyRound
 } from 'lucide-react'
 import { toast } from 'sonner'
 import Link from 'next/link'
@@ -85,6 +88,13 @@ export default function InvoiceUploadPage() {
   const [uploading, setUploading] = useState(false)
   const [extracting, setExtracting] = useState(false)
 
+  // Invoice + file are already saved by the time a 402 can happen — this holds
+  // what's needed to retry extraction inline instead of re-uploading.
+  const [apiKeyModalOpen, setApiKeyModalOpen] = useState(false)
+  const [pendingExtraction, setPendingExtraction] = useState<{ invoiceId: string; publicUrl: string; outletName: string } | null>(null)
+  const [apiKeyInput, setApiKeyInput] = useState('')
+  const [savingKey, setSavingKey] = useState(false)
+
   const { selectedOutletId, outlets } = useOutlet()
   const router = useRouter()
   const supabase = createClient()
@@ -107,6 +117,30 @@ export default function InvoiceUploadPage() {
   }, [handleFile])
 
   const removeFile = () => { setFile(null); setPreview(null) }
+
+  // Shared by the initial upload and the retry-after-saving-a-key path.
+  // Returns true on success (caller navigates to review); on a 402 it opens
+  // the inline API key modal itself and returns false instead of throwing,
+  // since that's a normal "not set up yet" state, not a failure to surface
+  // as a generic error toast.
+  const runExtraction = async (invoiceId: string, publicUrl: string, outletName: string): Promise<boolean> => {
+    const res = await fetch('/api/extract-invoice', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ invoice_id: invoiceId, image_url: publicUrl, outlet_name: outletName })
+    })
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      if (res.status === 402 && body.setup_required) {
+        setPendingExtraction({ invoiceId, publicUrl, outletName })
+        setApiKeyModalOpen(true)
+        return false
+      }
+      throw new Error(body.error || 'AI extraction failed, but invoice was saved.')
+    }
+    return true
+  }
 
   const handleUpload = async () => {
     if (!file || !selectedOutletId) return
@@ -138,29 +172,48 @@ export default function InvoiceUploadPage() {
       setExtracting(true)
 
       const outletName = outlets.find(o => o.id === selectedOutletId)?.name || ''
-      const res = await fetch('/api/extract-invoice', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ invoice_id: invoiceId, image_url: publicUrl, outlet_name: outletName })
-      })
-
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
-        // API key not configured — guide user to settings
-        if (res.status === 402 && body.setup_required) {
-          toast.error('OpenAI API key required. Redirecting to Integrations…', { duration: 4000 })
-          setTimeout(() => router.push('/integrations'), 1500)
-          return
-        }
-        throw new Error(body.error || 'AI extraction failed, but invoice was saved.')
+      const success = await runExtraction(invoiceId, publicUrl, outletName)
+      if (success) {
+        toast.success('Invoice analyzed successfully!')
+        router.push(`/invoices/${invoiceId}/review`)
       }
-
-      toast.success('Invoice analyzed successfully!')
-      router.push(`/invoices/${invoiceId}/review`)
     } catch (err: any) {
       toast.error(err.message || 'Failed to upload invoice')
     } finally {
       setUploading(false)
+      setExtracting(false)
+    }
+  }
+
+  const handleSaveKeyAndRetry = async () => {
+    if (!apiKeyInput.trim() || !pendingExtraction) return
+    setSavingKey(true)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('Not authenticated')
+
+      const { error } = await supabase
+        .from('user_integrations')
+        .upsert({
+          user_id: user.id,
+          provider: 'openai',
+          credentials: { api_key: apiKeyInput.trim() },
+          is_active: true
+        }, { onConflict: 'user_id, provider' })
+      if (error) throw error
+
+      setExtracting(true)
+      const { invoiceId, publicUrl, outletName } = pendingExtraction
+      const success = await runExtraction(invoiceId, publicUrl, outletName)
+      if (success) {
+        toast.success('API key saved — invoice analyzed successfully!')
+        setApiKeyModalOpen(false)
+        router.push(`/invoices/${invoiceId}/review`)
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to save API key')
+    } finally {
+      setSavingKey(false)
       setExtracting(false)
     }
   }
@@ -329,6 +382,55 @@ export default function InvoiceUploadPage() {
           </Button>
         </div>
       </div>
+
+      <Dialog open={apiKeyModalOpen} onOpenChange={(open) => { if (!savingKey) setApiKeyModalOpen(open) }}>
+        <DialogContent className="bg-zinc-950 border-zinc-800 sm:max-w-md">
+          <DialogHeader>
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-400 mb-1">
+              <KeyRound className="h-4 w-4" />
+            </div>
+            <DialogTitle>Connect AI extraction</DialogTitle>
+            <DialogDescription>
+              Your invoice was uploaded successfully — add an OpenAI API key to read it automatically.
+              Nothing needs re-uploading once it's saved.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            <Label htmlFor="upload-api-key">OpenAI API Key</Label>
+            <Input
+              id="upload-api-key"
+              type="password"
+              placeholder="sk-..."
+              value={apiKeyInput}
+              onChange={(e) => setApiKeyInput(e.target.value)}
+              className="bg-zinc-900 border-zinc-800"
+              disabled={savingKey}
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              className="border-zinc-800 text-zinc-300"
+              onClick={() => {
+                setApiKeyModalOpen(false)
+                toast.info('Invoice saved — you can extract it later from the Invoices list.')
+                if (pendingExtraction) router.push(`/invoices/${pendingExtraction.invoiceId}/review`)
+              }}
+              disabled={savingKey}
+            >
+              I'll do this later
+            </Button>
+            <Button
+              className="bg-indigo-600 hover:bg-indigo-700 text-white"
+              onClick={handleSaveKeyAndRetry}
+              disabled={savingKey || !apiKeyInput.trim()}
+            >
+              {savingKey ? <><Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />Analyzing…</> : 'Save & Analyze'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
