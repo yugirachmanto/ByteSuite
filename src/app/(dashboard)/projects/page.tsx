@@ -3,15 +3,13 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { 
-  FolderKanban, 
-  Plus, 
-  Search, 
-  Calendar, 
-  User, 
-  CheckCircle2, 
-  Clock, 
-  AlertCircle,
+import {
+  FolderKanban,
+  Plus,
+  Search,
+  Calendar,
+  CheckCircle2,
+  Clock,
   ArrowRight,
   Filter,
   BarChart2
@@ -22,7 +20,6 @@ import { Button } from '@/components/ui/button'
 
 interface Project {
   id: string
-  project_code: string
   name: string
   description: string | null
   status: 'planning' | 'active' | 'on_hold' | 'completed' | 'cancelled'
@@ -40,29 +37,14 @@ export default function ProjectsPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
 
-  useEffect(() => {
-    fetchProjects()
-  }, [])
-
   const fetchProjects = async () => {
+    if (!selectedOutletId) return
     setLoading(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-
-    const { data: profile } = await supabase
-      .from('user_profiles')
-      .select('org_id')
-      .eq('id', user.id)
-      .single()
-
-    if (!profile?.org_id) {
-      setLoading(false)
-      return
-    }
 
     let query = supabase
       .from('pm_projects')
       .select('*')
+      .eq('outlet_id', selectedOutletId)
       .order('created_at', { ascending: false })
 
     if (statusFilter !== 'all') {
@@ -81,11 +63,11 @@ export default function ProjectsPage() {
 
   useEffect(() => {
     fetchProjects()
-  }, [statusFilter])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedOutletId, statusFilter])
 
-  const filteredProjects = projects.filter(p => 
+  const filteredProjects = projects.filter(p =>
     p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    p.project_code.toLowerCase().includes(searchQuery.toLowerCase()) ||
     (p.description && p.description.toLowerCase().includes(searchQuery.toLowerCase()))
   )
 
@@ -110,7 +92,6 @@ export default function ProjectsPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-zinc-100 flex items-center gap-2">
@@ -118,7 +99,7 @@ export default function ProjectsPage() {
             Project Management
           </h1>
           <p className="text-sm text-zinc-400 mt-1">
-            Kelola proyek, task, timeline Gantt chart, dan kolaborasi tim terintegrasi AI.
+            Kelola proyek, task, Kanban board, dan Gantt timeline per outlet.
           </p>
         </div>
         <Link href="/projects/new">
@@ -129,7 +110,6 @@ export default function ProjectsPage() {
         </Link>
       </div>
 
-      {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-zinc-900/60 border border-zinc-800 rounded-xl p-4 flex items-center justify-between">
           <div>
@@ -162,13 +142,12 @@ export default function ProjectsPage() {
         </div>
       </div>
 
-      {/* Search and Filters */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
-          <input 
+          <input
             type="text"
-            placeholder="Cari kode proyek, nama, atau deskripsi..."
+            placeholder="Cari nama atau deskripsi project..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full bg-zinc-900/80 border border-zinc-800 rounded-xl pl-9 pr-4 py-2 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-indigo-500"
@@ -176,7 +155,7 @@ export default function ProjectsPage() {
         </div>
         <div className="flex items-center gap-2">
           <Filter className="h-4 w-4 text-zinc-400" />
-          <select 
+          <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
             className="bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm text-zinc-300 focus:outline-none focus:border-indigo-500"
@@ -190,7 +169,6 @@ export default function ProjectsPage() {
         </div>
       </div>
 
-      {/* Project Grid / List */}
       {loading ? (
         <div className="py-12 text-center text-zinc-500 text-sm">Loading projects...</div>
       ) : filteredProjects.length === 0 ? (
@@ -198,7 +176,7 @@ export default function ProjectsPage() {
           <FolderKanban className="h-12 w-12 text-zinc-600 mx-auto" />
           <h3 className="text-lg font-medium text-zinc-200">Belum ada proyek</h3>
           <p className="text-sm text-zinc-400 max-w-md mx-auto">
-            Buat proyek baru untuk mengelola tugas tim, alur kerja approval, Gantt timeline, dan asisten AI.
+            Buat proyek baru untuk mengelola tugas tim, Kanban board, dan Gantt timeline.
           </p>
           <Link href="/projects/new">
             <Button className="mt-2 bg-indigo-600 hover:bg-indigo-500 text-white gap-2">
@@ -210,23 +188,20 @@ export default function ProjectsPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredProjects.map((project) => (
-            <div 
+            <div
               key={project.id}
               onClick={() => router.push(`/projects/${project.id}`)}
               className="group bg-zinc-900/70 hover:bg-zinc-900 border border-zinc-800 hover:border-indigo-500/50 rounded-2xl p-5 transition-all duration-200 cursor-pointer flex flex-col justify-between"
             >
               <div>
                 <div className="flex items-center justify-between gap-2 mb-3">
-                  <span className="text-xs font-mono px-2 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-zinc-700/50">
-                    {project.project_code}
-                  </span>
                   {getStatusBadge(project.status)}
                 </div>
 
                 <h3 className="font-semibold text-zinc-100 group-hover:text-indigo-400 transition-colors text-base line-clamp-1">
                   {project.name}
                 </h3>
-                
+
                 <p className="text-xs text-zinc-400 mt-2 line-clamp-2 min-h-[2.5rem]">
                   {project.description || 'Tidak ada deskripsi.'}
                 </p>

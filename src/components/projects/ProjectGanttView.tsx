@@ -1,12 +1,25 @@
 'use client'
 
-import { useState } from 'react'
-import { Calendar, ChevronLeft, ChevronRight, Layers } from 'lucide-react'
+import { Layers } from 'lucide-react'
 import { Task } from './TaskDetailDrawer'
 
 interface ProjectGanttViewProps {
   tasks: Task[]
   onSelectTask: (task: Task) => void
+}
+
+const STATUS_BAR_COLOR: Record<Task['status'], string> = {
+  todo: 'bg-zinc-600/80 border-zinc-500/30',
+  in_progress: 'bg-indigo-600/80 border-indigo-400/30',
+  review: 'bg-amber-600/80 border-amber-400/30',
+  done: 'bg-emerald-600/80 border-emerald-400/30',
+}
+
+const STATUS_LABEL: Record<Task['status'], string> = {
+  todo: 'To Do',
+  in_progress: 'In Progress',
+  review: 'Review',
+  done: 'Done',
 }
 
 export function ProjectGanttView({ tasks, onSelectTask }: ProjectGanttViewProps) {
@@ -18,10 +31,8 @@ export function ProjectGanttView({ tasks, onSelectTask }: ProjectGanttViewProps)
     )
   }
 
-  // Calculate timeline start and end dates
-  const dates = tasks
-    .map(t => t.due_date ? new Date(t.due_date).getTime() : new Date(t.created_at).getTime())
-  
+  const dates = tasks.map((t) => (t.due_date ? new Date(t.due_date).getTime() : new Date(t.created_at).getTime()))
+
   const minTime = Math.min(...dates, Date.now()) - 2 * 24 * 60 * 60 * 1000
   const maxTime = Math.max(...dates, Date.now()) + 10 * 24 * 60 * 60 * 1000
   const totalDays = Math.ceil((maxTime - minTime) / (1000 * 60 * 60 * 24))
@@ -36,14 +47,12 @@ export function ProjectGanttView({ tasks, onSelectTask }: ProjectGanttViewProps)
       </div>
 
       <div className="min-w-[700px] border border-zinc-800 rounded-xl overflow-hidden bg-zinc-950">
-        {/* Timeline Header Row */}
         <div className="grid grid-cols-12 bg-zinc-900/80 border-b border-zinc-800 py-2.5 px-4 text-xs font-semibold text-zinc-400">
-          <div className="col-span-4">Task Name & Number</div>
+          <div className="col-span-4">Task Name</div>
           <div className="col-span-2">Priority</div>
-          <div className="col-span-6 text-right pr-4">Timeline / Progress Bar</div>
+          <div className="col-span-6 text-right pr-4">Timeline</div>
         </div>
 
-        {/* Task Rows */}
         <div className="divide-y divide-zinc-800/60">
           {tasks.map((task) => {
             const startDate = task.start_date ? new Date(task.start_date).getTime() : new Date(task.created_at).getTime()
@@ -56,15 +65,12 @@ export function ProjectGanttView({ tasks, onSelectTask }: ProjectGanttViewProps)
             const widthPercent = Math.min(100 - offsetPercent, Math.max(15, (durationDays / totalDays) * 100))
 
             return (
-              <div 
+              <div
                 key={task.id}
                 onClick={() => onSelectTask(task)}
                 className="grid grid-cols-12 items-center py-3 px-4 text-xs hover:bg-zinc-900/60 cursor-pointer transition-colors"
               >
                 <div className="col-span-4 flex items-center gap-2 pr-2 truncate">
-                  <span className="font-mono text-[10px] bg-zinc-800 text-indigo-300 px-1.5 py-0.5 rounded shrink-0">
-                    {task.task_number}
-                  </span>
                   <span className="text-zinc-200 font-medium truncate">{task.title}</span>
                 </div>
 
@@ -78,13 +84,12 @@ export function ProjectGanttView({ tasks, onSelectTask }: ProjectGanttViewProps)
                   </span>
                 </div>
 
-                {/* Timeline Bar Cell */}
                 <div className="col-span-6 relative h-6 bg-zinc-900/50 rounded-lg overflow-hidden border border-zinc-800/40">
                   <div
-                    className="absolute top-1 bottom-1 rounded-md bg-indigo-600/80 border border-indigo-400/30 flex items-center justify-between px-2 text-[10px] text-white font-mono shadow-xs"
+                    className={`absolute top-1 bottom-1 rounded-md border flex items-center justify-center px-2 text-[10px] text-white font-medium shadow-xs ${STATUS_BAR_COLOR[task.status]}`}
                     style={{ left: `${offsetPercent}%`, width: `${widthPercent}%` }}
                   >
-                    <span className="truncate pr-1">{task.progress_percent}%</span>
+                    <span className="truncate">{STATUS_LABEL[task.status]}</span>
                   </div>
                 </div>
               </div>

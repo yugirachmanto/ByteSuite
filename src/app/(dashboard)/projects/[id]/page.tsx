@@ -2,18 +2,13 @@
 
 import { useState, useEffect, use } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { 
-  ArrowLeft, 
-  Plus, 
-  FolderKanban, 
-  Layers, 
-  Sparkles, 
-  CheckCircle2, 
-  Clock, 
-  Settings, 
+import {
+  ArrowLeft,
+  Plus,
+  FolderKanban,
+  Layers,
+  Timer,
   Loader2,
-  Calendar,
   Pencil,
   Check,
   X
@@ -23,30 +18,35 @@ import { Button } from '@/components/ui/button'
 import { TaskKanbanBoard } from '@/components/projects/TaskKanbanBoard'
 import { TaskDetailDrawer, Task } from '@/components/projects/TaskDetailDrawer'
 import { ProjectGanttView } from '@/components/projects/ProjectGanttView'
-import { MomReviewPanel } from '@/components/projects/MomReviewPanel'
 
 interface ProjectDetailProps {
   params: Promise<{ id: string }>
 }
 
+function formatMinutes(mins: number) {
+  if (mins < 60) return `${mins}m`
+  const h = Math.floor(mins / 60)
+  const m = mins % 60
+  return m > 0 ? `${h}h ${m}m` : `${h}h`
+}
+
 export default function ProjectDetailPage({ params }: ProjectDetailProps) {
   const { id: projectId } = use(params)
-  const router = useRouter()
   const supabase = createClient()
 
   const [project, setProject] = useState<any>(null)
   const [tasks, setTasks] = useState<Task[]>([])
+  const [linkCounts, setLinkCounts] = useState<Record<string, number>>({})
+  const [timeTotals, setTimeTotals] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'board' | 'gantt' | 'mom'>('board')
+  const [activeTab, setActiveTab] = useState<'board' | 'gantt' | 'time'>('board')
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
 
-  // Inline Project Edit
   const [isEditingProject, setIsEditingProject] = useState(false)
   const [editName, setEditName] = useState('')
   const [editDescription, setEditDescription] = useState('')
   const [savingProject, setSavingProject] = useState(false)
-  
-  // Quick Task Modal
+
   const [isCreatingTask, setIsCreatingTask] = useState(false)
   const [newTaskTitle, setNewTaskTitle] = useState('')
   const [newTaskStatus, setNewTaskStatus] = useState<Task['status']>('todo')
@@ -55,7 +55,6 @@ export default function ProjectDetailPage({ params }: ProjectDetailProps) {
   const fetchProjectAndTasks = async () => {
     setLoading(true)
 
-    // Fetch Project
     const { data: projData, error: projErr } = await supabase
       .from('pm_projects')
       .select('*')
@@ -70,19 +69,44 @@ export default function ProjectDetailPage({ params }: ProjectDetailProps) {
 
     setProject(projData)
 
-    // Fetch Tasks
     const { data: taskData } = await supabase
       .from('pm_tasks')
       .select('*')
       .eq('project_id', projectId)
       .order('created_at', { ascending: true })
 
-    setTasks(taskData || [])
+    const fetchedTasks = taskData || []
+    setTasks(fetchedTasks)
+
+    const taskIds = fetchedTasks.map((t) => t.id)
+    if (taskIds.length > 0) {
+      const [linksRes, timeRes] = await Promise.all([
+        supabase.from('pm_task_links').select('task_id').in('task_id', taskIds),
+        supabase.from('pm_time_entries').select('task_id, duration_minutes').in('task_id', taskIds),
+      ])
+
+      const linkMap: Record<string, number> = {}
+      for (const row of linksRes.data || []) {
+        linkMap[row.task_id] = (linkMap[row.task_id] || 0) + 1
+      }
+      setLinkCounts(linkMap)
+
+      const timeMap: Record<string, number> = {}
+      for (const row of timeRes.data || []) {
+        timeMap[row.task_id] = (timeMap[row.task_id] || 0) + (row.duration_minutes || 0)
+      }
+      setTimeTotals(timeMap)
+    } else {
+      setLinkCounts({})
+      setTimeTotals({})
+    }
+
     setLoading(false)
   }
 
   useEffect(() => {
     fetchProjectAndTasks()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId])
 
   const handleCreateTask = async (e: React.FormEvent) => {
@@ -97,25 +121,15 @@ export default function ProjectDetailPage({ params }: ProjectDetailProps) {
         return
       }
 
-      const { data: profile } = await supabase
-        .from('user_profiles')
-        .select('org_id')
-        .eq('id', user.id)
-        .single()
-
-      if (!profile?.org_id) {
-        console.error('Cannot create task: no organization found for user')
-        return
-      }
-
       const { error } = await supabase
         .from('pm_tasks')
         .insert({
-          org_id: profile.org_id,
+          org_id: project.org_id,
+          outlet_id: project.outlet_id,
           project_id: projectId,
           title: newTaskTitle.trim(),
           status: newTaskStatus,
-          reporter_id: user.id
+          created_by: user.id
         })
 
       if (!error) {
@@ -130,28 +144,12 @@ export default function ProjectDetailPage({ params }: ProjectDetailProps) {
 
   const handleMoveTask = async (taskId: string, newStatus: Task['status']) => {
     const previousTasks = tasks
-    const task = tasks.find((t) => t.id === taskId)
-    if (!task) return
 
-    // Mirrors TaskDetailDrawer's handleUpdateStatus convention: done forces
-    // progress to 100, todo forces it back to 0.
-    let newProgress = task.progress_percent
-    if (newStatus === 'done') newProgress = 100
-    if (newStatus === 'todo') newProgress = 0
-
-    // Optimistic update — a drag gesture is a poor place for a loading spinner,
-    // and fetchProjectAndTasks() would flash the whole page's loading state.
-    setTasks((prev) =>
-      prev.map((t) => (t.id === taskId ? { ...t, status: newStatus, progress_percent: newProgress } : t))
-    )
+    setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t)))
 
     const { error } = await supabase
       .from('pm_tasks')
-      .update({
-        status: newStatus,
-        progress_percent: newProgress,
-        updated_at: new Date().toISOString()
-      })
+      .update({ status: newStatus })
       .eq('id', taskId)
 
     if (error) {
@@ -179,7 +177,6 @@ export default function ProjectDetailPage({ params }: ProjectDetailProps) {
       .update({
         name: editName.trim(),
         description: editDescription.trim() || null,
-        updated_at: new Date().toISOString()
       })
       .eq('id', projectId)
 
@@ -205,23 +202,21 @@ export default function ProjectDetailPage({ params }: ProjectDetailProps) {
     )
   }
 
+  const totalProjectMinutes = Object.values(timeTotals).reduce((sum, m) => sum + m, 0)
+  const tasksByTime = [...tasks].sort((a, b) => (timeTotals[b.id] || 0) - (timeTotals[a.id] || 0))
+
   return (
     <div className="space-y-6">
-      {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-800 pb-5">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <Link href="/projects" className="text-zinc-500 hover:text-zinc-300 transition-colors">
               <ArrowLeft className="h-4 w-4" />
             </Link>
-            <span className="font-mono text-xs px-2 py-0.5 rounded bg-zinc-800 text-indigo-400 border border-zinc-700">
-              {project.project_code}
-            </span>
             <span className="text-xs uppercase font-semibold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
               {project.status}
             </span>
           </div>
-          {/* Inline Edit Mode */}
           {isEditingProject ? (
             <div className="space-y-2 mt-1">
               <input
@@ -298,7 +293,6 @@ export default function ProjectDetailPage({ params }: ProjectDetailProps) {
         </div>
       </div>
 
-      {/* Navigation Tabs */}
       <div className="flex border-b border-zinc-800 gap-1">
         <button
           onClick={() => setActiveTab('board')}
@@ -325,22 +319,23 @@ export default function ProjectDetailPage({ params }: ProjectDetailProps) {
         </button>
 
         <button
-          onClick={() => setActiveTab('mom')}
+          onClick={() => setActiveTab('time')}
           className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold border-b-2 transition-colors ${
-            activeTab === 'mom'
+            activeTab === 'time'
               ? 'border-indigo-500 text-indigo-400'
               : 'border-transparent text-zinc-400 hover:text-zinc-200'
           }`}
         >
-          <Sparkles className="h-4 w-4" />
-          AI Ingestion MoM
+          <Timer className="h-4 w-4" />
+          Waktu Pengerjaan
         </button>
       </div>
 
-      {/* Tab Contents */}
       {activeTab === 'board' && (
         <TaskKanbanBoard
           tasks={tasks}
+          linkCounts={linkCounts}
+          timeTotals={timeTotals}
           onSelectTask={(t) => setSelectedTask(t)}
           onQuickCreateTask={(st) => {
             setNewTaskStatus(st)
@@ -357,14 +352,37 @@ export default function ProjectDetailPage({ params }: ProjectDetailProps) {
         />
       )}
 
-      {activeTab === 'mom' && (
-        <MomReviewPanel
-          projectId={projectId}
-          onTasksUpdated={fetchProjectAndTasks}
-        />
+      {activeTab === 'time' && (
+        <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800">
+            <h3 className="text-sm font-semibold text-zinc-200 flex items-center gap-2">
+              <Timer className="h-4 w-4 text-indigo-400" />
+              Total Waktu Pengerjaan Proyek
+            </h3>
+            <span className="text-lg font-bold text-indigo-400 font-mono">{formatMinutes(totalProjectMinutes)}</span>
+          </div>
+
+          {tasks.length === 0 ? (
+            <div className="py-12 text-center text-xs text-zinc-500">Belum ada task di proyek ini.</div>
+          ) : (
+            <div className="divide-y divide-zinc-800/60">
+              {tasksByTime.map((task) => (
+                <button
+                  key={task.id}
+                  onClick={() => setSelectedTask(task)}
+                  className="w-full flex items-center justify-between px-5 py-3 text-xs hover:bg-zinc-900/60 transition-colors text-left"
+                >
+                  <span className="text-zinc-200 truncate">{task.title}</span>
+                  <span className="font-mono text-zinc-400 shrink-0 ml-3">
+                    {timeTotals[task.id] ? formatMinutes(timeTotals[task.id]) : '—'}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       )}
 
-      {/* Quick Task Modal */}
       {isCreatingTask && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
           <div className="bg-zinc-950 border border-zinc-800 rounded-2xl p-6 w-full max-w-md space-y-4 shadow-2xl">
@@ -393,8 +411,7 @@ export default function ProjectDetailPage({ params }: ProjectDetailProps) {
                 >
                   <option value="todo">To Do</option>
                   <option value="in_progress">In Progress</option>
-                  <option value="in_review">In Review</option>
-                  <option value="blocked">Blocked</option>
+                  <option value="review">Review</option>
                   <option value="done">Done</option>
                 </select>
               </div>
@@ -424,7 +441,6 @@ export default function ProjectDetailPage({ params }: ProjectDetailProps) {
         </div>
       )}
 
-      {/* Task Detail Drawer */}
       <TaskDetailDrawer
         task={selectedTask}
         onClose={() => setSelectedTask(null)}
