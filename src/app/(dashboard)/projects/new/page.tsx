@@ -5,19 +5,20 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, FolderPlus, Loader2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { useOutlet } from '@/lib/contexts/outlet-context'
 import { Button } from '@/components/ui/button'
 
 export default function NewProjectPage() {
   const router = useRouter()
   const supabase = createClient()
+  const { selectedOutletId } = useOutlet()
   const [loading, setLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
 
   const [formData, setFormData] = useState({
-    project_code: `PRJ-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
     name: '',
     description: '',
-    status: 'active',
+    status: 'planning',
     start_date: new Date().toISOString().split('T')[0],
     end_date: '',
   })
@@ -26,6 +27,10 @@ export default function NewProjectPage() {
     e.preventDefault()
     if (!formData.name.trim()) {
       setErrorMsg('Nama project wajib diisi.')
+      return
+    }
+    if (!selectedOutletId) {
+      setErrorMsg('Pilih outlet terlebih dahulu.')
       return
     }
 
@@ -55,13 +60,13 @@ export default function NewProjectPage() {
       .from('pm_projects')
       .insert({
         org_id: profile.org_id,
-        project_code: formData.project_code,
+        outlet_id: selectedOutletId,
         name: formData.name,
         description: formData.description || null,
         status: formData.status,
         start_date: formData.start_date || null,
         end_date: formData.end_date || null,
-        owner_id: user.id
+        created_by: user.id
       })
       .select('id')
       .single()
@@ -100,35 +105,22 @@ export default function NewProjectPage() {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-medium text-zinc-300 mb-1.5">Kode Project</label>
-              <input 
-                type="text"
-                value={formData.project_code}
-                onChange={(e) => setFormData({ ...formData, project_code: e.target.value })}
-                required
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-zinc-100 font-mono focus:outline-none focus:border-indigo-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-zinc-300 mb-1.5">Status Awal</label>
-              <select
-                value={formData.status}
-                onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-indigo-500"
-              >
-                <option value="planning">Planning (Perencanaan)</option>
-                <option value="active">Active (Sedang Berjalan)</option>
-                <option value="on_hold">On Hold (Ditunda)</option>
-              </select>
-            </div>
+          <div>
+            <label className="block text-xs font-medium text-zinc-300 mb-1.5">Status Awal</label>
+            <select
+              value={formData.status}
+              onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+              className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-indigo-500"
+            >
+              <option value="planning">Planning (Perencanaan)</option>
+              <option value="active">Active (Sedang Berjalan)</option>
+              <option value="on_hold">On Hold (Ditunda)</option>
+            </select>
           </div>
 
           <div>
             <label className="block text-xs font-medium text-zinc-300 mb-1.5">Nama Project *</label>
-            <input 
+            <input
               type="text"
               placeholder="Contoh: Renovasi Cabang Bandung & Setup POS"
               value={formData.name}
@@ -140,7 +132,7 @@ export default function NewProjectPage() {
 
           <div>
             <label className="block text-xs font-medium text-zinc-300 mb-1.5">Deskripsi / Scope Project</label>
-            <textarea 
+            <textarea
               rows={3}
               placeholder="Jelaskan tujuan project, scope pekerjaan, atau deliverable..."
               value={formData.description}
@@ -152,7 +144,7 @@ export default function NewProjectPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-zinc-300 mb-1.5">Tanggal Mulai</label>
-              <input 
+              <input
                 type="date"
                 value={formData.start_date}
                 onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
@@ -162,7 +154,7 @@ export default function NewProjectPage() {
 
             <div>
               <label className="block text-xs font-medium text-zinc-300 mb-1.5">Target Selesai (Deadline)</label>
-              <input 
+              <input
                 type="date"
                 value={formData.end_date}
                 onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
