@@ -157,7 +157,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       {/* Sidebar */}
       <aside
         className={cn(
-          'flex flex-col border-r border-zinc-800 bg-zinc-900 transition-all duration-300 print:hidden z-50',
+          'flex flex-col overflow-hidden border-r border-zinc-800 bg-zinc-900 transition-all duration-300 print:hidden z-50',
           'fixed inset-y-0 left-0 md:relative',
           isSidebarOpen ? 'w-64 translate-x-0' : 'w-20 -translate-x-full md:translate-x-0'
         )}
@@ -214,7 +214,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           </DropdownMenu>
         </div>
 
-        <ScrollArea className="flex-1 px-4 py-2">
+        <ScrollArea className="flex-1 min-h-0 px-4 py-2">
           <nav className="space-y-4">
             {sidebarGroups
               .filter(group => !userRole || group.roles.includes(userRole))
