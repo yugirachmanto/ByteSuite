@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { CoaCombobox } from '@/components/ui/coa-combobox'
 import { DatePicker } from '@/components/ui/date-picker'
 import { AddRawItemDialog } from '@/components/purchasing/AddRawItemDialog'
+import { AddVendorDialog } from '@/components/purchasing/AddVendorDialog'
 import { ArrowLeft, Plus, Trash2, Loader2, ShoppingCart } from 'lucide-react'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
@@ -43,6 +44,7 @@ export default function NewPurchaseOrderPage() {
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
   const [addItemLineIdx, setAddItemLineIdx] = useState<number | null>(null)
+  const [addVendorOpen, setAddVendorOpen] = useState(false)
   const [lastPrices, setLastPrices] = useState<Record<string, { price: number; date: string }>>({})
 
   useEffect(() => {
@@ -150,6 +152,11 @@ export default function NewPurchaseOrderPage() {
     }
   }
 
+  const handleVendorCreated = (newVendor: any) => {
+    setVendors((prev) => [...prev, newVendor].sort((a, b) => a.name.localeCompare(b.name)))
+    setVendorId(newVendor.id)
+  }
+
   const total = lines.reduce((s, l) => s + l.qty * l.unit_price, 0)
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -242,11 +249,18 @@ export default function NewPurchaseOrderPage() {
               <label className="block text-xs font-medium text-zinc-300 mb-1.5">Vendor *</label>
               <select
                 value={vendorId}
-                onChange={(e) => setVendorId(e.target.value)}
+                onChange={(e) => {
+                  if (e.target.value === '__add_new__') {
+                    setAddVendorOpen(true)
+                    return
+                  }
+                  setVendorId(e.target.value)
+                }}
                 className="w-full bg-zinc-950 border border-zinc-800 rounded-xl h-10 text-sm px-3 text-zinc-100"
               >
                 <option value="">Select vendor…</option>
                 {vendors.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+                <option value="__add_new__">+ Add new vendor…</option>
               </select>
             </div>
             <div>
@@ -352,6 +366,13 @@ export default function NewPurchaseOrderPage() {
         orgId={orgId || ''}
         accounts={accounts}
         onCreated={handleItemCreated}
+      />
+
+      <AddVendorDialog
+        open={addVendorOpen}
+        onOpenChange={setAddVendorOpen}
+        orgId={orgId || ''}
+        onCreated={handleVendorCreated}
       />
     </div>
   )
