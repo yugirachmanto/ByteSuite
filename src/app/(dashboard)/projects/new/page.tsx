@@ -7,6 +7,7 @@ import { ArrowLeft, FolderPlus, Loader2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useOutlet } from '@/lib/contexts/outlet-context'
 import { Button } from '@/components/ui/button'
+import { DatePicker } from '@/components/ui/date-picker'
 
 export default function NewProjectPage() {
   const router = useRouter()
@@ -144,22 +145,12 @@ export default function NewProjectPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-zinc-300 mb-1.5">Tanggal Mulai</label>
-              <input
-                type="date"
-                value={formData.start_date}
-                onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-indigo-500"
-              />
+              <DatePicker value={formData.start_date} onChange={(v) => setFormData({ ...formData, start_date: v })} />
             </div>
 
             <div>
               <label className="block text-xs font-medium text-zinc-300 mb-1.5">Target Selesai (Deadline)</label>
-              <input
-                type="date"
-                value={formData.end_date}
-                onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-indigo-500"
-              />
+              <DatePicker value={formData.end_date} onChange={(v) => setFormData({ ...formData, end_date: v })} placeholder="Opsional" />
             </div>
           </div>
 

@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useOutlet } from '@/lib/contexts/outlet-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DatePicker } from '@/components/ui/date-picker'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { 
   Table, 
@@ -675,12 +676,7 @@ export default function ImportPosSalesPage() {
                 <CardContent className="space-y-4 pt-2">
                   <div className="space-y-2">
                     <label className="text-xs text-zinc-400 font-semibold uppercase">POS Sales Date</label>
-                    <Input 
-                      type="date"
-                      className="bg-zinc-950 border-zinc-800 text-zinc-200"
-                      value={importDate}
-                      onChange={(e) => setImportDate(e.target.value)}
-                    />
+                    <DatePicker value={importDate} onChange={setImportDate} />
                   </div>
 
                   <div className="space-y-2">

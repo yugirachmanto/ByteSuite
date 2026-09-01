@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useOutlet } from '@/lib/contexts/outlet-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DatePicker } from '@/components/ui/date-picker'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { 
@@ -1158,7 +1159,7 @@ export default function InvoiceReviewPage() {
               </div>
               <div className="space-y-2">
                 <label className="text-[10px] text-zinc-500 uppercase font-bold">Invoice Date</label>
-                <Input type="date" value={invoice.invoice_date ?? ''} onChange={(e) => setInvoice({...invoice, invoice_date: e.target.value})} className="bg-zinc-950 border-zinc-800 h-8 text-sm" disabled={isPosted} />
+                <DatePicker value={invoice.invoice_date} onChange={(v) => setInvoice({...invoice, invoice_date: v})} className="h-8 text-sm" disabled={isPosted} />
               </div>
             </CardContent>
           </Card>
@@ -1551,11 +1552,10 @@ export default function InvoiceReviewPage() {
                         <label className="text-xs text-zinc-400 font-medium block uppercase tracking-wider">Payment Due Date</label>
                         <span className="text-[10px] text-zinc-600 italic">Required for AP Aging</span>
                       </div>
-                      <Input 
-                        type="date" 
-                        value={dueDate} 
-                        onChange={(e) => setDueDate(e.target.value)} 
-                        className="bg-zinc-950 border-zinc-800 h-8 w-[140px] text-sm text-zinc-300"
+                      <DatePicker
+                        value={dueDate}
+                        onChange={setDueDate}
+                        className="h-8 w-[140px] text-sm text-zinc-300"
                         disabled={isPosted}
                       />
                     </div>
