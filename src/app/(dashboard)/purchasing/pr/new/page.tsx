@@ -176,6 +176,12 @@ export default function NewRequisitionPage() {
             </div>
 
             <div className="space-y-2">
+              <div className="flex items-center gap-2 px-2.5">
+                <span className="flex-1 text-[10px] font-semibold text-zinc-500 uppercase tracking-wide">Item</span>
+                <span className="w-24 text-[10px] font-semibold text-zinc-500 uppercase tracking-wide">Qty</span>
+                <span className="w-16 text-[10px] font-semibold text-zinc-500 uppercase tracking-wide">Unit</span>
+                <span className="w-9" />
+              </div>
               {lines.map((line, idx) => (
                 <div key={idx} className="flex items-center gap-2 bg-zinc-950 border border-zinc-800 rounded-xl p-2.5">
                   <select

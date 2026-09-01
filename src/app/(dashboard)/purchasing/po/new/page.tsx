@@ -221,6 +221,14 @@ export default function NewPurchaseOrderPage() {
             </div>
 
             <div className="space-y-2">
+              <div className="grid grid-cols-12 gap-2 px-2.5">
+                <span className="col-span-3 text-[10px] font-semibold text-zinc-500 uppercase tracking-wide">Item</span>
+                <span className="col-span-1 text-[10px] font-semibold text-zinc-500 uppercase tracking-wide">Qty</span>
+                <span className="col-span-1 text-[10px] font-semibold text-zinc-500 uppercase tracking-wide">Unit</span>
+                <span className="col-span-2 text-[10px] font-semibold text-zinc-500 uppercase tracking-wide">Unit Price</span>
+                <span className="col-span-4 text-[10px] font-semibold text-zinc-500 uppercase tracking-wide">Account</span>
+                <span className="col-span-1 text-[10px] font-semibold text-zinc-500 uppercase tracking-wide text-right">Total</span>
+              </div>
               {lines.map((line, idx) => (
                 <div key={idx} className="grid grid-cols-12 gap-2 bg-zinc-950 border border-zinc-800 rounded-xl p-2.5 items-center">
                   <select
