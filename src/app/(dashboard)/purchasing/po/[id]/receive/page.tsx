@@ -136,6 +136,12 @@ export default function ReceiveGoodsPage({ params }: { params: Promise<{ id: str
 
           <div className="space-y-2">
             <label className="text-xs font-medium text-zinc-300">Items <span className="text-zinc-500 font-normal">(quantities in Purchase Unit)</span></label>
+            <div className="grid grid-cols-12 gap-2 px-3">
+              <span className="col-span-4 text-[10px] font-semibold text-zinc-500 uppercase tracking-wide">Item</span>
+              <span className="col-span-2 text-[10px] font-semibold text-zinc-500 uppercase tracking-wide">Ordered</span>
+              <span className="col-span-3 text-[10px] font-semibold text-zinc-500 uppercase tracking-wide">Received Qty</span>
+              <span className="col-span-3 text-[10px] font-semibold text-zinc-500 uppercase tracking-wide">Unit Cost</span>
+            </div>
             {lines.map((line, idx) => (
               <div key={line.po_line_id} className="grid grid-cols-12 gap-2 bg-zinc-950 border border-zinc-800 rounded-xl p-3 items-center">
                 <span className="col-span-4 text-sm text-zinc-100">{line.item_name}</span>

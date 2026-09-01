@@ -143,6 +143,11 @@ export default function CreateReturnPage({ params }: { params: Promise<{ id: str
 
           <div className="space-y-2">
             <label className="text-xs font-medium text-zinc-300">Items to Return <span className="text-zinc-500 font-normal">(quantities in Purchase Unit)</span></label>
+            <div className="grid grid-cols-12 gap-2 px-3">
+              <span className="col-span-5 text-[10px] font-semibold text-zinc-500 uppercase tracking-wide">Item</span>
+              <span className="col-span-3 text-[10px] font-semibold text-zinc-500 uppercase tracking-wide">Available</span>
+              <span className="col-span-4 text-[10px] font-semibold text-zinc-500 uppercase tracking-wide">Return Qty</span>
+            </div>
             {lines.map((line, idx) => (
               <div key={line.gr_line_id} className="grid grid-cols-12 gap-2 bg-zinc-950 border border-zinc-800 rounded-xl p-3 items-center">
                 <span className="col-span-5 text-sm text-zinc-100">{line.item_name}</span>
