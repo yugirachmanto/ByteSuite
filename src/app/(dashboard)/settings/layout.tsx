@@ -34,6 +34,7 @@ const settingsGroups = [
   {
     label: 'Organization',
     tabs: [
+      { value: 'organization', label: 'Profile', href: '/settings/organization', icon: Building2 },
       { value: 'outlets', label: 'Outlets', href: '/settings/outlets', icon: Building2 },
       { value: 'users', label: 'Users', href: '/settings/users', icon: Users },
     ],

@@ -12,7 +12,7 @@ import {
   AlertDialog, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { ArrowLeft, ClipboardCheck, Loader2, AlertTriangle, ArrowRight } from 'lucide-react'
+import { ArrowLeft, ClipboardCheck, Loader2, AlertTriangle, ArrowRight, Printer } from 'lucide-react'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 
@@ -107,6 +107,9 @@ export default function RequisitionDetailPage({ params }: { params: Promise<{ id
         </div>
 
         <div className="flex items-center gap-2">
+          <Button onClick={() => router.push(`/purchasing/pr/${prId}/print`)} variant="outline" className="border-zinc-700 text-zinc-300 hover:bg-zinc-800 text-xs gap-1.5">
+            <Printer className="h-3.5 w-3.5" /> {t('purchasing.print.printButton')}
+          </Button>
           {pr.status === 'pending_approval' && (
             <>
               <Button variant="outline" onClick={() => setRejectDialogOpen(true)} className="border-zinc-700 text-red-400 hover:bg-red-500/10 text-xs">

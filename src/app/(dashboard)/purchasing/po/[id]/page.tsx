@@ -8,7 +8,7 @@ import { useLanguage } from '@/lib/contexts/language-context'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { ArrowLeft, ShoppingCart, Loader2, PackagePlus, FileText, Undo2 } from 'lucide-react'
+import { ArrowLeft, ShoppingCart, Loader2, PackagePlus, FileText, Undo2, Printer, Files } from 'lucide-react'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { formatRp } from '@/lib/format'
@@ -109,6 +109,12 @@ export default function PurchaseOrderDetailPage({ params }: { params: Promise<{ 
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          <Button onClick={() => router.push(`/purchasing/po/${poId}/print`)} variant="outline" className="border-zinc-700 text-zinc-300 hover:bg-zinc-800 text-xs gap-1.5">
+            <Printer className="h-3.5 w-3.5" /> {t('purchasing.print.printButton')}
+          </Button>
+          <Button onClick={() => router.push(`/purchasing/po/${poId}/print-packet`)} variant="outline" className="border-zinc-700 text-zinc-300 hover:bg-zinc-800 text-xs gap-1.5">
+            <Files className="h-3.5 w-3.5" /> {t('purchasing.print.printPacketButton')}
+          </Button>
           {['draft', 'pending_approval'].includes(po.status) && (
             <Button onClick={handleApprove} disabled={busy} className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs gap-1.5">
               {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}

@@ -12,7 +12,7 @@ import {
   AlertDialog, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { ArrowLeft, PackageCheck, Loader2, AlertTriangle, Undo2 } from 'lucide-react'
+import { ArrowLeft, PackageCheck, Loader2, AlertTriangle, Undo2, Printer } from 'lucide-react'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { formatRp } from '@/lib/format'
@@ -25,6 +25,7 @@ export default function GoodsReceiptDetailPage({ params }: { params: Promise<{ i
 
   const [gr, setGr] = useState<any>(null)
   const [lines, setLines] = useState<any[]>([])
+  const [returns, setReturns] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [voidDialogOpen, setVoidDialogOpen] = useState(false)
   const [voiding, setVoiding] = useState(false)
@@ -36,6 +37,9 @@ export default function GoodsReceiptDetailPage({ params }: { params: Promise<{ i
 
     const { data: lineData } = await supabase.from('gr_lines').select('*, item_master(name)').eq('gr_id', grId)
     setLines(lineData || [])
+
+    const { data: returnData } = await supabase.from('vendor_returns').select('*, return_lines(qty_returned)').eq('gr_id', grId).order('created_at', { ascending: false })
+    setReturns(returnData || [])
     setLoading(false)
   }
 
@@ -86,6 +90,9 @@ export default function GoodsReceiptDetailPage({ params }: { params: Promise<{ i
         </div>
 
         <div className="flex items-center gap-2">
+          <Button onClick={() => router.push(`/purchasing/gr/${grId}/print`)} variant="outline" className="border-zinc-700 text-zinc-300 hover:bg-zinc-800 text-xs gap-1.5">
+            <Printer className="h-3.5 w-3.5" /> {t('purchasing.print.printButton')}
+          </Button>
           {gr.status === 'posted' && (
             <>
               <Button onClick={() => router.push(`/purchasing/gr/${grId}/return`)} variant="outline" className="border-zinc-700 text-zinc-300 hover:bg-zinc-800 text-xs gap-1.5">
@@ -127,6 +134,27 @@ export default function GoodsReceiptDetailPage({ params }: { params: Promise<{ i
           <span className="text-zinc-100 font-bold font-mono">{formatRp(total)}</span>
         </div>
       </div>
+
+      {returns.length > 0 && (
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold text-zinc-200">{t('purchasing.gr.detail.returnsTitle')}</h3>
+          <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 divide-y divide-zinc-800/60">
+            {returns.map((r) => {
+              const qty = (r.return_lines || []).reduce((s: number, l: any) => s + (l.qty_returned || 0), 0)
+              return (
+                <button
+                  key={r.id}
+                  onClick={() => router.push(`/purchasing/returns/${r.id}`)}
+                  className="w-full flex items-center justify-between px-4 py-3 text-sm text-zinc-200 hover:text-amber-400 transition-colors"
+                >
+                  <span>{format(new Date(r.return_date), 'dd MMM yyyy')} — {t('purchasing.gr.detail.qtyReturned', { qty })}</span>
+                  <Badge variant="outline" className="bg-amber-950/30 text-amber-400 border-amber-900/50">{t(`statusLabel.${r.status}`)}</Badge>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       <AlertDialog open={voidDialogOpen} onOpenChange={setVoidDialogOpen}>
         <AlertDialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 sm:max-w-md">

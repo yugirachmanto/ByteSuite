@@ -104,7 +104,7 @@ export default function CreateReturnPage({ params }: { params: Promise<{ id: str
       if (error) throw error
 
       toast.success(t('purchasing.gr.return.successPosted'))
-      router.push(`/purchasing/gr/${grId}`)
+      router.push(`/purchasing/returns/${returnId}`)
     } catch (err: any) {
       toast.error(err.message || t('purchasing.gr.return.errFailedPost'))
     } finally {
