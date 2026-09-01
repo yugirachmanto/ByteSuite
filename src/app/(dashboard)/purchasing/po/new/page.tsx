@@ -8,6 +8,7 @@ import { useOutlet } from '@/lib/contexts/outlet-context'
 import { Button } from '@/components/ui/button'
 import { CoaCombobox } from '@/components/ui/coa-combobox'
 import { DatePicker } from '@/components/ui/date-picker'
+import { AddRawItemDialog } from '@/components/purchasing/AddRawItemDialog'
 import { ArrowLeft, Plus, Trash2, Loader2, ShoppingCart } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatRp } from '@/lib/format'
@@ -40,6 +41,7 @@ export default function NewPurchaseOrderPage() {
   const [lines, setLines] = useState<Line[]>([{ item_id: '', description: '', qty: 1, unit: '', unit_price: 0, coa_id: '', is_inventory: true }])
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [addItemLineIdx, setAddItemLineIdx] = useState<number | null>(null)
 
   useEffect(() => {
     async function init() {
@@ -52,7 +54,7 @@ export default function NewPurchaseOrderPage() {
       const [{ data: vendorData }, { data: coaData }, { data: itemData }] = await Promise.all([
         supabase.from('vendors').select('id, name').eq('org_id', profile.org_id).order('name'),
         supabase.from('chart_of_accounts').select('id, code, name, is_header').eq('org_id', profile.org_id).order('code'),
-        supabase.from('item_master').select('id, name, unit, purchase_unit, default_coa_id, is_inventory').eq('org_id', profile.org_id).order('name'),
+        supabase.from('item_master').select('id, name, unit, purchase_unit, default_coa_id, is_inventory').eq('org_id', profile.org_id).eq('category', 'raw').order('name'),
       ])
       setVendors(vendorData || [])
       setAccounts(coaData || [])
@@ -92,6 +94,13 @@ export default function NewPurchaseOrderPage() {
       }
     }
     setLines(updated)
+  }
+
+  const handleItemCreated = (newItem: any) => {
+    setItems((prev) => [...prev, newItem].sort((a, b) => a.name.localeCompare(b.name)))
+    if (addItemLineIdx !== null) {
+      updateLine(addItemLineIdx, 'item_id', newItem.id)
+    }
   }
 
   const total = lines.reduce((s, l) => s + l.qty * l.unit_price, 0)
@@ -205,7 +214,7 @@ export default function NewPurchaseOrderPage() {
 
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-medium text-zinc-300">Line Items <span className="text-zinc-500 font-normal">(qty &amp; price in Purchase Unit)</span></label>
+              <label className="text-xs font-medium text-zinc-300">Line Items <span className="text-zinc-500 font-normal">(Raw Material only, qty &amp; price in Purchase Unit)</span></label>
               <Button type="button" size="sm" variant="outline" onClick={addLine} className="border-zinc-800 text-zinc-300 hover:bg-zinc-800 text-xs gap-1">
                 <Plus className="h-3.5 w-3.5" /> Add Line
               </Button>
@@ -216,11 +225,18 @@ export default function NewPurchaseOrderPage() {
                 <div key={idx} className="grid grid-cols-12 gap-2 bg-zinc-950 border border-zinc-800 rounded-xl p-2.5 items-center">
                   <select
                     value={line.item_id}
-                    onChange={(e) => updateLine(idx, 'item_id', e.target.value)}
+                    onChange={(e) => {
+                      if (e.target.value === '__add_new__') {
+                        setAddItemLineIdx(idx)
+                        return
+                      }
+                      updateLine(idx, 'item_id', e.target.value)
+                    }}
                     className="col-span-3 bg-zinc-900 border border-zinc-800 rounded-lg h-9 text-sm px-2 text-zinc-100"
                   >
                     <option value="">Item…</option>
                     {items.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
+                    <option value="__add_new__">+ Add new item…</option>
                   </select>
                   <input
                     type="number" min="0" step="any" value={line.qty}
@@ -267,6 +283,14 @@ export default function NewPurchaseOrderPage() {
           </div>
         </form>
       </div>
+
+      <AddRawItemDialog
+        open={addItemLineIdx !== null}
+        onOpenChange={(open) => !open && setAddItemLineIdx(null)}
+        orgId={orgId || ''}
+        accounts={accounts}
+        onCreated={handleItemCreated}
+      />
     </div>
   )
 }

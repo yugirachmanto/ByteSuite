@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useOutlet } from '@/lib/contexts/outlet-context'
 import { Button } from '@/components/ui/button'
 import { DatePicker } from '@/components/ui/date-picker'
+import { AddRawItemDialog } from '@/components/purchasing/AddRawItemDialog'
 import { ArrowLeft, Plus, Trash2, Loader2, ClipboardCheck } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -28,22 +29,40 @@ export default function NewRequisitionPage() {
   const router = useRouter()
   const supabase = createClient()
   const { selectedOutletId } = useOutlet()
+  const [orgId, setOrgId] = useState('')
+  const [accounts, setAccounts] = useState<any[]>([])
   const [items, setItems] = useState<Item[]>([])
   const [neededByDate, setNeededByDate] = useState('')
   const [notes, setNotes] = useState('')
   const [lines, setLines] = useState<Line[]>([{ item_id: '', qty: 1, unit: '', notes: '' }])
   const [saving, setSaving] = useState(false)
+  const [addItemLineIdx, setAddItemLineIdx] = useState<number | null>(null)
+
+  const fetchItems = async (org_id: string) => {
+    const { data } = await supabase
+      .from('item_master')
+      .select('id, name, unit, purchase_unit')
+      .eq('org_id', org_id)
+      .eq('category', 'raw')
+      .order('name')
+    setItems(data || [])
+  }
 
   useEffect(() => {
-    async function fetchItems() {
+    async function init() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
       const { data: profile } = await supabase.from('user_profiles').select('org_id').eq('id', user.id).single()
       if (!profile?.org_id) return
-      const { data } = await supabase.from('item_master').select('id, name, unit, purchase_unit').eq('org_id', profile.org_id).order('name')
-      setItems(data || [])
+      setOrgId(profile.org_id)
+
+      const [{ data: coaData }] = await Promise.all([
+        supabase.from('chart_of_accounts').select('id, code, name, is_header').eq('org_id', profile.org_id).order('code'),
+      ])
+      setAccounts(coaData || [])
+      await fetchItems(profile.org_id)
     }
-    fetchItems()
+    init()
   }, [])
 
   const addLine = () => setLines([...lines, { item_id: '', qty: 1, unit: '', notes: '' }])
@@ -56,6 +75,13 @@ export default function NewRequisitionPage() {
       if (item) updated[idx].unit = item.purchase_unit || item.unit
     }
     setLines(updated)
+  }
+
+  const handleItemCreated = (newItem: any) => {
+    setItems((prev) => [...prev, newItem].sort((a, b) => a.name.localeCompare(b.name)))
+    if (addItemLineIdx !== null) {
+      updateLine(addItemLineIdx, 'item_id', newItem.id)
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -141,7 +167,9 @@ export default function NewRequisitionPage() {
 
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-medium text-zinc-300">Items Needed <span className="text-zinc-500 font-normal">(quantities in Purchase Unit)</span></label>
+              <label className="text-xs font-medium text-zinc-300">
+                Items Needed <span className="text-zinc-500 font-normal">(Raw Material only, quantities in Purchase Unit)</span>
+              </label>
               <Button type="button" size="sm" variant="outline" onClick={addLine} className="border-zinc-800 text-zinc-300 hover:bg-zinc-800 text-xs gap-1">
                 <Plus className="h-3.5 w-3.5" /> Add Line
               </Button>
@@ -152,11 +180,18 @@ export default function NewRequisitionPage() {
                 <div key={idx} className="flex items-center gap-2 bg-zinc-950 border border-zinc-800 rounded-xl p-2.5">
                   <select
                     value={line.item_id}
-                    onChange={(e) => updateLine(idx, 'item_id', e.target.value)}
+                    onChange={(e) => {
+                      if (e.target.value === '__add_new__') {
+                        setAddItemLineIdx(idx)
+                        return
+                      }
+                      updateLine(idx, 'item_id', e.target.value)
+                    }}
                     className="flex-1 bg-zinc-900 border border-zinc-800 rounded-lg h-9 text-sm px-2 text-zinc-100"
                   >
                     <option value="">Select item…</option>
                     {items.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
+                    <option value="__add_new__">+ Add new item…</option>
                   </select>
                   <input
                     type="number"
@@ -187,6 +222,14 @@ export default function NewRequisitionPage() {
           </div>
         </form>
       </div>
+
+      <AddRawItemDialog
+        open={addItemLineIdx !== null}
+        onOpenChange={(open) => !open && setAddItemLineIdx(null)}
+        orgId={orgId}
+        accounts={accounts}
+        onCreated={handleItemCreated}
+      />
     </div>
   )
 }
