@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { useOutlet } from '@/lib/contexts/outlet-context'
+import { useLanguage } from '@/lib/contexts/language-context'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -23,21 +24,11 @@ const STATUS_BADGE: Record<string, string> = {
   cancelled: 'bg-red-950/30 text-red-400 border-red-900/50',
 }
 
-const STATUS_LABEL: Record<string, string> = {
-  draft: 'Draft',
-  pending_approval: 'Pending Approval',
-  approved: 'Approved',
-  released: 'Released',
-  partially_received: 'Partially Received',
-  received: 'Received',
-  closed: 'Closed',
-  cancelled: 'Cancelled',
-}
-
 export default function PurchaseOrdersPage() {
   const router = useRouter()
   const supabase = createClient()
   const { selectedOutletId } = useOutlet()
+  const { t } = useLanguage()
   const [pos, setPos] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -62,13 +53,13 @@ export default function PurchaseOrdersPage() {
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-zinc-100 flex items-center gap-2">
             <ShoppingCart className="h-6 w-6 text-indigo-400" />
-            Purchase Orders
+            {t('purchasing.po.list.title')}
           </h2>
-          <p className="text-zinc-400 text-sm">Draft, approve and release orders to vendors.</p>
+          <p className="text-zinc-400 text-sm">{t('purchasing.po.list.subtitle')}</p>
         </div>
         <Link href="/purchasing/po/new">
           <Button className="bg-zinc-100 text-zinc-900 hover:bg-zinc-200">
-            <Plus className="mr-2 h-4 w-4" /> New PO
+            <Plus className="mr-2 h-4 w-4" /> {t('purchasing.po.list.newButton')}
           </Button>
         </Link>
       </div>
@@ -77,18 +68,18 @@ export default function PurchaseOrdersPage() {
         <Table>
           <TableHeader className="border-zinc-800">
             <TableRow className="hover:bg-transparent">
-              <TableHead className="text-zinc-400">PO Number</TableHead>
-              <TableHead className="text-zinc-400">Vendor</TableHead>
-              <TableHead className="text-zinc-400">Date</TableHead>
-              <TableHead className="text-zinc-400">Total</TableHead>
-              <TableHead className="text-zinc-400">Status</TableHead>
+              <TableHead className="text-zinc-400">{t('purchasing.po.list.colPoNumber')}</TableHead>
+              <TableHead className="text-zinc-400">{t('purchasing.po.list.colVendor')}</TableHead>
+              <TableHead className="text-zinc-400">{t('purchasing.po.list.colDate')}</TableHead>
+              <TableHead className="text-zinc-400">{t('purchasing.po.list.colTotal')}</TableHead>
+              <TableHead className="text-zinc-400">{t('purchasing.po.list.colStatus')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
-              <TableRow><TableCell colSpan={5} className="h-32 text-center text-zinc-600">Loading purchase orders…</TableCell></TableRow>
+              <TableRow><TableCell colSpan={5} className="h-32 text-center text-zinc-600">{t('purchasing.po.list.loading')}</TableCell></TableRow>
             ) : pos.length === 0 ? (
-              <TableRow><TableCell colSpan={5} className="h-32 text-center text-zinc-500 text-sm">No purchase orders yet.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={5} className="h-32 text-center text-zinc-500 text-sm">{t('purchasing.po.list.empty')}</TableCell></TableRow>
             ) : (
               pos.map((po) => {
                 const total = (po.po_lines || []).reduce((s: number, l: any) => s + (l.total || 0), 0)
@@ -98,12 +89,12 @@ export default function PurchaseOrdersPage() {
                     className="border-zinc-800 hover:bg-zinc-800/30 cursor-pointer"
                     onClick={() => router.push(`/purchasing/po/${po.id}`)}
                   >
-                    <TableCell className="text-zinc-100 font-mono text-sm">{po.po_number || <span className="text-zinc-600">Draft</span>}</TableCell>
+                    <TableCell className="text-zinc-100 font-mono text-sm">{po.po_number || <span className="text-zinc-600">{t('purchasing.po.list.draftBadge')}</span>}</TableCell>
                     <TableCell className="text-zinc-300">{po.vendors?.name || '—'}</TableCell>
                     <TableCell className="text-zinc-400">{format(new Date(po.created_at), 'dd MMM yyyy')}</TableCell>
                     <TableCell className="text-zinc-100 font-semibold font-mono">{formatRp(total)}</TableCell>
                     <TableCell>
-                      <Badge variant="outline" className={STATUS_BADGE[po.status] || ''}>{STATUS_LABEL[po.status] || po.status}</Badge>
+                      <Badge variant="outline" className={STATUS_BADGE[po.status] || ''}>{t(`statusLabel.${po.status}`)}</Badge>
                     </TableCell>
                   </TableRow>
                 )

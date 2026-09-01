@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { useOutlet } from '@/lib/contexts/outlet-context'
+import { useLanguage } from '@/lib/contexts/language-context'
 import { Button } from '@/components/ui/button'
 import { CoaCombobox } from '@/components/ui/coa-combobox'
 import { DatePicker } from '@/components/ui/date-picker'
@@ -31,6 +32,7 @@ export default function NewPurchaseOrderPage() {
   const prId = searchParams.get('pr_id')
   const supabase = createClient()
   const { selectedOutletId } = useOutlet()
+  const { t } = useLanguage()
 
   const [orgId, setOrgId] = useState<string | null>(null)
   const [vendors, setVendors] = useState<any[]>([])
@@ -163,15 +165,15 @@ export default function NewPurchaseOrderPage() {
     e.preventDefault()
     const validLines = lines.filter((l) => l.item_id && l.qty > 0 && l.coa_id)
     if (validLines.length === 0) {
-      toast.error('Add at least one line with item, quantity, and account.')
+      toast.error(t('purchasing.po.new.errAddLine'))
       return
     }
     if (!vendorId) {
-      toast.error('Select a vendor.')
+      toast.error(t('purchasing.po.new.errSelectVendor'))
       return
     }
     if (!selectedOutletId) {
-      toast.error('Select an outlet first.')
+      toast.error(t('purchasing.po.new.errSelectOutlet'))
       return
     }
 
@@ -215,21 +217,21 @@ export default function NewPurchaseOrderPage() {
         await supabase.from('purchase_requisitions').update({ status: 'converted' }).eq('id', prId)
       }
 
-      toast.success('Purchase order draft created.')
+      toast.success(t('purchasing.po.new.successCreated'))
       router.push(`/purchasing/po/${po.id}`)
     } catch (err: any) {
-      toast.error(err.message || 'Failed to create purchase order')
+      toast.error(err.message || t('purchasing.po.new.errFailedCreate'))
     } finally {
       setSaving(false)
     }
   }
 
-  if (loading) return <div className="py-20 text-center text-zinc-500 text-sm">Loading…</div>
+  if (loading) return <div className="py-20 text-center text-zinc-500 text-sm">{t('purchasing.po.new.loading')}</div>
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <Link href="/purchasing/po" className="inline-flex items-center gap-2 text-sm text-zinc-400 hover:text-zinc-200 transition-colors">
-        <ArrowLeft className="h-4 w-4" /> Back to Purchase Orders
+        <ArrowLeft className="h-4 w-4" /> {t('purchasing.po.new.backLink')}
       </Link>
 
       <div className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-6 sm:p-8 space-y-6">
@@ -238,15 +240,15 @@ export default function NewPurchaseOrderPage() {
             <ShoppingCart className="h-5 w-5" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-zinc-100">New Purchase Order</h1>
-            <p className="text-xs text-zinc-400">{prId ? 'Pre-filled from approved requisition — add vendor and pricing.' : 'Draft a new order to a vendor.'}</p>
+            <h1 className="text-xl font-bold text-zinc-100">{t('purchasing.po.new.title')}</h1>
+            <p className="text-xs text-zinc-400">{prId ? t('purchasing.po.new.subtitlePrefilled') : t('purchasing.po.new.subtitleBlank')}</p>
           </div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
-              <label className="block text-xs font-medium text-zinc-300 mb-1.5">Vendor *</label>
+              <label className="block text-xs font-medium text-zinc-300 mb-1.5">{t('purchasing.po.new.vendorLabel')}</label>
               <select
                 value={vendorId}
                 onChange={(e) => {
@@ -258,37 +260,37 @@ export default function NewPurchaseOrderPage() {
                 }}
                 className="w-full bg-zinc-950 border border-zinc-800 rounded-xl h-10 text-sm px-3 text-zinc-100"
               >
-                <option value="">Select vendor…</option>
+                <option value="">{t('purchasing.po.new.selectVendor')}</option>
                 {vendors.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
-                <option value="__add_new__">+ Add new vendor…</option>
+                <option value="__add_new__">{t('purchasing.po.new.addNewVendor')}</option>
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-zinc-300 mb-1.5">Order Date</label>
+              <label className="block text-xs font-medium text-zinc-300 mb-1.5">{t('purchasing.po.new.orderDateLabel')}</label>
               <DatePicker value={orderDate} onChange={setOrderDate} />
             </div>
             <div>
-              <label className="block text-xs font-medium text-zinc-300 mb-1.5">Expected Delivery</label>
-              <DatePicker value={expectedDate} onChange={setExpectedDate} placeholder="Optional" />
+              <label className="block text-xs font-medium text-zinc-300 mb-1.5">{t('purchasing.po.new.expectedDeliveryLabel')}</label>
+              <DatePicker value={expectedDate} onChange={setExpectedDate} placeholder={t('common.optional')} />
             </div>
           </div>
 
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-medium text-zinc-300">Line Items <span className="text-zinc-500 font-normal">(Raw Material only, qty &amp; price in Purchase Unit)</span></label>
+              <label className="text-xs font-medium text-zinc-300">{t('purchasing.po.new.lineItemsLabel')} <span className="text-zinc-500 font-normal">{t('purchasing.po.new.lineItemsHint')}</span></label>
               <Button type="button" size="sm" variant="outline" onClick={addLine} className="border-zinc-800 text-zinc-300 hover:bg-zinc-800 text-xs gap-1">
-                <Plus className="h-3.5 w-3.5" /> Add Line
+                <Plus className="h-3.5 w-3.5" /> {t('common.addLine')}
               </Button>
             </div>
 
             <div className="space-y-2">
               <div className="grid grid-cols-12 gap-2 px-2.5">
-                <span className="col-span-3 text-[10px] font-semibold text-zinc-500 uppercase tracking-wide">Item</span>
-                <span className="col-span-1 text-[10px] font-semibold text-zinc-500 uppercase tracking-wide">Qty</span>
-                <span className="col-span-1 text-[10px] font-semibold text-zinc-500 uppercase tracking-wide">Unit</span>
-                <span className="col-span-2 text-[10px] font-semibold text-zinc-500 uppercase tracking-wide">Unit Price</span>
-                <span className="col-span-4 text-[10px] font-semibold text-zinc-500 uppercase tracking-wide">Account</span>
-                <span className="col-span-1 text-[10px] font-semibold text-zinc-500 uppercase tracking-wide text-right">Total</span>
+                <span className="col-span-3 text-[10px] font-semibold text-zinc-500 uppercase tracking-wide">{t('purchasing.po.new.colItem')}</span>
+                <span className="col-span-1 text-[10px] font-semibold text-zinc-500 uppercase tracking-wide">{t('purchasing.po.new.colQty')}</span>
+                <span className="col-span-1 text-[10px] font-semibold text-zinc-500 uppercase tracking-wide">{t('purchasing.po.new.colUnit')}</span>
+                <span className="col-span-2 text-[10px] font-semibold text-zinc-500 uppercase tracking-wide">{t('purchasing.po.new.colUnitPrice')}</span>
+                <span className="col-span-4 text-[10px] font-semibold text-zinc-500 uppercase tracking-wide">{t('purchasing.po.new.colAccount')}</span>
+                <span className="col-span-1 text-[10px] font-semibold text-zinc-500 uppercase tracking-wide text-right">{t('purchasing.po.new.colTotal')}</span>
               </div>
               {lines.map((line, idx) => (
                 <div key={idx} className="grid grid-cols-12 gap-2 bg-zinc-950 border border-zinc-800 rounded-xl p-2.5 items-center">
@@ -303,30 +305,30 @@ export default function NewPurchaseOrderPage() {
                     }}
                     className="col-span-3 bg-zinc-900 border border-zinc-800 rounded-lg h-9 text-sm px-2 text-zinc-100"
                   >
-                    <option value="">Item…</option>
+                    <option value="">{t('purchasing.po.new.itemPlaceholder')}</option>
                     {items.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
-                    <option value="__add_new__">+ Add new item…</option>
+                    <option value="__add_new__">{t('purchasing.po.new.addNewItem')}</option>
                   </select>
                   <input
                     type="number" min="0" step="any" value={line.qty}
                     onChange={(e) => updateLine(idx, 'qty', parseFloat(e.target.value) || 0)}
-                    className="col-span-1 bg-zinc-900 border border-zinc-800 rounded-lg h-9 text-sm px-2 text-zinc-100" placeholder="Qty"
+                    className="col-span-1 bg-zinc-900 border border-zinc-800 rounded-lg h-9 text-sm px-2 text-zinc-100" placeholder={t('purchasing.pr.new.qtyPlaceholder')}
                   />
                   <span className="col-span-1 text-xs text-zinc-500 text-center">{line.unit || '—'}</span>
                   <div className="col-span-2 space-y-1">
                     <input
                       type="number" min="0" step="any" value={line.unit_price}
                       onChange={(e) => updateLine(idx, 'unit_price', parseFloat(e.target.value) || 0)}
-                      className="w-full bg-zinc-900 border border-zinc-800 rounded-lg h-9 text-sm px-2 text-zinc-100" placeholder="Unit Price"
+                      className="w-full bg-zinc-900 border border-zinc-800 rounded-lg h-9 text-sm px-2 text-zinc-100" placeholder={t('purchasing.po.new.colUnitPrice')}
                     />
                     {lastPrices[line.item_id] && (
                       <p className="text-[10px] text-zinc-500 px-0.5">
-                        Last: {formatRp(lastPrices[line.item_id].price)} ({format(new Date(lastPrices[line.item_id].date), 'dd MMM')})
+                        {t('purchasing.po.new.lastPrice', { price: formatRp(lastPrices[line.item_id].price), date: format(new Date(lastPrices[line.item_id].date), 'dd MMM') })}
                       </p>
                     )}
                   </div>
                   <div className="col-span-4">
-                    <CoaCombobox coas={accounts} value={line.coa_id} onChange={(val) => updateLine(idx, 'coa_id', val)} placeholder="Account…" />
+                    <CoaCombobox coas={accounts} value={line.coa_id} onChange={(val) => updateLine(idx, 'coa_id', val)} placeholder={t('purchasing.po.new.accountPlaceholder')} />
                   </div>
                   <span className="col-span-1 text-xs text-zinc-300 font-mono text-right">{formatRp(line.qty * line.unit_price)}</span>
                   <Button type="button" variant="ghost" size="icon" onClick={() => removeLine(idx)} className="col-span-0 h-9 w-9 text-zinc-500 hover:text-red-400 justify-self-end">
@@ -337,24 +339,24 @@ export default function NewPurchaseOrderPage() {
             </div>
 
             <div className="flex justify-end pt-2 text-sm">
-              <span className="text-zinc-400 mr-3">Total:</span>
+              <span className="text-zinc-400 mr-3">{t('purchasing.po.new.totalLabel')}</span>
               <span className="text-zinc-100 font-bold font-mono">{formatRp(total)}</span>
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-zinc-300 mb-1.5">Notes</label>
+            <label className="block text-xs font-medium text-zinc-300 mb-1.5">{t('purchasing.po.new.notesLabel')}</label>
             <textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)}
               className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-indigo-500" />
           </div>
 
           <div className="pt-4 flex justify-end gap-3">
             <Link href="/purchasing/po">
-              <Button type="button" variant="outline" className="border-zinc-800 text-zinc-300 hover:bg-zinc-800">Cancel</Button>
+              <Button type="button" variant="outline" className="border-zinc-800 text-zinc-300 hover:bg-zinc-800">{t('common.cancel')}</Button>
             </Link>
             <Button type="submit" disabled={saving} className="bg-indigo-600 hover:bg-indigo-500 text-white gap-2 font-medium">
               {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-              Save Draft
+              {t('purchasing.po.new.saveDraft')}
             </Button>
           </div>
         </form>

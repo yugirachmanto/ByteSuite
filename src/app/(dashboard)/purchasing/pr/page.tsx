@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { useOutlet } from '@/lib/contexts/outlet-context'
+import { useLanguage } from '@/lib/contexts/language-context'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -19,18 +20,11 @@ const STATUS_BADGE: Record<string, string> = {
   converted: 'bg-blue-950/30 text-blue-400 border-blue-900/50',
 }
 
-const STATUS_LABEL: Record<string, string> = {
-  draft: 'Draft',
-  pending_approval: 'Pending Approval',
-  approved: 'Approved',
-  rejected: 'Rejected',
-  converted: 'Converted to PO',
-}
-
 export default function RequisitionsPage() {
   const router = useRouter()
   const supabase = createClient()
   const { selectedOutletId } = useOutlet()
+  const { t } = useLanguage()
   const [prs, setPrs] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -55,13 +49,13 @@ export default function RequisitionsPage() {
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-zinc-100 flex items-center gap-2">
             <ClipboardCheck className="h-6 w-6 text-indigo-400" />
-            Purchase Requisitions
+            {t('purchasing.pr.list.title')}
           </h2>
-          <p className="text-zinc-400 text-sm">Raise and approve requests for what's needed before ordering.</p>
+          <p className="text-zinc-400 text-sm">{t('purchasing.pr.list.subtitle')}</p>
         </div>
         <Link href="/purchasing/pr/new">
           <Button className="bg-zinc-100 text-zinc-900 hover:bg-zinc-200">
-            <Plus className="mr-2 h-4 w-4" /> New Requisition
+            <Plus className="mr-2 h-4 w-4" /> {t('purchasing.pr.list.newButton')}
           </Button>
         </Link>
       </div>
@@ -70,17 +64,17 @@ export default function RequisitionsPage() {
         <Table>
           <TableHeader className="border-zinc-800">
             <TableRow className="hover:bg-transparent">
-              <TableHead className="text-zinc-400">Date</TableHead>
-              <TableHead className="text-zinc-400">Needed By</TableHead>
-              <TableHead className="text-zinc-400">Lines</TableHead>
-              <TableHead className="text-zinc-400">Status</TableHead>
+              <TableHead className="text-zinc-400">{t('purchasing.pr.list.colDate')}</TableHead>
+              <TableHead className="text-zinc-400">{t('purchasing.pr.list.colNeededBy')}</TableHead>
+              <TableHead className="text-zinc-400">{t('purchasing.pr.list.colLines')}</TableHead>
+              <TableHead className="text-zinc-400">{t('purchasing.pr.list.colStatus')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
-              <TableRow><TableCell colSpan={4} className="h-32 text-center text-zinc-600">Loading requisitions…</TableCell></TableRow>
+              <TableRow><TableCell colSpan={4} className="h-32 text-center text-zinc-600">{t('purchasing.pr.list.loading')}</TableCell></TableRow>
             ) : prs.length === 0 ? (
-              <TableRow><TableCell colSpan={4} className="h-32 text-center text-zinc-500 text-sm">No requisitions yet. Create your first one.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={4} className="h-32 text-center text-zinc-500 text-sm">{t('purchasing.pr.list.empty')}</TableCell></TableRow>
             ) : (
               prs.map((pr) => (
                 <TableRow
@@ -90,9 +84,9 @@ export default function RequisitionsPage() {
                 >
                   <TableCell className="text-zinc-300">{format(new Date(pr.created_at), 'dd MMM yyyy')}</TableCell>
                   <TableCell className="text-zinc-400">{pr.needed_by_date ? format(new Date(pr.needed_by_date), 'dd MMM yyyy') : '—'}</TableCell>
-                  <TableCell className="text-zinc-400">{pr.pr_lines?.length || 0} item{pr.pr_lines?.length === 1 ? '' : 's'}</TableCell>
+                  <TableCell className="text-zinc-400">{pr.pr_lines?.length || 0} {t('purchasing.pr.list.itemsWord')}</TableCell>
                   <TableCell>
-                    <Badge variant="outline" className={STATUS_BADGE[pr.status] || ''}>{STATUS_LABEL[pr.status] || pr.status}</Badge>
+                    <Badge variant="outline" className={STATUS_BADGE[pr.status] || ''}>{t(`statusLabel.${pr.status}`)}</Badge>
                   </TableCell>
                 </TableRow>
               ))

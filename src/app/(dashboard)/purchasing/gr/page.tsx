@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useOutlet } from '@/lib/contexts/outlet-context'
+import { useLanguage } from '@/lib/contexts/language-context'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { PackageCheck } from 'lucide-react'
@@ -13,6 +14,7 @@ export default function GoodsReceiptsPage() {
   const router = useRouter()
   const supabase = createClient()
   const { selectedOutletId } = useOutlet()
+  const { t } = useLanguage()
   const [receipts, setReceipts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -36,27 +38,27 @@ export default function GoodsReceiptsPage() {
       <div>
         <h2 className="text-2xl font-bold tracking-tight text-zinc-100 flex items-center gap-2">
           <PackageCheck className="h-6 w-6 text-indigo-400" />
-          Goods Receipts
+          {t('purchasing.gr.list.title')}
         </h2>
-        <p className="text-zinc-400 text-sm">History of stock received against purchase orders.</p>
+        <p className="text-zinc-400 text-sm">{t('purchasing.gr.list.subtitle')}</p>
       </div>
 
       <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 backdrop-blur-sm">
         <Table>
           <TableHeader className="border-zinc-800">
             <TableRow className="hover:bg-transparent">
-              <TableHead className="text-zinc-400">Date</TableHead>
-              <TableHead className="text-zinc-400">PO Number</TableHead>
-              <TableHead className="text-zinc-400">Vendor</TableHead>
-              <TableHead className="text-zinc-400">Units Received</TableHead>
-              <TableHead className="text-zinc-400">Status</TableHead>
+              <TableHead className="text-zinc-400">{t('purchasing.gr.list.colDate')}</TableHead>
+              <TableHead className="text-zinc-400">{t('purchasing.gr.list.colPoNumber')}</TableHead>
+              <TableHead className="text-zinc-400">{t('purchasing.gr.list.colVendor')}</TableHead>
+              <TableHead className="text-zinc-400">{t('purchasing.gr.list.colUnitsReceived')}</TableHead>
+              <TableHead className="text-zinc-400">{t('purchasing.gr.list.colStatus')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
-              <TableRow><TableCell colSpan={5} className="h-32 text-center text-zinc-600">Loading goods receipts…</TableCell></TableRow>
+              <TableRow><TableCell colSpan={5} className="h-32 text-center text-zinc-600">{t('purchasing.gr.list.loading')}</TableCell></TableRow>
             ) : receipts.length === 0 ? (
-              <TableRow><TableCell colSpan={5} className="h-32 text-center text-zinc-500 text-sm">No goods received yet.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={5} className="h-32 text-center text-zinc-500 text-sm">{t('purchasing.gr.list.empty')}</TableCell></TableRow>
             ) : (
               receipts.map((gr) => {
                 const qty = (gr.gr_lines || []).reduce((s: number, l: any) => s + (l.qty_received || 0), 0)
@@ -68,7 +70,7 @@ export default function GoodsReceiptsPage() {
                     <TableCell className="text-zinc-300 font-mono">{qty}</TableCell>
                     <TableCell>
                       <Badge variant="outline" className={gr.status === 'voided' ? 'bg-red-950/30 text-red-400 border-red-900/50' : 'bg-emerald-950/30 text-emerald-400 border-emerald-900/50'}>
-                        {gr.status}
+                        {t(`statusLabel.${gr.status}`)}
                       </Badge>
                     </TableCell>
                   </TableRow>

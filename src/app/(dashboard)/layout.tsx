@@ -35,6 +35,7 @@ import { Button, buttonVariants } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { useOutlet, OutletProvider } from '@/lib/contexts/outlet-context'
+import { useLanguage } from '@/lib/contexts/language-context'
 import { DateWindowProvider } from '@/lib/contexts/date-window-context'
 import { DateWindowPicker } from '@/components/date-window-picker'
 import {
@@ -100,10 +101,19 @@ const sidebarGroups = [
   }
 ]
 
+// Only the purchasing nav items are translated so far (rest of the sidebar
+// is out of scope for this phase of the i18n rollout — see language-context.tsx).
+const SIDEBAR_LABEL_KEYS: Record<string, string> = {
+  '/purchasing/pr': 'purchasing.sidebar.requisitions',
+  '/purchasing/po': 'purchasing.sidebar.purchaseOrders',
+  '/purchasing/gr': 'purchasing.sidebar.goodsReceipt',
+}
+
 // ── Inner shell (consumes OutletProvider context) ────────────────────────────
 function DashboardShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const { selectedOutletId, setSelectedOutletId, userRole, outlets, posEnabled, loading: outletLoading } = useOutlet()
+  const { t } = useLanguage()
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
   const [mounted, setMounted] = useState(false)
   const [hasOutstandingBilling, setHasOutstandingBilling] = useState(false)
@@ -250,7 +260,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                             )}
                           >
                             <item.icon className="h-5 w-5" />
-                            {isSidebarOpen && <span>{item.name}</span>}
+                            {isSidebarOpen && <span>{SIDEBAR_LABEL_KEYS[item.href] ? t(SIDEBAR_LABEL_KEYS[item.href]) : item.name}</span>}
                             {item.name === 'Billing' && hasOutstandingBilling && (
                               <span className={cn(
                                 "absolute h-2 w-2 rounded-full bg-yellow-500",

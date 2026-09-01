@@ -6,8 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
-import { Loader2, Save, User } from 'lucide-react'
+import { Loader2, Save, User, Languages } from 'lucide-react'
 import { toast } from 'sonner'
+import { useLanguage } from '@/lib/contexts/language-context'
 
 export default function ProfilePage() {
   const [loading, setLoading] = useState(true)
@@ -15,6 +16,7 @@ export default function ProfilePage() {
   const [email, setEmail] = useState('')
   const [fullName, setFullName] = useState('')
   const supabase = createClient()
+  const { locale, setLocale, t } = useLanguage()
 
   useEffect(() => {
     async function loadProfile() {
@@ -123,6 +125,46 @@ export default function ProfilePage() {
             {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
             Save Changes
           </Button>
+        </CardContent>
+      </Card>
+
+      <Card className="border-zinc-800 bg-zinc-900/50">
+        <CardHeader>
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-800 text-zinc-300">
+              <Languages className="h-5 w-5" />
+            </div>
+            <div>
+              <CardTitle className="text-lg font-medium text-zinc-100">{t('profile.languageLabel')}</CardTitle>
+              <CardDescription className="text-zinc-400">{t('profile.languageHint')}</CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => setLocale('id')}
+              className={`rounded-xl border p-4 text-left transition-colors ${
+                locale === 'id'
+                  ? 'border-indigo-500 bg-indigo-500/10 text-zinc-100'
+                  : 'border-zinc-800 bg-zinc-950 text-zinc-400 hover:border-zinc-700'
+              }`}
+            >
+              <span className="block text-sm font-medium">{t('profile.languageId')}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setLocale('en')}
+              className={`rounded-xl border p-4 text-left transition-colors ${
+                locale === 'en'
+                  ? 'border-indigo-500 bg-indigo-500/10 text-zinc-100'
+                  : 'border-zinc-800 bg-zinc-950 text-zinc-400 hover:border-zinc-700'
+              }`}
+            >
+              <span className="block text-sm font-medium">{t('profile.languageEn')}</span>
+            </button>
+          </div>
         </CardContent>
       </Card>
     </div>

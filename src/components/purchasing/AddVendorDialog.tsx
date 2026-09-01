@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useLanguage } from '@/lib/contexts/language-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
@@ -17,6 +18,7 @@ interface AddVendorDialogProps {
 
 export function AddVendorDialog({ open, onOpenChange, orgId, onCreated }: AddVendorDialogProps) {
   const supabase = createClient()
+  const { t } = useLanguage()
   const [saving, setSaving] = useState(false)
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -38,7 +40,7 @@ export function AddVendorDialog({ open, onOpenChange, orgId, onCreated }: AddVen
 
   const handleSave = async () => {
     if (!name.trim()) {
-      toast.error('Vendor name is required.')
+      toast.error(t('purchasing.addVendorDialog.errNameRequired'))
       return
     }
 
@@ -61,12 +63,12 @@ export function AddVendorDialog({ open, onOpenChange, orgId, onCreated }: AddVen
 
       if (error) throw error
 
-      toast.success(`"${data.name}" added to your vendors.`)
+      toast.success(t('purchasing.addVendorDialog.successCreated', { name: data.name }))
       onCreated(data)
       reset()
       onOpenChange(false)
     } catch (err: any) {
-      toast.error(err.message || 'Failed to create vendor')
+      toast.error(err.message || t('purchasing.addVendorDialog.errFailedCreate'))
     } finally {
       setSaving(false)
     }
@@ -76,25 +78,25 @@ export function AddVendorDialog({ open, onOpenChange, orgId, onCreated }: AddVen
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="bg-zinc-950 border-zinc-800 sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-zinc-100">Add New Vendor</DialogTitle>
-          <DialogDescription className="text-zinc-400">Not in the list yet? Add it here — it becomes available for ordering right away.</DialogDescription>
+          <DialogTitle className="text-zinc-100">{t('purchasing.addVendorDialog.title')}</DialogTitle>
+          <DialogDescription className="text-zinc-400">{t('purchasing.addVendorDialog.description')}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-2 max-h-[60vh] overflow-y-auto pr-1">
           <div className="space-y-2">
-            <label className="text-xs text-zinc-500 font-medium uppercase">Vendor Name *</label>
+            <label className="text-xs text-zinc-500 font-medium uppercase">{t('purchasing.addVendorDialog.vendorNameLabel')}</label>
             <Input
               autoFocus
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="bg-zinc-900 border-zinc-800 h-9 text-zinc-100"
-              placeholder="Vendor / Supplier Name"
+              placeholder={t('purchasing.addVendorDialog.vendorNamePlaceholder')}
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <label className="text-xs text-zinc-500 font-medium uppercase">Email</label>
+              <label className="text-xs text-zinc-500 font-medium uppercase">{t('purchasing.addVendorDialog.emailLabel')}</label>
               <Input
                 type="email"
                 value={email}
@@ -104,7 +106,7 @@ export function AddVendorDialog({ open, onOpenChange, orgId, onCreated }: AddVen
               />
             </div>
             <div className="space-y-2">
-              <label className="text-xs text-zinc-500 font-medium uppercase">Phone</label>
+              <label className="text-xs text-zinc-500 font-medium uppercase">{t('purchasing.addVendorDialog.phoneLabel')}</label>
               <Input
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
@@ -115,19 +117,19 @@ export function AddVendorDialog({ open, onOpenChange, orgId, onCreated }: AddVen
           </div>
 
           <div className="space-y-2">
-            <label className="text-xs text-zinc-500 font-medium uppercase">Address</label>
+            <label className="text-xs text-zinc-500 font-medium uppercase">{t('purchasing.addVendorDialog.addressLabel')}</label>
             <Input
               value={address}
               onChange={(e) => setAddress(e.target.value)}
               className="bg-zinc-900 border-zinc-800 h-9 text-zinc-100"
-              placeholder="Vendor Office Address"
+              placeholder={t('purchasing.addVendorDialog.addressPlaceholder')}
             />
           </div>
 
           <div className="pt-3 border-t border-zinc-800 space-y-3">
-            <span className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider block">Bank Settlement Details (Optional)</span>
+            <span className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider block">{t('purchasing.addVendorDialog.bankSectionTitle')}</span>
             <div className="space-y-2">
-              <label className="text-xs text-zinc-500 font-medium uppercase">Bank Name</label>
+              <label className="text-xs text-zinc-500 font-medium uppercase">{t('purchasing.addVendorDialog.bankNameLabel')}</label>
               <Input
                 value={bankName}
                 onChange={(e) => setBankName(e.target.value)}
@@ -137,7 +139,7 @@ export function AddVendorDialog({ open, onOpenChange, orgId, onCreated }: AddVen
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <label className="text-xs text-zinc-500 font-medium uppercase">Account No</label>
+                <label className="text-xs text-zinc-500 font-medium uppercase">{t('purchasing.addVendorDialog.accountNoLabel')}</label>
                 <Input
                   value={bankAccountNo}
                   onChange={(e) => setBankAccountNo(e.target.value)}
@@ -146,7 +148,7 @@ export function AddVendorDialog({ open, onOpenChange, orgId, onCreated }: AddVen
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-xs text-zinc-500 font-medium uppercase">Account Name</label>
+                <label className="text-xs text-zinc-500 font-medium uppercase">{t('purchasing.addVendorDialog.accountNameLabel')}</label>
                 <Input
                   value={bankAccountName}
                   onChange={(e) => setBankAccountName(e.target.value)}
@@ -160,11 +162,11 @@ export function AddVendorDialog({ open, onOpenChange, orgId, onCreated }: AddVen
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} className="border-zinc-800 bg-zinc-900 text-zinc-300">
-            Cancel
+            {t('common.cancel')}
           </Button>
           <Button onClick={handleSave} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700 text-white">
             {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Save Vendor
+            {t('purchasing.addVendorDialog.saveButton')}
           </Button>
         </DialogFooter>
       </DialogContent>

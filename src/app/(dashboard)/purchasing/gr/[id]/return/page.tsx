@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { useOutlet } from '@/lib/contexts/outlet-context'
+import { useLanguage } from '@/lib/contexts/language-context'
 import { Button } from '@/components/ui/button'
 import { DatePicker } from '@/components/ui/date-picker'
 import { ArrowLeft, Undo2, Loader2 } from 'lucide-react'
@@ -15,6 +16,7 @@ export default function CreateReturnPage({ params }: { params: Promise<{ id: str
   const router = useRouter()
   const supabase = createClient()
   const { selectedOutletId } = useOutlet()
+  const { t } = useLanguage()
 
   const [orgId, setOrgId] = useState<string | null>(null)
   const [gr, setGr] = useState<any>(null)
@@ -71,15 +73,15 @@ export default function CreateReturnPage({ params }: { params: Promise<{ id: str
     e.preventDefault()
     const validLines = lines.filter((l) => l.qty_returned > 0)
     if (validLines.length === 0) {
-      toast.error('Enter a return quantity for at least one line.')
+      toast.error(t('purchasing.gr.return.errEnterQty'))
       return
     }
     if (!selectedOutletId || !orgId) {
-      toast.error('Outlet or organization not resolved.')
+      toast.error(t('purchasing.gr.return.errNotResolved'))
       return
     }
     if (validLines.some((l) => !l.coa_id)) {
-      toast.error('One or more items has no default account configured.')
+      toast.error(t('purchasing.gr.return.errNoAccount'))
       return
     }
 
@@ -101,27 +103,27 @@ export default function CreateReturnPage({ params }: { params: Promise<{ id: str
 
       if (error) throw error
 
-      toast.success('Return posted — stock and GR/IR clearing updated.')
+      toast.success(t('purchasing.gr.return.successPosted'))
       router.push(`/purchasing/gr/${grId}`)
     } catch (err: any) {
-      toast.error(err.message || 'Failed to post return')
+      toast.error(err.message || t('purchasing.gr.return.errFailedPost'))
     } finally {
       setSaving(false)
     }
   }
 
-  if (loading) return <div className="py-20 text-center text-zinc-500 text-sm">Loading…</div>
+  if (loading) return <div className="py-20 text-center text-zinc-500 text-sm">{t('purchasing.gr.return.loading')}</div>
   if (lines.length === 0) return (
     <div className="py-20 text-center space-y-4">
-      <p className="text-zinc-400">Nothing left to return from this receipt.</p>
-      <Link href={`/purchasing/gr/${grId}`}><Button variant="outline" className="border-zinc-800 text-zinc-300">Back to Receipt</Button></Link>
+      <p className="text-zinc-400">{t('purchasing.gr.return.emptyTitle')}</p>
+      <Link href={`/purchasing/gr/${grId}`}><Button variant="outline" className="border-zinc-800 text-zinc-300">{t('purchasing.gr.detail.backToList')}</Button></Link>
     </div>
   )
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       <Link href={`/purchasing/gr/${grId}`} className="inline-flex items-center gap-2 text-sm text-zinc-400 hover:text-zinc-200 transition-colors">
-        <ArrowLeft className="h-4 w-4" /> Back to Receipt
+        <ArrowLeft className="h-4 w-4" /> {t('purchasing.gr.return.backTo')}
       </Link>
 
       <div className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-6 sm:p-8 space-y-6">
@@ -130,51 +132,51 @@ export default function CreateReturnPage({ params }: { params: Promise<{ id: str
             <Undo2 className="h-5 w-5" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-zinc-100">Return to Vendor</h1>
+            <h1 className="text-xl font-bold text-zinc-100">{t('purchasing.gr.return.title')}</h1>
             <p className="text-xs text-zinc-400">{gr?.purchase_orders?.vendors?.name} — {gr?.purchase_orders?.po_number}</p>
           </div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
-            <label className="block text-xs font-medium text-zinc-300 mb-1.5">Return Date</label>
+            <label className="block text-xs font-medium text-zinc-300 mb-1.5">{t('purchasing.gr.return.returnDateLabel')}</label>
             <DatePicker value={returnDate} onChange={setReturnDate} className="sm:w-48" />
           </div>
 
           <div className="space-y-2">
-            <label className="text-xs font-medium text-zinc-300">Items to Return <span className="text-zinc-500 font-normal">(quantities in Purchase Unit)</span></label>
+            <label className="text-xs font-medium text-zinc-300">{t('purchasing.gr.return.itemsToReturnLabel')} <span className="text-zinc-500 font-normal">{t('purchasing.gr.return.purchaseUnitHint')}</span></label>
             <div className="grid grid-cols-12 gap-2 px-3">
-              <span className="col-span-5 text-[10px] font-semibold text-zinc-500 uppercase tracking-wide">Item</span>
-              <span className="col-span-3 text-[10px] font-semibold text-zinc-500 uppercase tracking-wide">Available</span>
-              <span className="col-span-4 text-[10px] font-semibold text-zinc-500 uppercase tracking-wide">Return Qty</span>
+              <span className="col-span-5 text-[10px] font-semibold text-zinc-500 uppercase tracking-wide">{t('purchasing.gr.return.colItem')}</span>
+              <span className="col-span-3 text-[10px] font-semibold text-zinc-500 uppercase tracking-wide">{t('purchasing.gr.return.colAvailable')}</span>
+              <span className="col-span-4 text-[10px] font-semibold text-zinc-500 uppercase tracking-wide">{t('purchasing.gr.return.colReturnQty')}</span>
             </div>
             {lines.map((line, idx) => (
               <div key={line.gr_line_id} className="grid grid-cols-12 gap-2 bg-zinc-950 border border-zinc-800 rounded-xl p-3 items-center">
                 <span className="col-span-5 text-sm text-zinc-100">{line.item_name}</span>
-                <span className="col-span-3 text-xs text-zinc-500">Available: {line.available}</span>
+                <span className="col-span-3 text-xs text-zinc-500">{t('purchasing.gr.return.availableHint', { qty: line.available })}</span>
                 <input
                   type="number" min="0" max={line.available} step="any" value={line.qty_returned}
                   onChange={(e) => updateLine(idx, 'qty_returned', parseFloat(e.target.value) || 0)}
-                  className="col-span-4 bg-zinc-900 border border-zinc-800 rounded-lg h-9 text-sm px-2 text-zinc-100" placeholder="Return qty"
+                  className="col-span-4 bg-zinc-900 border border-zinc-800 rounded-lg h-9 text-sm px-2 text-zinc-100" placeholder={t('purchasing.gr.return.returnQtyPlaceholder')}
                 />
               </div>
             ))}
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-zinc-300 mb-1.5">Reason</label>
+            <label className="block text-xs font-medium text-zinc-300 mb-1.5">{t('purchasing.gr.return.reasonLabel')}</label>
             <textarea rows={2} value={reason} onChange={(e) => setReason(e.target.value)}
-              placeholder="e.g. damaged in transit, wrong item…"
+              placeholder={t('purchasing.gr.return.reasonPlaceholder')}
               className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-indigo-500" />
           </div>
 
           <div className="pt-4 flex justify-end gap-3">
             <Link href={`/purchasing/gr/${grId}`}>
-              <Button type="button" variant="outline" className="border-zinc-800 text-zinc-300 hover:bg-zinc-800">Cancel</Button>
+              <Button type="button" variant="outline" className="border-zinc-800 text-zinc-300 hover:bg-zinc-800">{t('common.cancel')}</Button>
             </Link>
             <Button type="submit" disabled={saving} className="bg-amber-600 hover:bg-amber-500 text-white gap-2 font-medium">
               {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-              Post Return
+              {t('purchasing.gr.return.submitButton')}
             </Button>
           </div>
         </form>

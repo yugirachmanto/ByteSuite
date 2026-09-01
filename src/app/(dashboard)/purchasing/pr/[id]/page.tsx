@@ -4,6 +4,7 @@ import { useState, useEffect, use } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import { useLanguage } from '@/lib/contexts/language-context'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -27,6 +28,7 @@ export default function RequisitionDetailPage({ params }: { params: Promise<{ id
   const { id: prId } = use(params)
   const router = useRouter()
   const supabase = createClient()
+  const { t } = useLanguage()
 
   const [pr, setPr] = useState<any>(null)
   const [lines, setLines] = useState<any[]>([])
@@ -61,7 +63,7 @@ export default function RequisitionDetailPage({ params }: { params: Promise<{ id
     if (error) {
       toast.error(error.message)
     } else {
-      toast.success('Requisition approved.')
+      toast.success(t('purchasing.pr.detail.successApproved'))
       fetchPr()
     }
   }
@@ -74,16 +76,16 @@ export default function RequisitionDetailPage({ params }: { params: Promise<{ id
     if (error) {
       toast.error(error.message)
     } else {
-      toast.success('Requisition rejected.')
+      toast.success(t('purchasing.pr.detail.successRejected'))
       fetchPr()
     }
   }
 
-  if (loading) return <div className="py-20 text-center text-zinc-500 text-sm">Loading requisition…</div>
+  if (loading) return <div className="py-20 text-center text-zinc-500 text-sm">{t('purchasing.pr.detail.loading')}</div>
   if (!pr) return (
     <div className="py-20 text-center space-y-4">
-      <p className="text-zinc-400">Requisition not found.</p>
-      <Link href="/purchasing/pr"><Button variant="outline" className="border-zinc-800 text-zinc-300">Back to Requisitions</Button></Link>
+      <p className="text-zinc-400">{t('purchasing.pr.detail.notFound')}</p>
+      <Link href="/purchasing/pr"><Button variant="outline" className="border-zinc-800 text-zinc-300">{t('purchasing.pr.detail.backToList')}</Button></Link>
     </div>
   )
 
@@ -92,15 +94,15 @@ export default function RequisitionDetailPage({ params }: { params: Promise<{ id
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-800 pb-5">
         <div className="space-y-1">
           <Link href="/purchasing/pr" className="inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-300">
-            <ArrowLeft className="h-4 w-4" /> Back
+            <ArrowLeft className="h-4 w-4" /> {t('common.back')}
           </Link>
           <h1 className="text-2xl font-bold text-zinc-100 flex items-center gap-2">
             <ClipboardCheck className="h-6 w-6 text-indigo-400" />
-            Requisition
+            {t('purchasing.pr.detail.title')}
           </h1>
           <div className="flex items-center gap-2">
-            <Badge variant="outline" className={STATUS_BADGE[pr.status] || ''}>{pr.status.replace('_', ' ')}</Badge>
-            {pr.needed_by_date && <span className="text-xs text-zinc-500">Needed by {format(new Date(pr.needed_by_date), 'dd MMM yyyy')}</span>}
+            <Badge variant="outline" className={STATUS_BADGE[pr.status] || ''}>{t(`statusLabel.${pr.status}`)}</Badge>
+            {pr.needed_by_date && <span className="text-xs text-zinc-500">{t('purchasing.pr.detail.neededBy', { date: format(new Date(pr.needed_by_date), 'dd MMM yyyy') })}</span>}
           </div>
         </div>
 
@@ -108,11 +110,11 @@ export default function RequisitionDetailPage({ params }: { params: Promise<{ id
           {pr.status === 'pending_approval' && (
             <>
               <Button variant="outline" onClick={() => setRejectDialogOpen(true)} className="border-zinc-700 text-red-400 hover:bg-red-500/10 text-xs">
-                Reject
+                {t('purchasing.pr.detail.reject')}
               </Button>
               <Button onClick={handleApprove} disabled={approving} className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs gap-1.5">
                 {approving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                Approve
+                {t('purchasing.pr.detail.approve')}
               </Button>
             </>
           )}
@@ -121,7 +123,7 @@ export default function RequisitionDetailPage({ params }: { params: Promise<{ id
               onClick={() => router.push(`/purchasing/po/new?pr_id=${pr.id}`)}
               className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs gap-1.5"
             >
-              Convert to PO <ArrowRight className="h-3.5 w-3.5" />
+              {t('purchasing.pr.detail.convertToPo')} <ArrowRight className="h-3.5 w-3.5" />
             </Button>
           )}
         </div>
@@ -133,10 +135,10 @@ export default function RequisitionDetailPage({ params }: { params: Promise<{ id
         <Table>
           <TableHeader className="border-zinc-800">
             <TableRow className="hover:bg-transparent">
-              <TableHead className="text-zinc-400">Item</TableHead>
-              <TableHead className="text-zinc-400">Qty</TableHead>
-              <TableHead className="text-zinc-400">Unit</TableHead>
-              <TableHead className="text-zinc-400">Notes</TableHead>
+              <TableHead className="text-zinc-400">{t('purchasing.pr.detail.colItem')}</TableHead>
+              <TableHead className="text-zinc-400">{t('purchasing.pr.detail.colQty')}</TableHead>
+              <TableHead className="text-zinc-400">{t('purchasing.pr.detail.colUnit')}</TableHead>
+              <TableHead className="text-zinc-400">{t('purchasing.pr.detail.colNotes')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -155,14 +157,14 @@ export default function RequisitionDetailPage({ params }: { params: Promise<{ id
       <AlertDialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
         <AlertDialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 sm:max-w-md">
           <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2"><AlertTriangle className="h-5 w-5 text-red-500" />Reject Requisition</AlertDialogTitle>
-            <AlertDialogDescription>This requisition will be marked rejected and can't be converted to a PO.</AlertDialogDescription>
+            <AlertDialogTitle className="flex items-center gap-2"><AlertTriangle className="h-5 w-5 text-red-500" />{t('purchasing.pr.detail.rejectDialogTitle')}</AlertDialogTitle>
+            <AlertDialogDescription>{t('purchasing.pr.detail.rejectDialogDesc')}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={rejecting}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={rejecting}>{t('common.cancel')}</AlertDialogCancel>
             <Button className="bg-red-600 hover:bg-red-700" onClick={handleReject} disabled={rejecting}>
               {rejecting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Reject
+              {t('purchasing.pr.detail.reject')}
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>

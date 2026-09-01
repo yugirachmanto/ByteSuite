@@ -5,17 +5,18 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { useOutlet } from '@/lib/contexts/outlet-context'
+import { useLanguage } from '@/lib/contexts/language-context'
 import { Button } from '@/components/ui/button'
 import { DatePicker } from '@/components/ui/date-picker'
 import { ArrowLeft, PackagePlus, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { formatRp } from '@/lib/format'
 
 export default function ReceiveGoodsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: poId } = use(params)
   const router = useRouter()
   const supabase = createClient()
   const { selectedOutletId } = useOutlet()
+  const { t } = useLanguage()
 
   const [orgId, setOrgId] = useState<string | null>(null)
   const [po, setPo] = useState<any>(null)
@@ -66,11 +67,11 @@ export default function ReceiveGoodsPage({ params }: { params: Promise<{ id: str
     e.preventDefault()
     const validLines = lines.filter((l) => l.qty_received > 0)
     if (validLines.length === 0) {
-      toast.error('Enter a received quantity for at least one line.')
+      toast.error(t('purchasing.po.receive.errEnterQty'))
       return
     }
     if (!selectedOutletId || !orgId) {
-      toast.error('Outlet or organization not resolved.')
+      toast.error(t('purchasing.po.receive.errNotResolved'))
       return
     }
 
@@ -94,27 +95,27 @@ export default function ReceiveGoodsPage({ params }: { params: Promise<{ id: str
 
       if (error) throw error
 
-      toast.success('Goods receipt posted — stock updated.')
+      toast.success(t('purchasing.po.receive.successPosted'))
       router.push(`/purchasing/gr/${grId}`)
     } catch (err: any) {
-      toast.error(err.message || 'Failed to post goods receipt')
+      toast.error(err.message || t('purchasing.po.receive.errFailedPost'))
     } finally {
       setSaving(false)
     }
   }
 
-  if (loading) return <div className="py-20 text-center text-zinc-500 text-sm">Loading…</div>
+  if (loading) return <div className="py-20 text-center text-zinc-500 text-sm">{t('purchasing.po.receive.loading')}</div>
   if (lines.length === 0) return (
     <div className="py-20 text-center space-y-4">
-      <p className="text-zinc-400">Nothing left to receive on this purchase order.</p>
-      <Link href={`/purchasing/po/${poId}`}><Button variant="outline" className="border-zinc-800 text-zinc-300">Back to PO</Button></Link>
+      <p className="text-zinc-400">{t('purchasing.po.receive.emptyTitle')}</p>
+      <Link href={`/purchasing/po/${poId}`}><Button variant="outline" className="border-zinc-800 text-zinc-300">{t('purchasing.po.receive.backToPo')}</Button></Link>
     </div>
   )
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       <Link href={`/purchasing/po/${poId}`} className="inline-flex items-center gap-2 text-sm text-zinc-400 hover:text-zinc-200 transition-colors">
-        <ArrowLeft className="h-4 w-4" /> Back to {po?.po_number || 'PO'}
+        <ArrowLeft className="h-4 w-4" /> {t('purchasing.po.receive.backTo', { poNumber: po?.po_number || t('purchasing.po.receive.poFallback') })}
       </Link>
 
       <div className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-6 sm:p-8 space-y-6">
@@ -123,56 +124,56 @@ export default function ReceiveGoodsPage({ params }: { params: Promise<{ id: str
             <PackagePlus className="h-5 w-5" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-zinc-100">Receive Goods</h1>
-            <p className="text-xs text-zinc-400">{po?.vendors?.name} — confirm what actually arrived. This creates stock.</p>
+            <h1 className="text-xl font-bold text-zinc-100">{t('purchasing.po.receive.title')}</h1>
+            <p className="text-xs text-zinc-400">{t('purchasing.po.receive.subtitle', { vendor: po?.vendors?.name || '' })}</p>
           </div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
-            <label className="block text-xs font-medium text-zinc-300 mb-1.5">Receipt Date</label>
+            <label className="block text-xs font-medium text-zinc-300 mb-1.5">{t('purchasing.po.receive.receiptDateLabel')}</label>
             <DatePicker value={receiptDate} onChange={setReceiptDate} className="sm:w-48" />
           </div>
 
           <div className="space-y-2">
-            <label className="text-xs font-medium text-zinc-300">Items <span className="text-zinc-500 font-normal">(quantities in Purchase Unit)</span></label>
+            <label className="text-xs font-medium text-zinc-300">{t('purchasing.po.receive.itemsLabel')} <span className="text-zinc-500 font-normal">{t('purchasing.po.receive.purchaseUnitHint')}</span></label>
             <div className="grid grid-cols-12 gap-2 px-3">
-              <span className="col-span-4 text-[10px] font-semibold text-zinc-500 uppercase tracking-wide">Item</span>
-              <span className="col-span-2 text-[10px] font-semibold text-zinc-500 uppercase tracking-wide">Ordered</span>
-              <span className="col-span-3 text-[10px] font-semibold text-zinc-500 uppercase tracking-wide">Received Qty</span>
-              <span className="col-span-3 text-[10px] font-semibold text-zinc-500 uppercase tracking-wide">Unit Cost</span>
+              <span className="col-span-4 text-[10px] font-semibold text-zinc-500 uppercase tracking-wide">{t('purchasing.po.receive.colItem')}</span>
+              <span className="col-span-2 text-[10px] font-semibold text-zinc-500 uppercase tracking-wide">{t('purchasing.po.receive.colOrdered')}</span>
+              <span className="col-span-3 text-[10px] font-semibold text-zinc-500 uppercase tracking-wide">{t('purchasing.po.receive.colReceivedQty')}</span>
+              <span className="col-span-3 text-[10px] font-semibold text-zinc-500 uppercase tracking-wide">{t('purchasing.po.receive.colUnitCost')}</span>
             </div>
             {lines.map((line, idx) => (
               <div key={line.po_line_id} className="grid grid-cols-12 gap-2 bg-zinc-950 border border-zinc-800 rounded-xl p-3 items-center">
                 <span className="col-span-4 text-sm text-zinc-100">{line.item_name}</span>
-                <span className="col-span-2 text-xs text-zinc-500">Ordered {line.remaining} {line.unit}</span>
+                <span className="col-span-2 text-xs text-zinc-500">{t('purchasing.po.receive.orderedHint', { qty: line.remaining, unit: line.unit })}</span>
                 <input
                   type="number" min="0" max={line.remaining} step="any" value={line.qty_received}
                   onChange={(e) => updateLine(idx, 'qty_received', parseFloat(e.target.value) || 0)}
-                  className="col-span-3 bg-zinc-900 border border-zinc-800 rounded-lg h-9 text-sm px-2 text-zinc-100" placeholder="Received qty"
+                  className="col-span-3 bg-zinc-900 border border-zinc-800 rounded-lg h-9 text-sm px-2 text-zinc-100" placeholder={t('purchasing.po.receive.receivedQtyPlaceholder')}
                 />
                 <input
                   type="number" min="0" step="any" value={line.unit_cost}
                   onChange={(e) => updateLine(idx, 'unit_cost', parseFloat(e.target.value) || 0)}
-                  className="col-span-3 bg-zinc-900 border border-zinc-800 rounded-lg h-9 text-sm px-2 text-zinc-100" placeholder="Unit cost"
+                  className="col-span-3 bg-zinc-900 border border-zinc-800 rounded-lg h-9 text-sm px-2 text-zinc-100" placeholder={t('purchasing.po.receive.unitCostPlaceholder')}
                 />
               </div>
             ))}
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-zinc-300 mb-1.5">Notes</label>
+            <label className="block text-xs font-medium text-zinc-300 mb-1.5">{t('purchasing.po.receive.notesLabel')}</label>
             <textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)}
               className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-indigo-500" />
           </div>
 
           <div className="pt-4 flex justify-end gap-3">
             <Link href={`/purchasing/po/${poId}`}>
-              <Button type="button" variant="outline" className="border-zinc-800 text-zinc-300 hover:bg-zinc-800">Cancel</Button>
+              <Button type="button" variant="outline" className="border-zinc-800 text-zinc-300 hover:bg-zinc-800">{t('common.cancel')}</Button>
             </Link>
             <Button type="submit" disabled={saving} className="bg-emerald-600 hover:bg-emerald-500 text-white gap-2 font-medium">
               {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-              Post Goods Receipt
+              {t('purchasing.po.receive.submitButton')}
             </Button>
           </div>
         </form>

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { useOutlet } from '@/lib/contexts/outlet-context'
+import { useLanguage } from '@/lib/contexts/language-context'
 import { Button } from '@/components/ui/button'
 import { CoaCombobox } from '@/components/ui/coa-combobox'
 import { DatePicker } from '@/components/ui/date-picker'
@@ -17,6 +18,7 @@ export default function MatchInvoicePage({ params }: { params: Promise<{ id: str
   const router = useRouter()
   const supabase = createClient()
   const { selectedOutletId } = useOutlet()
+  const { t } = useLanguage()
 
   const [orgId, setOrgId] = useState<string | null>(null)
   const [po, setPo] = useState<any>(null)
@@ -69,15 +71,15 @@ export default function MatchInvoicePage({ params }: { params: Promise<{ id: str
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (lines.length === 0) {
-      toast.error('Nothing received to invoice.')
+      toast.error(t('purchasing.po.matchInvoice.errNothingToInvoice'))
       return
     }
     if (!selectedOutletId || !orgId) {
-      toast.error('Outlet or organization not resolved.')
+      toast.error(t('purchasing.po.matchInvoice.errNotResolved'))
       return
     }
     if (taxAmount > 0 && !taxCoaId) {
-      toast.error('Select a PPN Masukan account or clear the tax amount.')
+      toast.error(t('purchasing.po.matchInvoice.errSelectPpn'))
       return
     }
 
@@ -106,21 +108,21 @@ export default function MatchInvoicePage({ params }: { params: Promise<{ id: str
 
       if (error) throw error
 
-      toast.success('Invoice matched and posted. GR/IR clearing settled, AP updated.')
+      toast.success(t('purchasing.po.matchInvoice.successPosted'))
       router.push(`/invoices/${invoiceId}/review`)
     } catch (err: any) {
-      toast.error(err.message || 'Failed to post matched invoice')
+      toast.error(err.message || t('purchasing.po.matchInvoice.errFailedPost'))
     } finally {
       setSaving(false)
     }
   }
 
-  if (loading) return <div className="py-20 text-center text-zinc-500 text-sm">Loading…</div>
+  if (loading) return <div className="py-20 text-center text-zinc-500 text-sm">{t('purchasing.po.matchInvoice.loading')}</div>
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       <Link href={`/purchasing/po/${poId}`} className="inline-flex items-center gap-2 text-sm text-zinc-400 hover:text-zinc-200 transition-colors">
-        <ArrowLeft className="h-4 w-4" /> Back to PO
+        <ArrowLeft className="h-4 w-4" /> {t('purchasing.po.matchInvoice.backToPo')}
       </Link>
 
       <div className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-6 sm:p-8 space-y-6">
@@ -129,25 +131,25 @@ export default function MatchInvoicePage({ params }: { params: Promise<{ id: str
             <FileText className="h-5 w-5" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-zinc-100">Match Vendor Invoice</h1>
-            <p className="text-xs text-zinc-400">{po?.vendors?.name} — quantities and costs are locked to what was actually received.</p>
+            <h1 className="text-xl font-bold text-zinc-100">{t('purchasing.po.matchInvoice.title')}</h1>
+            <p className="text-xs text-zinc-400">{t('purchasing.po.matchInvoice.subtitle', { vendor: po?.vendors?.name || '' })}</p>
           </div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
-              <label className="block text-xs font-medium text-zinc-300 mb-1.5">Vendor Invoice No.</label>
+              <label className="block text-xs font-medium text-zinc-300 mb-1.5">{t('purchasing.po.matchInvoice.invoiceNoLabel')}</label>
               <input type="text" value={invoiceNo} onChange={(e) => setInvoiceNo(e.target.value)}
                 className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-indigo-500" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-zinc-300 mb-1.5">Invoice Date</label>
+              <label className="block text-xs font-medium text-zinc-300 mb-1.5">{t('purchasing.po.matchInvoice.invoiceDateLabel')}</label>
               <DatePicker value={invoiceDate} onChange={setInvoiceDate} />
             </div>
             <div>
-              <label className="block text-xs font-medium text-zinc-300 mb-1.5">Due Date</label>
-              <DatePicker value={dueDate} onChange={setDueDate} placeholder="Optional" />
+              <label className="block text-xs font-medium text-zinc-300 mb-1.5">{t('purchasing.po.matchInvoice.dueDateLabel')}</label>
+              <DatePicker value={dueDate} onChange={setDueDate} placeholder={t('common.optional')} />
             </div>
           </div>
 
@@ -155,10 +157,10 @@ export default function MatchInvoicePage({ params }: { params: Promise<{ id: str
             <table className="w-full text-sm">
               <thead className="bg-zinc-900/80 text-zinc-400 text-xs">
                 <tr>
-                  <th className="text-left px-3 py-2 font-medium">Item</th>
-                  <th className="text-right px-3 py-2 font-medium">Qty Received</th>
-                  <th className="text-right px-3 py-2 font-medium">Unit Price</th>
-                  <th className="text-right px-3 py-2 font-medium">Total</th>
+                  <th className="text-left px-3 py-2 font-medium">{t('purchasing.po.matchInvoice.colItem')}</th>
+                  <th className="text-right px-3 py-2 font-medium">{t('purchasing.po.matchInvoice.colQtyReceived')}</th>
+                  <th className="text-right px-3 py-2 font-medium">{t('purchasing.po.matchInvoice.colUnitPrice')}</th>
+                  <th className="text-right px-3 py-2 font-medium">{t('purchasing.po.matchInvoice.colTotal')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-800/60">
@@ -176,41 +178,41 @@ export default function MatchInvoicePage({ params }: { params: Promise<{ id: str
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
             <div>
-              <label className="block text-xs font-medium text-zinc-300 mb-1.5">Tax Amount (PPN)</label>
+              <label className="block text-xs font-medium text-zinc-300 mb-1.5">{t('purchasing.po.matchInvoice.taxAmountLabel')}</label>
               <input type="number" min="0" step="any" value={taxAmount}
                 onChange={(e) => setTaxAmount(parseFloat(e.target.value) || 0)}
                 className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-indigo-500" />
             </div>
             {taxAmount > 0 && (
               <div>
-                <label className="block text-xs font-medium text-zinc-300 mb-1.5">PPN Masukan Account</label>
-                <CoaCombobox coas={accounts} value={taxCoaId} onChange={setTaxCoaId} placeholder="Select account…" />
+                <label className="block text-xs font-medium text-zinc-300 mb-1.5">{t('purchasing.po.matchInvoice.ppnAccountLabel')}</label>
+                <CoaCombobox coas={accounts} value={taxCoaId} onChange={setTaxCoaId} placeholder={t('purchasing.po.matchInvoice.selectAccount')} />
               </div>
             )}
           </div>
 
           <div className="flex justify-end gap-6 text-sm border-t border-zinc-800 pt-4">
             <div className="text-right">
-              <p className="text-zinc-400">Subtotal</p>
+              <p className="text-zinc-400">{t('purchasing.po.matchInvoice.subtotalLabel')}</p>
               <p className="text-zinc-200 font-mono">{formatRp(subtotal)}</p>
             </div>
             <div className="text-right">
-              <p className="text-zinc-400">Tax</p>
+              <p className="text-zinc-400">{t('purchasing.po.matchInvoice.taxLabel')}</p>
               <p className="text-zinc-200 font-mono">{formatRp(taxAmount || 0)}</p>
             </div>
             <div className="text-right">
-              <p className="text-zinc-400">Total</p>
+              <p className="text-zinc-400">{t('purchasing.po.matchInvoice.totalLabel')}</p>
               <p className="text-zinc-100 font-bold font-mono">{formatRp(total)}</p>
             </div>
           </div>
 
           <div className="pt-2 flex justify-end gap-3">
             <Link href={`/purchasing/po/${poId}`}>
-              <Button type="button" variant="outline" className="border-zinc-800 text-zinc-300 hover:bg-zinc-800">Cancel</Button>
+              <Button type="button" variant="outline" className="border-zinc-800 text-zinc-300 hover:bg-zinc-800">{t('common.cancel')}</Button>
             </Link>
             <Button type="submit" disabled={saving} className="bg-zinc-100 text-zinc-900 hover:bg-zinc-200 gap-2 font-medium">
               {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-              Post Matched Invoice
+              {t('purchasing.po.matchInvoice.submitButton')}
             </Button>
           </div>
         </form>
