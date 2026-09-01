@@ -11,6 +11,7 @@ import { DatePicker } from '@/components/ui/date-picker'
 import { AddRawItemDialog } from '@/components/purchasing/AddRawItemDialog'
 import { ArrowLeft, Plus, Trash2, Loader2, ShoppingCart } from 'lucide-react'
 import { toast } from 'sonner'
+import { format } from 'date-fns'
 import { formatRp } from '@/lib/format'
 
 interface Line {
@@ -42,6 +43,7 @@ export default function NewPurchaseOrderPage() {
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
   const [addItemLineIdx, setAddItemLineIdx] = useState<number | null>(null)
+  const [lastPrices, setLastPrices] = useState<Record<string, { price: number; date: string }>>({})
 
   useEffect(() => {
     async function init() {
@@ -72,6 +74,7 @@ export default function NewPurchaseOrderPage() {
             coa_id: l.item_master?.default_coa_id || '',
             is_inventory: l.item_master?.is_inventory ?? true,
           })))
+          prLines.forEach((l: any, idx: number) => fetchLastPrice(l.item_id, idx))
         }
       }
       setLoading(false)
@@ -92,8 +95,52 @@ export default function NewPurchaseOrderPage() {
         updated[idx].coa_id = item.default_coa_id || ''
         updated[idx].is_inventory = item.is_inventory
       }
+      fetchLastPrice(value, idx)
     }
     setLines(updated)
+  }
+
+  // Suggests unit_price from the most recent PO line for this item (across
+  // any past purchase order), since po_lines.unit_price is always recorded
+  // in Purchase Unit — the same unit this form's price field uses. Cached
+  // per item_id so re-selecting the same item doesn't re-query.
+  const fetchLastPrice = async (itemId: string, idx: number) => {
+    if (!itemId) return
+
+    const applyCached = (entry: { price: number; date: string }) => {
+      setLines((prev) => {
+        if (prev[idx]?.item_id !== itemId) return prev
+        const copy = [...prev]
+        copy[idx] = { ...copy[idx], unit_price: entry.price }
+        return copy
+      })
+    }
+
+    if (lastPrices[itemId]) {
+      applyCached(lastPrices[itemId])
+      return
+    }
+
+    const { data } = await supabase
+      .from('po_lines')
+      .select('unit_price, purchase_orders(order_date, created_at)')
+      .eq('item_id', itemId)
+
+    if (!data || data.length === 0) return
+
+    const withDate = data
+      .map((row: any) => ({
+        price: row.unit_price,
+        date: row.purchase_orders?.order_date || row.purchase_orders?.created_at,
+      }))
+      .filter((row) => row.date)
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+
+    const latest = withDate[0]
+    if (!latest) return
+
+    setLastPrices((prev) => ({ ...prev, [itemId]: latest }))
+    applyCached(latest)
   }
 
   const handleItemCreated = (newItem: any) => {
@@ -252,11 +299,18 @@ export default function NewPurchaseOrderPage() {
                     className="col-span-1 bg-zinc-900 border border-zinc-800 rounded-lg h-9 text-sm px-2 text-zinc-100" placeholder="Qty"
                   />
                   <span className="col-span-1 text-xs text-zinc-500 text-center">{line.unit || '—'}</span>
-                  <input
-                    type="number" min="0" step="any" value={line.unit_price}
-                    onChange={(e) => updateLine(idx, 'unit_price', parseFloat(e.target.value) || 0)}
-                    className="col-span-2 bg-zinc-900 border border-zinc-800 rounded-lg h-9 text-sm px-2 text-zinc-100" placeholder="Unit Price"
-                  />
+                  <div className="col-span-2 space-y-1">
+                    <input
+                      type="number" min="0" step="any" value={line.unit_price}
+                      onChange={(e) => updateLine(idx, 'unit_price', parseFloat(e.target.value) || 0)}
+                      className="w-full bg-zinc-900 border border-zinc-800 rounded-lg h-9 text-sm px-2 text-zinc-100" placeholder="Unit Price"
+                    />
+                    {lastPrices[line.item_id] && (
+                      <p className="text-[10px] text-zinc-500 px-0.5">
+                        Last: {formatRp(lastPrices[line.item_id].price)} ({format(new Date(lastPrices[line.item_id].date), 'dd MMM')})
+                      </p>
+                    )}
+                  </div>
                   <div className="col-span-4">
                     <CoaCombobox coas={accounts} value={line.coa_id} onChange={(val) => updateLine(idx, 'coa_id', val)} placeholder="Account…" />
                   </div>
