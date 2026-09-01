@@ -20,6 +20,7 @@ interface Item {
   id: string
   name: string
   unit: string
+  purchase_unit: string | null
 }
 
 export default function NewRequisitionPage() {
@@ -38,7 +39,7 @@ export default function NewRequisitionPage() {
       if (!user) return
       const { data: profile } = await supabase.from('user_profiles').select('org_id').eq('id', user.id).single()
       if (!profile?.org_id) return
-      const { data } = await supabase.from('item_master').select('id, name, unit').eq('org_id', profile.org_id).order('name')
+      const { data } = await supabase.from('item_master').select('id, name, unit, purchase_unit').eq('org_id', profile.org_id).order('name')
       setItems(data || [])
     }
     fetchItems()
@@ -51,7 +52,7 @@ export default function NewRequisitionPage() {
     updated[idx] = { ...updated[idx], [field]: value }
     if (field === 'item_id') {
       const item = items.find((i) => i.id === value)
-      if (item) updated[idx].unit = item.unit
+      if (item) updated[idx].unit = item.purchase_unit || item.unit
     }
     setLines(updated)
   }
@@ -144,7 +145,7 @@ export default function NewRequisitionPage() {
 
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-medium text-zinc-300">Items Needed</label>
+              <label className="text-xs font-medium text-zinc-300">Items Needed <span className="text-zinc-500 font-normal">(quantities in Purchase Unit)</span></label>
               <Button type="button" size="sm" variant="outline" onClick={addLine} className="border-zinc-800 text-zinc-300 hover:bg-zinc-800 text-xs gap-1">
                 <Plus className="h-3.5 w-3.5" /> Add Line
               </Button>

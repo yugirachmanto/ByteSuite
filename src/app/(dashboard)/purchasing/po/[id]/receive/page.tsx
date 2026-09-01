@@ -135,7 +135,7 @@ export default function ReceiveGoodsPage({ params }: { params: Promise<{ id: str
           </div>
 
           <div className="space-y-2">
-            <label className="text-xs font-medium text-zinc-300">Items</label>
+            <label className="text-xs font-medium text-zinc-300">Items <span className="text-zinc-500 font-normal">(quantities in Purchase Unit)</span></label>
             {lines.map((line, idx) => (
               <div key={line.po_line_id} className="grid grid-cols-12 gap-2 bg-zinc-950 border border-zinc-800 rounded-xl p-3 items-center">
                 <span className="col-span-4 text-sm text-zinc-100">{line.item_name}</span>

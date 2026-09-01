@@ -142,7 +142,7 @@ export default function PurchaseOrderDetailPage({ params }: { params: Promise<{ 
           <TableHeader className="border-zinc-800">
             <TableRow className="hover:bg-transparent">
               <TableHead className="text-zinc-400">Item</TableHead>
-              <TableHead className="text-zinc-400">Ordered</TableHead>
+              <TableHead className="text-zinc-400">Ordered <span className="text-zinc-600 font-normal">(Purchase Unit)</span></TableHead>
               <TableHead className="text-zinc-400">Received</TableHead>
               <TableHead className="text-zinc-400">Returned</TableHead>
               <TableHead className="text-zinc-400">Unit Price</TableHead>

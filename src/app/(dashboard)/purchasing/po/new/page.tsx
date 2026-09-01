@@ -51,20 +51,20 @@ export default function NewPurchaseOrderPage() {
       const [{ data: vendorData }, { data: coaData }, { data: itemData }] = await Promise.all([
         supabase.from('vendors').select('id, name').eq('org_id', profile.org_id).order('name'),
         supabase.from('chart_of_accounts').select('id, code, name, is_header').eq('org_id', profile.org_id).order('code'),
-        supabase.from('item_master').select('id, name, unit, default_coa_id, is_inventory').eq('org_id', profile.org_id).order('name'),
+        supabase.from('item_master').select('id, name, unit, purchase_unit, default_coa_id, is_inventory').eq('org_id', profile.org_id).order('name'),
       ])
       setVendors(vendorData || [])
       setAccounts(coaData || [])
       setItems(itemData || [])
 
       if (prId) {
-        const { data: prLines } = await supabase.from('pr_lines').select('*, item_master(name, unit, default_coa_id, is_inventory)').eq('pr_id', prId)
+        const { data: prLines } = await supabase.from('pr_lines').select('*, item_master(name, unit, purchase_unit, default_coa_id, is_inventory)').eq('pr_id', prId)
         if (prLines && prLines.length > 0) {
           setLines(prLines.map((l: any) => ({
             item_id: l.item_id,
             description: l.item_master?.name || '',
             qty: l.qty,
-            unit: l.unit || l.item_master?.unit || '',
+            unit: l.unit || l.item_master?.purchase_unit || l.item_master?.unit || '',
             unit_price: 0,
             coa_id: l.item_master?.default_coa_id || '',
             is_inventory: l.item_master?.is_inventory ?? true,
@@ -85,7 +85,7 @@ export default function NewPurchaseOrderPage() {
       const item = items.find((i) => i.id === value)
       if (item) {
         updated[idx].description = item.name
-        updated[idx].unit = item.unit
+        updated[idx].unit = item.purchase_unit || item.unit
         updated[idx].coa_id = item.default_coa_id || ''
         updated[idx].is_inventory = item.is_inventory
       }
@@ -206,7 +206,7 @@ export default function NewPurchaseOrderPage() {
 
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-medium text-zinc-300">Line Items</label>
+              <label className="text-xs font-medium text-zinc-300">Line Items <span className="text-zinc-500 font-normal">(qty &amp; price in Purchase Unit)</span></label>
               <Button type="button" size="sm" variant="outline" onClick={addLine} className="border-zinc-800 text-zinc-300 hover:bg-zinc-800 text-xs gap-1">
                 <Plus className="h-3.5 w-3.5" /> Add Line
               </Button>
