@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { CoaCombobox } from '@/components/ui/coa-combobox'
 import { STANDARD_UOMS } from '@/lib/constants'
-import { Loader2, Layers } from 'lucide-react'
+import { Loader2, Layers, ShoppingCart, PackageCheck } from 'lucide-react'
 import { toast } from 'sonner'
 
 // Storage unit -> { purchase unit, storage units per 1 purchase unit }.
@@ -119,28 +119,27 @@ export function AddRawItemDialog({ open, onOpenChange, orgId, accounts, onCreate
 
           <div className="pt-2 border-t border-zinc-800 space-y-3">
             <p className="text-[10px] text-zinc-500 uppercase font-bold tracking-widest flex items-center gap-2">
-              <Layers className="h-3 w-3 text-blue-500" /> UOM Conversion Formula
+              <Layers className="h-3 w-3 text-blue-500" /> Unit of Measure
             </p>
-            <div className="flex items-center gap-2 bg-zinc-950/30 p-2.5 rounded-lg border border-zinc-800/50">
-              <span className="text-zinc-500 font-mono text-sm pl-1">1</span>
-              <div className="flex-1">
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5 rounded-lg border border-indigo-500/20 bg-indigo-500/[0.04] p-2.5">
+                <label className="flex items-center gap-1.5 text-[11px] font-semibold text-indigo-400">
+                  <ShoppingCart className="h-3.5 w-3.5" /> Purchase Unit
+                </label>
                 <Input
                   value={purchaseUnit}
                   onChange={(e) => setPurchaseUnit(e.target.value)}
-                  className="bg-zinc-900 border-zinc-800 h-8 text-xs"
-                  placeholder="Purchase Unit"
+                  className="bg-zinc-900 border-zinc-800 h-8 text-sm"
+                  placeholder="e.g. KG"
                 />
+                <p className="text-[9px] text-zinc-500 leading-snug">What you order from vendors</p>
               </div>
-              <span className="text-zinc-500 font-mono text-sm">=</span>
-              <div className="flex-1">
-                <Input
-                  type="number"
-                  value={conversionFactor}
-                  onChange={(e) => setConversionFactor(parseFloat(e.target.value) || 1)}
-                  className="bg-zinc-900 border-zinc-800 h-8 text-xs text-center"
-                />
-              </div>
-              <div className="flex-1">
+
+              <div className="space-y-1.5 rounded-lg border border-emerald-500/20 bg-emerald-500/[0.04] p-2.5">
+                <label className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-400">
+                  <PackageCheck className="h-3.5 w-3.5" /> Storage Unit
+                </label>
                 <select
                   value={unit}
                   onChange={(e) => {
@@ -152,17 +151,30 @@ export function AddRawItemDialog({ open, onOpenChange, orgId, accounts, onCreate
                       setConversionFactor(auto.conversion_factor)
                     }
                   }}
-                  className="w-full bg-zinc-900 border border-zinc-800 rounded-md px-2 h-8 text-[10px] text-zinc-100 focus:outline-none"
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-md px-2 h-8 text-sm text-zinc-100 focus:outline-none"
                 >
                   {STANDARD_UOMS.map((u) => (
                     <option key={u} value={u}>{u}</option>
                   ))}
                 </select>
+                <p className="text-[9px] text-zinc-500 leading-snug">What stock is tracked in</p>
               </div>
             </div>
-            <p className="text-[9px] text-zinc-500 italic pl-1">
-              Storage Unit (right) is what stock is tracked in. Purchase Unit (left) is what you buy in.
-              Example: 1 <strong>KG</strong> = <strong>1000</strong> <strong>GR</strong>.
+
+            <div className="flex items-center justify-center gap-2 bg-zinc-950/50 border border-zinc-800/70 rounded-lg py-2.5">
+              <span className="text-xs text-zinc-500 font-mono">1</span>
+              <span className="text-xs font-semibold text-indigo-400">{purchaseUnit || '—'}</span>
+              <span className="text-zinc-600 font-mono">=</span>
+              <Input
+                type="number"
+                value={conversionFactor}
+                onChange={(e) => setConversionFactor(parseFloat(e.target.value) || 1)}
+                className="bg-zinc-900 border-zinc-800 h-7 w-20 text-xs text-center"
+              />
+              <span className="text-xs font-semibold text-emerald-400">{unit || '—'}</span>
+            </div>
+            <p className="text-[9px] text-zinc-500 italic text-center">
+              Conversion rate — how many Storage Units are in 1 Purchase Unit.
             </p>
           </div>
         </div>
