@@ -53,7 +53,11 @@ const SYSTEM_ROLES = [
   { value: 'freight_expense', label: 'Freight/Transport Expense' },
   { value: 'gr_ir_clearing', label: 'GR/IR Clearing (Goods Received Not Invoiced)' },
   { value: 'pph23_payable', label: 'PPH 23 Payable' },
-  { value: 'pph4ayat2_payable', label: 'PPH 4(2) Payable' }
+  { value: 'pph4ayat2_payable', label: 'PPH 4(2) Payable' },
+  { value: 'pos_inventory', label: 'POS Inventory Deduction' },
+  { value: 'opname_inventory', label: 'Opname Inventory Adjustment' },
+  { value: 'opname_variance_expense', label: 'Opname Cost of Variance' },
+  { value: 'opname_waste_expense', label: 'Opname Cost of Food Spoilage/Waste' }
 ]
 
 export default function AccountingSettingsPage() {
