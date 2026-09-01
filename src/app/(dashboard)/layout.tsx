@@ -25,7 +25,10 @@ import {
   CreditCard,
   Tag,
   HelpCircle,
-  FolderKanban
+  FolderKanban,
+  ClipboardCheck,
+  ShoppingCart,
+  PackageCheck
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button, buttonVariants } from '@/components/ui/button'
@@ -60,6 +63,9 @@ const sidebarGroups = [
     name: 'Finance & Procurement',
     roles: ['owner', 'admin', 'finance', 'viewer'],
     items: [
+      { name: 'Requisitions', href: '/purchasing/pr', icon: ClipboardCheck },
+      { name: 'Purchase Orders', href: '/purchasing/po', icon: ShoppingCart },
+      { name: 'Goods Receipt', href: '/purchasing/gr', icon: PackageCheck },
       { name: 'Invoices', href: '/invoices', icon: FileText },
       { name: 'Vendors', href: '/vendors', icon: Building2 },
       { name: 'Accounting', href: '/accounting', icon: BookOpen },
