@@ -984,6 +984,13 @@ export default function InvoiceReviewPage() {
           </div>
         </div>
         <div className="flex gap-3">
+          <Button
+            variant="outline"
+            className="border-zinc-800 bg-zinc-900 text-zinc-300"
+            onClick={() => router.push(`/invoices/${invoice.id}/print`)}
+          >
+            <FileText className="mr-2 h-4 w-4" /> Print
+          </Button>
           {!isPosted && invoice.status === 'rejected' && (
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-red-950/40 border border-red-800/50 text-red-400 text-sm font-medium">
               <XCircle className="h-3.5 w-3.5" /> Rejected
