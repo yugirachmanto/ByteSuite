@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { useOutlet } from '@/lib/contexts/outlet-context'
 import { Button } from '@/components/ui/button'
+import { DatePicker } from '@/components/ui/date-picker'
 import { ArrowLeft, PackagePlus, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatRp } from '@/lib/format'
@@ -130,8 +131,7 @@ export default function ReceiveGoodsPage({ params }: { params: Promise<{ id: str
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
             <label className="block text-xs font-medium text-zinc-300 mb-1.5">Receipt Date</label>
-            <input type="date" value={receiptDate} onChange={(e) => setReceiptDate(e.target.value)}
-              className="w-full sm:w-48 bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-indigo-500" />
+            <DatePicker value={receiptDate} onChange={setReceiptDate} className="sm:w-48" />
           </div>
 
           <div className="space-y-2">

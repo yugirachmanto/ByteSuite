@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { useOutlet } from '@/lib/contexts/outlet-context'
 import { Button } from '@/components/ui/button'
+import { DatePicker } from '@/components/ui/date-picker'
 import { ArrowLeft, Undo2, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -137,8 +138,7 @@ export default function CreateReturnPage({ params }: { params: Promise<{ id: str
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
             <label className="block text-xs font-medium text-zinc-300 mb-1.5">Return Date</label>
-            <input type="date" value={returnDate} onChange={(e) => setReturnDate(e.target.value)}
-              className="w-full sm:w-48 bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-indigo-500" />
+            <DatePicker value={returnDate} onChange={setReturnDate} className="sm:w-48" />
           </div>
 
           <div className="space-y-2">

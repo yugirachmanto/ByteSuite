@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { useOutlet } from '@/lib/contexts/outlet-context'
 import { Button } from '@/components/ui/button'
+import { DatePicker } from '@/components/ui/date-picker'
 import { ArrowLeft, Plus, Trash2, Loader2, ClipboardCheck } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -123,12 +124,7 @@ export default function NewRequisitionPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-zinc-300 mb-1.5">Needed By</label>
-              <input
-                type="date"
-                value={neededByDate}
-                onChange={(e) => setNeededByDate(e.target.value)}
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-indigo-500"
-              />
+              <DatePicker value={neededByDate} onChange={setNeededByDate} />
             </div>
           </div>
 

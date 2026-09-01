@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useOutlet } from '@/lib/contexts/outlet-context'
 import { Button } from '@/components/ui/button'
 import { CoaCombobox } from '@/components/ui/coa-combobox'
+import { DatePicker } from '@/components/ui/date-picker'
 import { ArrowLeft, Plus, Trash2, Loader2, ShoppingCart } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatRp } from '@/lib/format'
@@ -194,13 +195,11 @@ export default function NewPurchaseOrderPage() {
             </div>
             <div>
               <label className="block text-xs font-medium text-zinc-300 mb-1.5">Order Date</label>
-              <input type="date" value={orderDate} onChange={(e) => setOrderDate(e.target.value)}
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-indigo-500" />
+              <DatePicker value={orderDate} onChange={setOrderDate} />
             </div>
             <div>
               <label className="block text-xs font-medium text-zinc-300 mb-1.5">Expected Delivery</label>
-              <input type="date" value={expectedDate} onChange={(e) => setExpectedDate(e.target.value)}
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-indigo-500" />
+              <DatePicker value={expectedDate} onChange={setExpectedDate} placeholder="Optional" />
             </div>
           </div>
 
