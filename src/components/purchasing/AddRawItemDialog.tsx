@@ -59,6 +59,10 @@ export function AddRawItemDialog({ open, onOpenChange, orgId, accounts, onCreate
       toast.error('Item name, storage unit, and purchase unit are required.')
       return
     }
+    if (!defaultCoaId) {
+      toast.error('Default Account is required.')
+      return
+    }
 
     setSaving(true)
     try {
@@ -71,7 +75,7 @@ export function AddRawItemDialog({ open, onOpenChange, orgId, accounts, onCreate
           purchase_unit: purchaseUnit,
           conversion_factor: conversionFactor || 1,
           category: 'raw',
-          default_coa_id: defaultCoaId || null,
+          default_coa_id: defaultCoaId,
           is_inventory: true,
         })
         .select()
@@ -113,8 +117,8 @@ export function AddRawItemDialog({ open, onOpenChange, orgId, accounts, onCreate
           </div>
 
           <div className="space-y-2">
-            <label className="text-xs text-zinc-500 font-medium uppercase">Default Account (Optional)</label>
-            <CoaCombobox coas={accounts} value={defaultCoaId} onChange={setDefaultCoaId} placeholder="No Default Account" />
+            <label className="text-xs text-zinc-500 font-medium uppercase">Default Account</label>
+            <CoaCombobox coas={accounts} value={defaultCoaId} onChange={setDefaultCoaId} placeholder="Select Account…" />
           </div>
 
           <div className="pt-2 border-t border-zinc-800 space-y-3">
@@ -183,7 +187,7 @@ export function AddRawItemDialog({ open, onOpenChange, orgId, accounts, onCreate
           <Button variant="outline" onClick={() => onOpenChange(false)} className="border-zinc-800 bg-zinc-900 text-zinc-300">
             Cancel
           </Button>
-          <Button onClick={handleSave} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+          <Button onClick={handleSave} disabled={saving || !name.trim() || !defaultCoaId} className="bg-emerald-600 hover:bg-emerald-700 text-white">
             {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Save Item
           </Button>
