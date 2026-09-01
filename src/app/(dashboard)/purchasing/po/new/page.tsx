@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
@@ -27,6 +27,14 @@ interface Line {
 }
 
 export default function NewPurchaseOrderPage() {
+  return (
+    <Suspense fallback={null}>
+      <NewPurchaseOrderPageInner />
+    </Suspense>
+  )
+}
+
+function NewPurchaseOrderPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const prId = searchParams.get('pr_id')
