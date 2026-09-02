@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useOutlet } from '@/lib/contexts/outlet-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DatePicker } from '@/components/ui/date-picker'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { 
@@ -195,13 +196,7 @@ export default function NewProductionPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="date">Production Date</Label>
-              <Input
-                id="date"
-                type="date"
-                value={productionDate}
-                onChange={(e) => setProductionDate(e.target.value)}
-                className="bg-zinc-950 border-zinc-800"
-              />
+              <DatePicker value={productionDate} onChange={setProductionDate} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="notes">Notes</Label>
