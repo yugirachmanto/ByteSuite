@@ -24,7 +24,7 @@ import {
 } from '@/components/ui/table'
 import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
-import { Loader2, Plus, Trash2, Save, Store, CreditCard, Layers } from 'lucide-react'
+import { Loader2, Plus, Trash2, Save, Store, CreditCard, Layers, AlertTriangle, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
 
 interface CoaAccount {
@@ -67,6 +67,32 @@ export default function PosMappingSettingsPage() {
   
   const [coaMappings, setCoaMappings] = useState<PosCoaMapping[]>([])
   const [paymentMappings, setPaymentMappings] = useState<PosPaymentMapping[]>([])
+  const [pendingGlCount, setPendingGlCount] = useState(0)
+  const [reposting, setReposting] = useState(false)
+
+  const fetchPendingGlCount = async (currentOrgId: string) => {
+    const { count } = await supabase
+      .from('pos_orders')
+      .select('id', { count: 'exact', head: true })
+      .eq('org_id', currentOrgId)
+      .eq('gl_status', 'pending_mapping')
+    setPendingGlCount(count || 0)
+  }
+
+  const handleRepost = async () => {
+    if (!orgId) return
+    setReposting(true)
+    try {
+      const { data, error } = await supabase.rpc('repost_pending_pos_gl', { p_org_id: orgId })
+      if (error) throw error
+      await fetchPendingGlCount(orgId)
+      toast.success(`${data} penjualan berhasil diposting ke GL.`)
+    } catch (error: any) {
+      toast.error(error.message || 'Gagal memposting ulang GL')
+    } finally {
+      setReposting(false)
+    }
+  }
 
   useEffect(() => {
     async function fetchData() {
@@ -80,11 +106,12 @@ export default function PosMappingSettingsPage() {
           .select('org_id')
           .eq('id', user.id)
           .single()
-        
+
         const currentOrgId = profile?.org_id
         setOrgId(currentOrgId)
 
         if (currentOrgId) {
+          fetchPendingGlCount(currentOrgId)
           // Fetch COA (Active)
           const { data: coaData } = await supabase
             .from('chart_of_accounts')
@@ -288,6 +315,30 @@ export default function PosMappingSettingsPage() {
 
   return (
     <div className="space-y-6">
+      {pendingGlCount > 0 && (
+        <div className="flex items-center justify-between gap-4 rounded-lg border border-amber-900/50 bg-amber-950/30 px-4 py-3">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="h-5 w-5 text-amber-400 shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-amber-300">
+                {pendingGlCount} penjualan POS belum terposting ke jurnal (GL)
+              </p>
+              <p className="text-xs text-amber-400/70">
+                Mapping akun di bawah belum lengkap saat penjualan terjadi — stok &amp; penjualan sudah tercatat, tapi jurnal akuntansinya menunggu. Lengkapi mapping lalu klik tombol ini.
+              </p>
+            </div>
+          </div>
+          <Button
+            onClick={handleRepost}
+            disabled={reposting}
+            className="bg-amber-600 hover:bg-amber-500 text-white gap-2 shrink-0"
+          >
+            {reposting ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+            Post Ulang Sekarang
+          </Button>
+        </div>
+      )}
+
       <Tabs defaultValue="categories" className="space-y-6">
         <div className="flex items-center justify-between border-b border-zinc-800 pb-4">
           <TabsList className="bg-zinc-900 border border-zinc-800">
