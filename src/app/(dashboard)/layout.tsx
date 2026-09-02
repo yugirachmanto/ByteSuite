@@ -28,7 +28,8 @@ import {
   FolderKanban,
   ClipboardCheck,
   ShoppingCart,
-  PackageCheck
+  PackageCheck,
+  Users
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button, buttonVariants } from '@/components/ui/button'
@@ -69,6 +70,7 @@ const sidebarGroups = [
       { name: 'Goods Receipt', href: '/purchasing/gr', icon: PackageCheck },
       { name: 'Invoices', href: '/invoices', icon: FileText },
       { name: 'Vendors', href: '/vendors', icon: Building2 },
+      { name: 'Customers', href: '/customers', icon: Users },
       { name: 'Accounting', href: '/accounting', icon: BookOpen },
       { name: 'Reports', href: '/reports', icon: BarChart3 },
     ]
