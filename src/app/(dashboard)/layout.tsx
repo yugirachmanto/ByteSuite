@@ -29,7 +29,8 @@ import {
   ClipboardCheck,
   ShoppingCart,
   PackageCheck,
-  Users
+  Users,
+  Trash2
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button, buttonVariants } from '@/components/ui/button'
@@ -90,6 +91,7 @@ const sidebarGroups = [
       { name: 'Products', href: '/products', icon: Tag },
       { name: 'Production', href: '/production', icon: Hammer },
       { name: 'Opname', href: '/opname', icon: ClipboardList },
+      { name: 'Waste', href: '/waste', icon: Trash2 },
     ]
   },
   {
