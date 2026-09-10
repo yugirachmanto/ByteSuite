@@ -48,6 +48,7 @@ interface PphRule {
 
 const SYSTEM_ROLES = [
   { value: 'accounts_payable', label: 'Accounts Payable' },
+  { value: 'accounts_receivable', label: 'Accounts Receivable' },
   { value: 'ppn_masukan', label: 'PPN Masukan (Input Tax)' },
   { value: 'ppn_keluaran', label: 'PPN Keluaran (Output Tax)' },
   { value: 'freight_expense', label: 'Freight/Transport Expense' },

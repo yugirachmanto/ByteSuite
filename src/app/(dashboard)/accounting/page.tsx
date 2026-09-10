@@ -142,6 +142,14 @@ export default function AccountingPage() {
       icon: CreditCard,
       color: 'text-red-400',
       bg: 'bg-red-400/10'
+    },
+    {
+      title: 'Accounts Receivable',
+      desc: 'Bill customers and record incoming payments.',
+      href: '/accounting/ar',
+      icon: Receipt,
+      color: 'text-blue-400',
+      bg: 'bg-blue-400/10'
     }
   ]
 
