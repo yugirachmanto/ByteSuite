@@ -71,6 +71,18 @@ const emptyItem: Omit<Item, 'id'> = {
   conversion_factor: 1,
 }
 
+// Category still drives is_inventory's INITIAL suggestion when picking a
+// tier (finished goods default off, everything else on) — but the user
+// can now flip it explicitly via the toggle for items like perishables/
+// supplies that should be expensed directly at purchase instead of
+// tracked as stock.
+const CATEGORY_DEFAULT_IS_INVENTORY: Record<string, boolean> = {
+  raw: true,
+  wip: true,
+  packaging: true,
+  finished: false,
+}
+
 // Auto-fill purchase unit & conversion factor when a known base unit is selected
 const UOM_AUTO_CONVERSIONS: Record<string, { purchase_unit: string; conversion_factor: number }> = {
   GR:  { purchase_unit: 'KG',   conversion_factor: 0.001 },
@@ -132,7 +144,6 @@ export default function ItemsSettingsPage() {
       const payload = {
         ...editItem,
         org_id: profile?.org_id,
-        is_inventory: editItem.category !== 'finished',
       }
 
       if (editItem.id) {
@@ -314,7 +325,13 @@ export default function ItemsSettingsPage() {
         conversion_factor: parseFloat(r.conversion_factor) || 1,
         reorder_level: parseFloat(r.reorder_level) || 0,
         default_coa_id: r.coa_code ? coaMap[r.coa_code] : null,
-        is_inventory: r.category !== 'finished'
+        // Honor an explicit is_inventory column if the CSV has one (e.g.
+        // "false"/"0" for direct-expense perishables/supplies); otherwise
+        // fall back to the old category-based default so existing import
+        // templates keep working unchanged.
+        is_inventory: r.is_inventory !== undefined && r.is_inventory !== ''
+          ? !['false', '0', 'no'].includes(String(r.is_inventory).toLowerCase().trim())
+          : r.category !== 'finished'
       }))
 
       const { error } = await supabase
@@ -539,7 +556,16 @@ export default function ItemsSettingsPage() {
                 <Label>Tier / Category</Label>
                 <select
                   value={editItem.category}
-                  onChange={(e) => setEditItem({ ...editItem, category: e.target.value })}
+                  onChange={(e) => {
+                    const newCategory = e.target.value
+                    setEditItem({
+                      ...editItem,
+                      category: newCategory,
+                      // Only auto-suggest is_inventory for a brand-new item —
+                      // don't silently flip an existing item's deliberate choice.
+                      ...(editItem.id ? {} : { is_inventory: CATEGORY_DEFAULT_IS_INVENTORY[newCategory] ?? true }),
+                    })
+                  }}
                   className="w-full bg-zinc-950 border border-zinc-800 rounded-md px-3 h-9 text-sm text-zinc-100 focus:outline-none"
                 >
                   <option value="raw">Bahan Baku (Raw)</option>
@@ -580,6 +606,22 @@ export default function ItemsSettingsPage() {
               </div>
             </div>
 
+            <div className="flex items-center justify-between p-3 rounded-lg border border-zinc-800 bg-zinc-950/50">
+              <div className="space-y-1 pr-4">
+                <p className="text-sm font-medium text-zinc-200">Track as Inventory</p>
+                <p className="text-xs text-zinc-500">
+                  {editItem.is_inventory
+                    ? 'Purchases add to stock; consumption is tracked via FIFO batches.'
+                    : 'Direct Expense — expensed immediately when purchased, not tracked as stock (e.g. perishables, supplies). No physical count or waste logging applies.'}
+                </p>
+              </div>
+              <Switch
+                checked={editItem.is_inventory}
+                onCheckedChange={(val) => setEditItem({ ...editItem, is_inventory: val })}
+              />
+            </div>
+
+            {editItem.is_inventory && (
             <div className="pt-4 border-t border-zinc-800 space-y-3">
               <Label className="text-[10px] text-zinc-500 uppercase font-bold tracking-widest flex items-center gap-2">
                 UOM Conversion Formula
@@ -629,6 +671,7 @@ export default function ItemsSettingsPage() {
                 Sets how many <strong>{editItem.unit}</strong> are in one <strong>{editItem.purchase_unit || 'Purchase Unit'}</strong>.
               </p>
             </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" className="border-zinc-800" onClick={() => setDialogOpen(false)}>

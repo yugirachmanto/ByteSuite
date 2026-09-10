@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { CoaCombobox } from '@/components/ui/coa-combobox'
+import { Switch } from '@/components/ui/switch'
 import { STANDARD_UOMS } from '@/lib/constants'
 import { Loader2, Layers, ShoppingCart, PackageCheck } from 'lucide-react'
 import { toast } from 'sonner'
@@ -47,6 +48,7 @@ export function AddRawItemDialog({ open, onOpenChange, orgId, accounts, onCreate
   const [purchaseUnit, setPurchaseUnit] = useState('KG')
   const [conversionFactor, setConversionFactor] = useState(1000)
   const [defaultCoaId, setDefaultCoaId] = useState('')
+  const [isInventory, setIsInventory] = useState(true)
 
   const reset = () => {
     setName('')
@@ -54,10 +56,11 @@ export function AddRawItemDialog({ open, onOpenChange, orgId, accounts, onCreate
     setPurchaseUnit('KG')
     setConversionFactor(1000)
     setDefaultCoaId('')
+    setIsInventory(true)
   }
 
   const handleSave = async () => {
-    if (!name.trim() || !unit || !purchaseUnit) {
+    if (!name.trim() || (isInventory && (!unit || !purchaseUnit))) {
       toast.error(t('purchasing.addItemDialog.errRequired'))
       return
     }
@@ -73,12 +76,12 @@ export function AddRawItemDialog({ open, onOpenChange, orgId, accounts, onCreate
         .insert({
           org_id: orgId,
           name: name.trim(),
-          unit,
-          purchase_unit: purchaseUnit,
-          conversion_factor: conversionFactor || 1,
+          unit: isInventory ? unit : (purchaseUnit || 'PCS'),
+          purchase_unit: purchaseUnit || 'PCS',
+          conversion_factor: isInventory ? (conversionFactor || 1) : 1,
           category: 'raw',
           default_coa_id: defaultCoaId,
-          is_inventory: true,
+          is_inventory: isInventory,
         })
         .select()
         .single()
@@ -123,6 +126,17 @@ export function AddRawItemDialog({ open, onOpenChange, orgId, accounts, onCreate
             <CoaCombobox coas={accounts} value={defaultCoaId} onChange={setDefaultCoaId} placeholder={t('purchasing.addItemDialog.selectAccount')} />
           </div>
 
+          <div className="flex items-center justify-between p-2.5 rounded-lg border border-zinc-800 bg-zinc-950/50">
+            <div className="space-y-0.5 pr-4">
+              <p className="text-xs font-medium text-zinc-200">{t('purchasing.addItemDialog.trackInventoryLabel')}</p>
+              <p className="text-[9px] text-zinc-500 leading-snug">
+                {isInventory ? t('purchasing.addItemDialog.trackInventoryHintOn') : t('purchasing.addItemDialog.trackInventoryHintOff')}
+              </p>
+            </div>
+            <Switch checked={isInventory} onCheckedChange={setIsInventory} />
+          </div>
+
+          {isInventory && (
           <div className="pt-2 border-t border-zinc-800 space-y-3">
             <p className="text-[10px] text-zinc-500 uppercase font-bold tracking-widest flex items-center gap-2">
               <Layers className="h-3 w-3 text-blue-500" /> {t('purchasing.addItemDialog.uomSectionTitle')}
@@ -183,6 +197,7 @@ export function AddRawItemDialog({ open, onOpenChange, orgId, accounts, onCreate
               {t('purchasing.addItemDialog.conversionHint')}
             </p>
           </div>
+          )}
         </div>
 
         <DialogFooter>
