@@ -12,6 +12,9 @@ import { ArrowLeft, ShoppingCart, Loader2, PackagePlus, FileText, Undo2, Printer
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { formatRp } from '@/lib/format'
+import { getCurrentUserRole, canAccess } from '@/lib/auth/canAccess'
+
+const WRITE_ROLES = ['owner', 'admin', 'finance']
 
 const STATUS_BADGE: Record<string, string> = {
   draft: 'bg-zinc-800 text-zinc-400 border-zinc-700',
@@ -36,6 +39,11 @@ export default function PurchaseOrderDetailPage({ params }: { params: Promise<{ 
   const [matchedInvoice, setMatchedInvoice] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
+  const [canWrite, setCanWrite] = useState(false)
+
+  useEffect(() => {
+    getCurrentUserRole(supabase).then((role) => setCanWrite(canAccess(role, WRITE_ROLES)))
+  }, [])
 
   const fetchPo = async () => {
     setLoading(true)
@@ -115,13 +123,13 @@ export default function PurchaseOrderDetailPage({ params }: { params: Promise<{ 
           <Button onClick={() => router.push(`/purchasing/po/${poId}/print-packet`)} variant="outline" className="border-zinc-700 text-zinc-300 hover:bg-zinc-800 text-xs gap-1.5">
             <Files className="h-3.5 w-3.5" /> {t('purchasing.print.printPacketButton')}
           </Button>
-          {['draft', 'pending_approval'].includes(po.status) && (
+          {['draft', 'pending_approval'].includes(po.status) && canWrite && (
             <Button onClick={handleApprove} disabled={busy} className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs gap-1.5">
               {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
               {t('purchasing.po.detail.approve')}
             </Button>
           )}
-          {po.status === 'approved' && (
+          {po.status === 'approved' && canWrite && (
             <Button onClick={handleRelease} disabled={busy} className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs gap-1.5">
               {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
               {t('purchasing.po.detail.release')}

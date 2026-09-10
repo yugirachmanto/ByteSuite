@@ -15,6 +15,9 @@ import {
 import { ArrowLeft, ClipboardCheck, Loader2, AlertTriangle, ArrowRight, Printer } from 'lucide-react'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
+import { getCurrentUserRole, canAccess } from '@/lib/auth/canAccess'
+
+const WRITE_ROLES = ['owner', 'admin', 'finance']
 
 const STATUS_BADGE: Record<string, string> = {
   draft: 'bg-zinc-800 text-zinc-400 border-zinc-700',
@@ -36,6 +39,7 @@ export default function RequisitionDetailPage({ params }: { params: Promise<{ id
   const [approving, setApproving] = useState(false)
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false)
   const [rejecting, setRejecting] = useState(false)
+  const [canWrite, setCanWrite] = useState(false)
 
   const fetchPr = async () => {
     setLoading(true)
@@ -51,6 +55,9 @@ export default function RequisitionDetailPage({ params }: { params: Promise<{ id
   }
 
   useEffect(() => { fetchPr() }, [prId])
+  useEffect(() => {
+    getCurrentUserRole(supabase).then((role) => setCanWrite(canAccess(role, WRITE_ROLES)))
+  }, [])
 
   const handleApprove = async () => {
     setApproving(true)
@@ -110,7 +117,7 @@ export default function RequisitionDetailPage({ params }: { params: Promise<{ id
           <Button onClick={() => router.push(`/purchasing/pr/${prId}/print`)} variant="outline" className="border-zinc-700 text-zinc-300 hover:bg-zinc-800 text-xs gap-1.5">
             <Printer className="h-3.5 w-3.5" /> {t('purchasing.print.printButton')}
           </Button>
-          {pr.status === 'pending_approval' && (
+          {pr.status === 'pending_approval' && canWrite && (
             <>
               <Button variant="outline" onClick={() => setRejectDialogOpen(true)} className="border-zinc-700 text-red-400 hover:bg-red-500/10 text-xs">
                 {t('purchasing.pr.detail.reject')}
@@ -121,7 +128,7 @@ export default function RequisitionDetailPage({ params }: { params: Promise<{ id
               </Button>
             </>
           )}
-          {pr.status === 'approved' && (
+          {pr.status === 'approved' && canWrite && (
             <Button
               onClick={() => router.push(`/purchasing/po/new?pr_id=${pr.id}`)}
               className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs gap-1.5"
