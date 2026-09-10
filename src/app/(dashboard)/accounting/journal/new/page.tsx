@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useOutlet } from '@/lib/contexts/outlet-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DatePicker } from '@/components/ui/date-picker'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { 
   Table, 
@@ -149,12 +150,7 @@ export default function NewJournalPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
             <div className="space-y-2">
               <label className="text-sm font-medium text-zinc-400">Transaction Date</label>
-              <Input 
-                type="date" 
-                value={date} 
-                onChange={e => setDate(e.target.value)}
-                className="bg-zinc-950 border-zinc-800 text-zinc-100"
-              />
+              <DatePicker value={date} onChange={setDate} />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium text-zinc-400">Description / Memo</label>

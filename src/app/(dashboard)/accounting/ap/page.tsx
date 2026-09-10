@@ -6,6 +6,7 @@ import { useOutlet } from '@/lib/contexts/outlet-context'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DatePicker } from '@/components/ui/date-picker'
 import { 
   Table, 
   TableBody, 
@@ -478,12 +479,7 @@ export default function APDashboardPage() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <label className="text-xs text-zinc-500 font-medium uppercase">Payment Date</label>
-                <Input 
-                  type="date" 
-                  value={paymentDate} 
-                  onChange={(e) => setPaymentDate(e.target.value)}
-                  className="bg-zinc-900 border-zinc-800 h-10"
-                />
+                <DatePicker value={paymentDate} onChange={setPaymentDate} className="bg-zinc-900" />
               </div>
               <div className="space-y-2">
                 <label className="text-xs text-zinc-500 font-medium uppercase">Pay From (Cash/Bank)</label>

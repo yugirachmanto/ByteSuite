@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useOutlet } from '@/lib/contexts/outlet-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DatePicker } from '@/components/ui/date-picker'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { 
@@ -140,12 +141,7 @@ export default function NewOpnamePage() {
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
             <span className="text-xs text-zinc-500 font-medium uppercase">Date:</span>
-            <Input 
-              type="date" 
-              className="h-9 w-40 bg-zinc-900 border-zinc-800 text-sm" 
-              value={opnameDate}
-              onChange={(e) => setOpnameDate(e.target.value)}
-            />
+            <DatePicker value={opnameDate} onChange={setOpnameDate} className="h-9 w-40 bg-zinc-900" />
           </div>
           <Button 
             className="bg-zinc-100 text-zinc-900 hover:bg-zinc-200"
