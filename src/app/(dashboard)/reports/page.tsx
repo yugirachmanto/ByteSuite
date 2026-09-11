@@ -11,7 +11,7 @@ import {
 import {
   Loader2, Package, FileText, AlertTriangle,
   Download, BarChart3, BookOpen, ArrowUpRight, TrendingUp,
-  DollarSign, Activity, Wallet, Percent, Briefcase, Building2
+  DollarSign, Activity, Wallet, Percent, Briefcase, Building2, ShoppingCart
 } from 'lucide-react'
 import { formatRp, tierColors, tierLabels } from '@/lib/format'
 import { format } from 'date-fns'
@@ -19,6 +19,7 @@ import { id as localeId } from 'date-fns/locale'
 import { generateFinancialPDF, type ReportData, type PnLLineItem } from '@/lib/pdf-generator'
 import { cn } from '@/lib/utils'
 import { COATreeTable } from '@/components/accounting/COATreeTable'
+import { fetchPosSalesSummary, type PosSalesSummary } from '@/lib/pos/salesSummary'
 
 const COLORS = ['#6366f1', '#8b5cf6', '#06b6d4', '#10b981', '#f59e0b', '#ef4444']
 
@@ -27,7 +28,7 @@ export default function ReportsPage() {
   const { selectedOutletId, outlets } = useOutlet()
   const { startDate, endDate } = useDateWindow()
 
-  const [activeTab, setActiveTab] = useState<'summary' | 'purchases' | 'inventory' | 'ledger' | 'profitability'>('summary')
+  const [activeTab, setActiveTab] = useState<'summary' | 'purchases' | 'inventory' | 'ledger' | 'profitability' | 'pos-sales'>('summary')
   const [loading, setLoading] = useState(true)
   const [exporting, setExporting] = useState(false)
   const [orgName, setOrgName] = useState('ByteSuite ERP')
@@ -109,6 +110,11 @@ export default function ReportsPage() {
 
   // Advanced Financial Metrics
   const [financialTrend, setFinancialTrend] = useState<any[]>([])
+
+  // POS Sales tab — fetched independently of the big `loading` gate above
+  // so it doesn't entangle with the unrelated financial-report fetch.
+  const [posSalesSummary, setPosSalesSummary] = useState<PosSalesSummary | null>(null)
+  const [posSalesLoading, setPosSalesLoading] = useState(true)
 
   const selectedOutlet = outlets.find(o => o.id === selectedOutletId)
   const periodLabel = `${format(startDate, 'd MMM yyyy', { locale: localeId })} — ${format(endDate, 'd MMM yyyy', { locale: localeId })}`
@@ -307,6 +313,21 @@ export default function ReportsPage() {
     fetchReports()
   }, [selectedOutletId, orgId, supabase, startDate, endDate])
 
+  useEffect(() => {
+    if (!selectedOutletId) return
+    async function fetchPosSales() {
+      setPosSalesLoading(true)
+      const summary = await fetchPosSalesSummary(supabase, {
+        outletId: selectedOutletId!,
+        startIso: startDate.toISOString(),
+        endIso: endDate.toISOString()
+      })
+      setPosSalesSummary(summary)
+      setPosSalesLoading(false)
+    }
+    fetchPosSales()
+  }, [selectedOutletId, supabase, startDate, endDate])
+
   // ── PDF Export ────────────────────────────────────────────────────────────
   const handleExportPDF = async () => {
     setExporting(true)
@@ -450,6 +471,7 @@ export default function ReportsPage() {
   const tabs = [
     { id: 'summary',       label: 'Executive Summary',    icon: BarChart3 },
     { id: 'profitability', label: 'Profit & EBITDA',      icon: TrendingUp },
+    { id: 'pos-sales',     label: 'Penjualan POS',         icon: ShoppingCart },
     { id: 'purchases',     label: 'Laporan Pembelian',     icon: FileText },
     { id: 'inventory',     label: 'Penilaian Inventori',   icon: Package },
     { id: 'ledger',        label: 'Buku Besar (GL)',        icon: BookOpen },
@@ -1120,6 +1142,81 @@ export default function ReportsPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── POS Sales ─────────────────────────────────────────────── */}
+      {activeTab === 'pos-sales' && (
+        posSalesLoading ? (
+          <div className="flex h-64 items-center justify-center text-zinc-600">
+            <Loader2 className="h-8 w-8 animate-spin" />
+          </div>
+        ) : (
+          <div className="space-y-5">
+            <div className="grid gap-3 grid-cols-2 lg:grid-cols-6">
+              {[
+                { label: 'Penjualan Kotor', value: formatRp(posSalesSummary?.grossSales || 0), icon: ShoppingCart, color: 'text-indigo-400', bg: 'bg-indigo-500/10', border: 'border-indigo-500/20' },
+                { label: 'Diskon', value: formatRp(posSalesSummary?.discountTotal || 0), icon: Percent, color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20' },
+                { label: 'Pajak', value: formatRp(posSalesSummary?.taxTotal || 0), icon: TrendingUp, color: 'text-orange-400', bg: 'bg-orange-500/10', border: 'border-orange-500/20' },
+                { label: 'Total Penjualan', value: formatRp(posSalesSummary?.netSales || 0), icon: DollarSign, color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
+                { label: 'Transaksi', value: String(posSalesSummary?.orderCount || 0), icon: Activity, color: 'text-zinc-100', bg: 'bg-zinc-500/10', border: 'border-zinc-500/20' },
+                { label: 'Dibatalkan', value: `${posSalesSummary?.voidedCount || 0} (${formatRp(posSalesSummary?.voidedAmount || 0)})`, icon: AlertTriangle, color: 'text-red-400', bg: 'bg-red-500/10', border: 'border-red-500/20' },
+              ].map(kpi => (
+                <div key={kpi.label} className={`rounded-xl border ${kpi.border} bg-zinc-900/50 p-4 backdrop-blur-sm`}>
+                  <div className={`mb-3 w-fit rounded-lg p-1.5 ${kpi.bg}`}>
+                    <kpi.icon className={`h-3.5 w-3.5 ${kpi.color}`} />
+                  </div>
+                  <div className={`text-lg font-bold font-mono tracking-tight ${kpi.color}`}>{kpi.value}</div>
+                  <div className="text-[10px] text-zinc-500 font-medium mt-1 uppercase tracking-wider">{kpi.label}</div>
+                </div>
+              ))}
+            </div>
+
+            <div className="grid gap-5 lg:grid-cols-2">
+              <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 overflow-hidden">
+                <div className="px-6 py-4 border-b border-zinc-800/60">
+                  <p className="text-sm font-bold text-zinc-100">Metode Pembayaran</p>
+                  <p className="text-[11px] text-zinc-500">{periodLabel}</p>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <tbody>
+                      {(posSalesSummary?.tenders.length || 0) === 0 ? (
+                        <tr><td className="py-8 text-center text-zinc-600 text-sm">Tidak ada transaksi pada periode ini.</td></tr>
+                      ) : posSalesSummary!.tenders.map((t) => (
+                        <tr key={t.method} className="border-b border-zinc-800/30 last:border-0">
+                          <td className="px-4 py-3 font-medium text-zinc-100">{t.method}</td>
+                          <td className="px-4 py-3 text-right font-mono text-zinc-300">{formatRp(t.amount)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 overflow-hidden">
+                <div className="px-6 py-4 border-b border-zinc-800/60">
+                  <p className="text-sm font-bold text-zinc-100">Item Terlaris</p>
+                  <p className="text-[11px] text-zinc-500">Berdasarkan pendapatan · {periodLabel}</p>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <tbody>
+                      {(posSalesSummary?.topItems.length || 0) === 0 ? (
+                        <tr><td className="py-8 text-center text-zinc-600 text-sm">Tidak ada transaksi pada periode ini.</td></tr>
+                      ) : posSalesSummary!.topItems.map((item, i) => (
+                        <tr key={i} className="border-b border-zinc-800/30 last:border-0">
+                          <td className="px-4 py-3 font-medium text-zinc-100">{item.name}</td>
+                          <td className="px-4 py-3 text-zinc-500 text-xs text-right">x{item.qty}</td>
+                          <td className="px-4 py-3 text-right font-mono font-bold text-zinc-100">{formatRp(item.revenue)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        )
       )}
     </div>
   )
