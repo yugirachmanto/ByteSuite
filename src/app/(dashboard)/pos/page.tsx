@@ -7,11 +7,13 @@ import { useOutlet } from '@/lib/contexts/outlet-context'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Plus, Minus, Search, Trash2, CreditCard, Loader2, ShoppingCart, Ban, CheckCircle2, Printer, Monitor } from 'lucide-react'
+import { Plus, Minus, Search, Trash2, CreditCard, Loader2, ShoppingCart, Ban, CheckCircle2, Printer, Monitor, Clock, LogOut, Wallet } from 'lucide-react'
 import { formatRp } from '@/lib/format'
 import { toast } from 'sonner'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Textarea } from '@/components/ui/textarea'
+import { format } from 'date-fns'
 
 interface Product {
   id: string
@@ -45,6 +47,17 @@ export default function POSPage() {
   const [bankInfo, setBankInfo] = useState({ bankName: '', bankAccountNumber: '', bankAccountHolder: '' })
   const [posEnabled, setPosEnabled] = useState(true)
   const cfdChannelRef = useRef<RealtimeChannel | null>(null)
+
+  const [shift, setShift] = useState<{ id: string; opened_at: string; opening_float: number } | null>(null)
+  const [shiftLoading, setShiftLoading] = useState(true)
+  const [openingFloat, setOpeningFloat] = useState('')
+  const [openingNotes, setOpeningNotes] = useState('')
+  const [openingShift, setOpeningShift] = useState(false)
+  const [closeShiftOpen, setCloseShiftOpen] = useState(false)
+  const [cashSalesSoFar, setCashSalesSoFar] = useState(0)
+  const [countedCash, setCountedCash] = useState('')
+  const [closingNotes, setClosingNotes] = useState('')
+  const [closingShift, setClosingShift] = useState(false)
 
   const outletName = outlets.find(o => o.id === selectedOutletId)?.name || 'ByteSuite'
 
@@ -91,6 +104,100 @@ export default function POSPage() {
     if (!selectedOutletId) return
     window.open(`/pos/customer?outlet=${selectedOutletId}`, '_blank')
   }
+
+  const fetchShift = async () => {
+    if (!selectedOutletId) return
+    setShiftLoading(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { setShiftLoading(false); return }
+
+    const { data } = await supabase
+      .from('pos_shifts')
+      .select('id, opened_at, opening_float')
+      .eq('cashier_id', user.id)
+      .eq('outlet_id', selectedOutletId)
+      .eq('status', 'open')
+      .maybeSingle()
+
+    setShift(data)
+    setShiftLoading(false)
+  }
+
+  useEffect(() => { fetchShift() }, [selectedOutletId])
+
+  const handleOpenShift = async () => {
+    const floatAmount = parseFloat(openingFloat)
+    if (isNaN(floatAmount) || floatAmount < 0) {
+      toast.error('Enter a valid opening cash amount')
+      return
+    }
+    setOpeningShift(true)
+    try {
+      const res = await fetch('/api/pos/shift/open', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ outlet_id: selectedOutletId, opening_float: floatAmount, notes: openingNotes || null })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to open shift')
+
+      toast.success('Shift opened')
+      setOpeningFloat('')
+      setOpeningNotes('')
+      fetchShift()
+    } catch (error: any) {
+      toast.error(error.message)
+    } finally {
+      setOpeningShift(false)
+    }
+  }
+
+  const openCloseShiftDialog = async () => {
+    if (!shift) return
+    const { data } = await supabase
+      .from('pos_orders')
+      .select('total_amount')
+      .eq('shift_id', shift.id)
+      .eq('status', 'completed')
+      .ilike('payment_method', 'cash')
+
+    const sum = (data || []).reduce((s, o) => s + (o.total_amount || 0), 0)
+    setCashSalesSoFar(sum)
+    setCountedCash('')
+    setClosingNotes('')
+    setCloseShiftOpen(true)
+  }
+
+  const handleCloseShift = async () => {
+    if (!shift) return
+    const counted = parseFloat(countedCash)
+    if (isNaN(counted) || counted < 0) {
+      toast.error('Enter a valid counted cash amount')
+      return
+    }
+    setClosingShift(true)
+    try {
+      const res = await fetch('/api/pos/shift/close', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ shift_id: shift.id, counted_cash: counted, notes: closingNotes || null })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to close shift')
+
+      toast.success('Shift closed')
+      setCloseShiftOpen(false)
+      setShift(null)
+      fetchShift()
+    } catch (error: any) {
+      toast.error(error.message)
+    } finally {
+      setClosingShift(false)
+    }
+  }
+
+  const expectedCash = (shift?.opening_float || 0) + cashSalesSoFar
+  const liveVariance = countedCash ? parseFloat(countedCash) - expectedCash : 0
 
   useEffect(() => {
     if (!selectedOutletId) return
@@ -260,6 +367,52 @@ export default function POSPage() {
     )
   }
 
+  if (!shiftLoading && !shift) {
+    return (
+      <div className="flex flex-col h-[calc(100vh-8rem)] -mt-2">
+        <div className="mb-4">
+          <h2 className="text-2xl font-bold text-zinc-100">Point of Sale</h2>
+          <p className="text-sm text-zinc-400">Open a shift to start selling</p>
+        </div>
+        <div className="flex-1 flex items-center justify-center">
+          <div className="w-full max-w-sm bg-zinc-900 border border-zinc-800 rounded-xl p-6 space-y-5">
+            <div className="text-center space-y-1">
+              <Clock className="h-8 w-8 text-indigo-400 mx-auto" />
+              <h3 className="text-lg font-semibold text-zinc-100">Open Shift</h3>
+              <p className="text-xs text-zinc-500">Count your starting cash drawer before ringing up sales.</p>
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs text-zinc-500 font-medium uppercase">Opening Cash Float</label>
+              <Input
+                type="number"
+                value={openingFloat}
+                onChange={(e) => setOpeningFloat(e.target.value)}
+                placeholder="0"
+                className="bg-zinc-950 border-zinc-800 h-11 text-base"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs text-zinc-500 font-medium uppercase">Notes (optional)</label>
+              <Textarea
+                value={openingNotes}
+                onChange={(e) => setOpeningNotes(e.target.value)}
+                className="bg-zinc-950 border-zinc-800"
+              />
+            </div>
+            <Button
+              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white h-11"
+              onClick={handleOpenShift}
+              disabled={openingShift || !openingFloat}
+            >
+              {openingShift ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wallet className="mr-2 h-4 w-4" />}
+              Start Shift
+            </Button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col h-[calc(100vh-8rem)] -mt-2">
       <div className="flex justify-between items-center mb-4">
@@ -267,14 +420,31 @@ export default function POSPage() {
           <h2 className="text-2xl font-bold text-zinc-100">Point of Sale</h2>
           <p className="text-sm text-zinc-400">Process retail transactions</p>
         </div>
-        <Button
-          variant="outline"
-          className="border-zinc-800 bg-zinc-900 text-zinc-300 hover:bg-zinc-800"
-          onClick={openCustomerDisplay}
-          disabled={!selectedOutletId}
-        >
-          <Monitor className="mr-2 h-4 w-4" /> Open Customer Display
-        </Button>
+        <div className="flex items-center gap-2">
+          {shift && (
+            <>
+              <div className="hidden sm:flex items-center gap-1.5 text-xs text-zinc-400 bg-zinc-900 border border-zinc-800 rounded-md px-3 h-9">
+                <Clock className="h-3.5 w-3.5 text-indigo-400" />
+                Shift open since {format(new Date(shift.opened_at), 'HH:mm')} · Float {formatRp(shift.opening_float)}
+              </div>
+              <Button
+                variant="outline"
+                className="border-zinc-800 bg-zinc-900 text-zinc-300 hover:bg-zinc-800"
+                onClick={openCloseShiftDialog}
+              >
+                <LogOut className="mr-2 h-4 w-4" /> Close Shift
+              </Button>
+            </>
+          )}
+          <Button
+            variant="outline"
+            className="border-zinc-800 bg-zinc-900 text-zinc-300 hover:bg-zinc-800"
+            onClick={openCustomerDisplay}
+            disabled={!selectedOutletId}
+          >
+            <Monitor className="mr-2 h-4 w-4" /> Open Customer Display
+          </Button>
+        </div>
       </div>
 
       <div className="flex gap-6 h-full flex-1 min-h-0">
@@ -487,6 +657,71 @@ export default function POSPage() {
               </DialogFooter>
             </>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={closeShiftOpen} onOpenChange={setCloseShiftOpen}>
+        <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-xl">Close Shift</DialogTitle>
+          </DialogHeader>
+
+          <div className="py-4 space-y-4">
+            <div className="rounded-lg bg-zinc-950 border border-zinc-800 p-4 space-y-2 text-sm">
+              <div className="flex justify-between text-zinc-400">
+                <span>Opening Float</span>
+                <span className="text-zinc-200">{formatRp(shift?.opening_float || 0)}</span>
+              </div>
+              <div className="flex justify-between text-zinc-400">
+                <span>Cash Sales This Shift</span>
+                <span className="text-zinc-200">{formatRp(cashSalesSoFar)}</span>
+              </div>
+              <div className="flex justify-between font-semibold pt-2 border-t border-zinc-800">
+                <span className="text-zinc-300">Expected Cash</span>
+                <span className="text-indigo-400">{formatRp(expectedCash)}</span>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs text-zinc-500 font-medium uppercase">Counted Cash</label>
+              <Input
+                type="number"
+                value={countedCash}
+                onChange={(e) => setCountedCash(e.target.value)}
+                placeholder="0"
+                className="bg-zinc-950 border-zinc-800 h-11 text-base"
+              />
+            </div>
+
+            {countedCash && (
+              <div className={`text-sm font-medium text-center rounded-lg py-2 ${liveVariance === 0 ? 'bg-emerald-950/30 text-emerald-400' : 'bg-amber-950/30 text-amber-400'}`}>
+                {liveVariance === 0 ? 'Balanced' : liveVariance > 0 ? `Over by ${formatRp(liveVariance)}` : `Short by ${formatRp(Math.abs(liveVariance))}`}
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <label className="text-xs text-zinc-500 font-medium uppercase">Notes (optional)</label>
+              <Textarea
+                value={closingNotes}
+                onChange={(e) => setClosingNotes(e.target.value)}
+                className="bg-zinc-950 border-zinc-800"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" className="border-zinc-700 text-zinc-300 hover:bg-zinc-800" onClick={() => setCloseShiftOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              className="bg-red-600 hover:bg-red-700 text-white"
+              onClick={handleCloseShift}
+              disabled={closingShift || !countedCash}
+            >
+              {closingShift ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <LogOut className="h-4 w-4 mr-2" />}
+              Close Shift
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
