@@ -58,6 +58,21 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Forbidden: outlet does not belong to your organization' }, { status: 403 })
     }
 
+    // Never trust a client-supplied shift id — look up the caller's own
+    // open shift at this outlet server-side, same reasoning as
+    // recalculating prices below instead of trusting the cart.
+    const { data: shift } = await supabase
+      .from('pos_shifts')
+      .select('id')
+      .eq('cashier_id', user.id)
+      .eq('outlet_id', outlet_id)
+      .eq('status', 'open')
+      .maybeSingle()
+
+    if (!shift) {
+      return NextResponse.json({ error: 'No open shift — open a shift before selling' }, { status: 403 })
+    }
+
     // 1. Calculate totals securely on the backend (don't trust frontend prices entirely, but for MVP we will use the prices from the DB if possible, or accept frontend if this is a closed system). 
     // Here we will do a simple recalculation based on product_prices to be safe.
     const itemIds = lines.map((l: any) => l.item_id)
@@ -102,7 +117,8 @@ export async function POST(request: Request) {
       p_subtotal: subtotal,
       p_tax_amount: tax_amount,
       p_total_amount: total_amount,
-      p_lines: processedLines
+      p_lines: processedLines,
+      p_shift_id: shift.id
     })
 
     if (rpcError) {

@@ -58,7 +58,8 @@ const SYSTEM_ROLES = [
   { value: 'pos_inventory', label: 'POS Inventory Deduction' },
   { value: 'opname_inventory', label: 'Opname Inventory Adjustment' },
   { value: 'opname_variance_expense', label: 'Opname Cost of Variance' },
-  { value: 'opname_waste_expense', label: 'Opname Cost of Food Spoilage/Waste' }
+  { value: 'opname_waste_expense', label: 'Opname Cost of Food Spoilage/Waste' },
+  { value: 'shift_cash_variance', label: 'Cash Over/Short (Shift Variance)' }
 ]
 
 export default function AccountingSettingsPage() {
