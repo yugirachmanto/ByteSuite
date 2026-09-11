@@ -36,6 +36,7 @@ import { Search, Loader2, Plus, ArrowLeft, ArrowRight, ArrowRightLeft, BookOpen,
 import { STANDARD_UOMS } from '@/lib/constants'
 import { formatRp } from '@/lib/format'
 import { getSignedFileUrl } from '@/lib/storage'
+import { ProcurementTracker } from '@/components/procurement/ProcurementTracker'
 
 const UOM_AUTO_CONVERSIONS: Record<string, { purchase_unit: string; conversion_factor: number }> = {
   GR:  { purchase_unit: 'KG',   conversion_factor: 0.001 },
@@ -1049,6 +1050,8 @@ export default function InvoiceReviewPage() {
           )}
         </div>
       </div>
+
+      {invoice.po_id && <ProcurementTracker poId={invoice.po_id} />}
 
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
         {/* Left: Invoice Image */}

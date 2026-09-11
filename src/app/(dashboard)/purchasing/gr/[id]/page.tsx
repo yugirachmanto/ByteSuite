@@ -16,6 +16,7 @@ import { ArrowLeft, PackageCheck, Loader2, AlertTriangle, Undo2, Printer } from 
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { formatRp } from '@/lib/format'
+import { ProcurementTracker } from '@/components/procurement/ProcurementTracker'
 
 export default function GoodsReceiptDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: grId } = use(params)
@@ -105,6 +106,8 @@ export default function GoodsReceiptDetailPage({ params }: { params: Promise<{ i
           )}
         </div>
       </div>
+
+      <ProcurementTracker poId={gr.po_id} />
 
       {gr.notes && <p className="text-sm text-zinc-400">{gr.notes}</p>}
 

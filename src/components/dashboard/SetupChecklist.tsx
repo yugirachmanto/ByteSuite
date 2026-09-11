@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { CheckCircle2, Circle, X, Landmark, Bot, Package, FileCheck } from 'lucide-react'
+import { CheckCircle2, Circle, X, Package, Building2, Layers, Tag, Boxes, Truck, Users, Landmark } from 'lucide-react'
 
 interface ChecklistItem {
   key: string
@@ -13,9 +13,9 @@ interface ChecklistItem {
   done: boolean
 }
 
-// Four genuinely load-bearing setup steps — deliberately leaves out situational
-// ones (team invites, extra outlets, payment/QRIS details) that aren't
-// universal blockers. See the "Setup Ledger" onboarding plan for the full list.
+// One reminder per onboarding wizard step (src/app/onboarding) — completion is
+// derived from data existing, not a stored progress flag, so a step finished
+// via the regular app (not the wizard) still correctly shows as done here.
 export function SetupChecklist() {
   const supabase = createClient()
   const [loading, setLoading] = useState(true)
@@ -44,18 +44,26 @@ export function SetupChecklist() {
         if (dismissedOrgId === currentOrgId) setDismissed(true)
       } catch { /* localStorage unavailable, e.g. private browsing */ }
 
-      const [mappingRes, integrationRes, itemRes, invoiceRes] = await Promise.all([
-        supabase.from('default_coa_mappings').select('id', { count: 'exact', head: true }).eq('org_id', currentOrgId).eq('account_role', 'accounts_payable'),
-        supabase.from('user_integrations').select('id', { count: 'exact', head: true }).eq('user_id', user.id).eq('provider', 'openai').eq('is_active', true),
-        supabase.from('item_master').select('id', { count: 'exact', head: true }).eq('org_id', currentOrgId),
-        supabase.from('invoices').select('id, outlet_id, outlets!inner(org_id)', { count: 'exact', head: true }).eq('outlets.org_id', currentOrgId).eq('status', 'posted'),
+      const [itemRes, outletRes, wipRes, productRes, invRes, vendorRes, userRes, mapRes] = await Promise.all([
+        supabase.from('item_master').select('id', { count: 'exact', head: true }).eq('org_id', currentOrgId).in('category', ['raw', 'packaging']),
+        supabase.from('outlets').select('id', { count: 'exact', head: true }).eq('org_id', currentOrgId),
+        supabase.from('item_master').select('id', { count: 'exact', head: true }).eq('org_id', currentOrgId).eq('category', 'wip'),
+        supabase.from('item_master').select('id', { count: 'exact', head: true }).eq('org_id', currentOrgId).eq('category', 'finished'),
+        supabase.from('inventory_balance').select('outlet_id, outlets!inner(org_id)', { count: 'exact', head: true }).eq('outlets.org_id', currentOrgId).gt('qty_on_hand', 0),
+        supabase.from('vendors').select('id', { count: 'exact', head: true }).eq('org_id', currentOrgId),
+        supabase.from('user_profiles').select('id', { count: 'exact', head: true }).eq('org_id', currentOrgId),
+        supabase.from('default_coa_mappings').select('id', { count: 'exact', head: true }).eq('org_id', currentOrgId),
       ])
 
       setItems([
-        { key: 'mappings', label: 'Set up Account Mappings', href: '/settings/accounting', icon: Landmark, done: (mappingRes.count || 0) > 0 },
-        { key: 'ai', label: 'Connect AI extraction', href: '/integrations', icon: Bot, done: (integrationRes.count || 0) > 0 },
-        { key: 'items', label: 'Add your first item', href: '/products/new', icon: Package, done: (itemRes.count || 0) > 0 },
-        { key: 'invoice', label: 'Post your first invoice', href: '/invoices/upload', icon: FileCheck, done: (invoiceRes.count || 0) > 0 },
+        { key: 'items', label: 'Add raw materials & packaging', href: '/onboarding?step=1', icon: Package, done: (itemRes.count || 0) > 0 },
+        { key: 'outlets', label: 'Add additional locations', href: '/onboarding?step=2', icon: Building2, done: (outletRes.count || 0) > 1 },
+        { key: 'wip', label: 'Define WIP recipes', href: '/onboarding?step=3', icon: Layers, done: (wipRes.count || 0) > 0 },
+        { key: 'products', label: 'Define products & menu', href: '/onboarding?step=4', icon: Tag, done: (productRes.count || 0) > 0 },
+        { key: 'beginning_inventory', label: 'Set beginning inventory', href: '/onboarding?step=5', icon: Boxes, done: (invRes.count || 0) > 0 },
+        { key: 'vendors', label: 'Add vendors', href: '/onboarding?step=6', icon: Truck, done: (vendorRes.count || 0) > 0 },
+        { key: 'invite_team', label: 'Invite your team', href: '/onboarding?step=7', icon: Users, done: (userRes.count || 0) > 1 },
+        { key: 'coa_mapping', label: 'Review account mappings', href: '/onboarding?step=8', icon: Landmark, done: (mapRes.count || 0) >= 4 },
       ])
       setLoading(false)
     }
@@ -89,7 +97,7 @@ export function SetupChecklist() {
         <span className="text-xs font-medium text-zinc-500">{doneCount} of {items.length} done</span>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
         {items.map(item => {
           const Icon = item.icon
           return (

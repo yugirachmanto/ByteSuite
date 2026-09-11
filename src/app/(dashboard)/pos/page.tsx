@@ -6,7 +6,7 @@ import { useOutlet } from '@/lib/contexts/outlet-context'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Plus, Minus, Search, Trash2, CreditCard, Loader2, ShoppingCart } from 'lucide-react'
+import { Plus, Minus, Search, Trash2, CreditCard, Loader2, ShoppingCart, Ban, CheckCircle2, Printer } from 'lucide-react'
 import { formatRp } from '@/lib/format'
 import { toast } from 'sonner'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
@@ -37,9 +37,12 @@ export default function POSPage() {
   const [paymentMethod, setPaymentMethod] = useState('')
   const [paymentMethods, setPaymentMethods] = useState<string[]>(['Cash', 'Card', 'QRIS'])
   const [processing, setProcessing] = useState(false)
+  const [checkoutStep, setCheckoutStep] = useState<'payment' | 'success'>('payment')
+  const [lastOrderId, setLastOrderId] = useState<string | null>(null)
   const [taxRate, setTaxRate] = useState(0)
   const [qrisImageUrl, setQrisImageUrl] = useState('')
   const [bankInfo, setBankInfo] = useState({ bankName: '', bankAccountNumber: '', bankAccountHolder: '' })
+  const [posEnabled, setPosEnabled] = useState(true)
 
   const outletName = outlets.find(o => o.id === selectedOutletId)?.name || 'ByteSuite'
 
@@ -87,7 +90,7 @@ export default function POSPage() {
         if (profile?.org_id) {
           const { data: orgData, error: orgErr } = await supabase
             .from('organizations')
-            .select('pos_tax_rate, qris_image_url, bank_name, bank_account_number, bank_account_holder')
+            .select('pos_tax_rate, qris_image_url, bank_name, bank_account_number, bank_account_holder, pos_enabled')
             .eq('id', profile.org_id)
             .single()
 
@@ -99,6 +102,7 @@ export default function POSPage() {
               bankAccountNumber: orgData.bank_account_number || '',
               bankAccountHolder: orgData.bank_account_holder || ''
             })
+            setPosEnabled(orgData.pos_enabled ?? true)
           }
         }
 
@@ -201,19 +205,42 @@ export default function POSPage() {
       if (!res.ok) throw new Error(data.error || 'Failed to checkout')
 
       toast.success('Transaction completed successfully!')
-      
+
       const bc = new BroadcastChannel('pos-channel')
       bc.postMessage({ type: 'CHECKOUT_SUCCESS' })
       bc.close()
-      
+
       setCart([])
-      setIsCheckoutOpen(false)
-      setPaymentMethod('')
+      setLastOrderId(data.order_id)
+      setCheckoutStep('success')
     } catch (error: any) {
       toast.error(error.message)
     } finally {
       setProcessing(false)
     }
+  }
+
+  const handlePrintReceipt = () => {
+    if (lastOrderId) window.open(`/pos/receipt/${lastOrderId}`, '_blank')
+  }
+
+  const startNewSale = () => {
+    setIsCheckoutOpen(false)
+    setCheckoutStep('payment')
+    setPaymentMethod('')
+    setLastOrderId(null)
+  }
+
+  if (!loading && !posEnabled) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[calc(100vh-8rem)] -mt-2 rounded-xl border border-dashed border-zinc-800 bg-zinc-900/30 text-center px-6">
+        <Ban className="h-10 w-10 text-zinc-600 mb-4" />
+        <h2 className="text-lg font-semibold text-zinc-200">POS is disabled for this organization</h2>
+        <p className="text-sm text-zinc-500 mt-1 max-w-sm">
+          An owner or admin can re-enable it from Settings → System.
+        </p>
+      </div>
+    )
   }
 
   return (
@@ -368,46 +395,73 @@ export default function POSPage() {
         </div>
       </div>
 
-      <Dialog open={isCheckoutOpen} onOpenChange={setIsCheckoutOpen}>
+      <Dialog open={isCheckoutOpen} onOpenChange={(open) => { if (!open) startNewSale(); else setIsCheckoutOpen(true) }}>
         <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-xl">Complete Payment</DialogTitle>
-          </DialogHeader>
-          
-          <div className="py-6 space-y-6">
-            <div className="text-center p-6 bg-zinc-950 rounded-xl border border-zinc-800">
-              <p className="text-sm text-zinc-400 mb-1">Total Amount Due</p>
-              <h3 className="text-4xl font-bold text-emerald-400 tracking-tight">{formatRp(total)}</h3>
-            </div>
+          {checkoutStep === 'success' ? (
+            <>
+              <DialogHeader>
+                <DialogTitle className="text-xl">Payment Successful</DialogTitle>
+              </DialogHeader>
 
-            <div className="space-y-3">
-              <label className="text-sm font-medium text-zinc-400">Payment Method</label>
-              <Select value={paymentMethod} onValueChange={(val: any) => setPaymentMethod(val || '')}>
-                <SelectTrigger className="w-full bg-zinc-950 border-zinc-800 h-12 text-base">
-                  <SelectValue placeholder="Select method" />
-                </SelectTrigger>
-                <SelectContent className="bg-zinc-900 border-zinc-800">
-                  {paymentMethods.map(method => (
-                    <SelectItem key={method} value={method}>{method}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+              <div className="py-6 space-y-6">
+                <div className="text-center p-6 bg-zinc-950 rounded-xl border border-zinc-800 flex flex-col items-center gap-2">
+                  <CheckCircle2 className="h-12 w-12 text-emerald-500" />
+                  <p className="text-sm text-zinc-400">Total Charged</p>
+                  <h3 className="text-3xl font-bold text-emerald-400 tracking-tight">{formatRp(total)}</h3>
+                </div>
+              </div>
 
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="outline" className="border-zinc-700 text-zinc-300 hover:bg-zinc-800" onClick={() => setIsCheckoutOpen(false)}>
-              Cancel
-            </Button>
-            <Button 
-              className="bg-emerald-600 hover:bg-emerald-700 text-white" 
-              onClick={handleCheckout}
-              disabled={!paymentMethod || processing}
-            >
-              {processing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CreditCard className="h-4 w-4 mr-2" />}
-              Confirm Payment
-            </Button>
-          </DialogFooter>
+              <DialogFooter className="gap-2 sm:gap-0">
+                <Button variant="outline" className="border-zinc-700 text-zinc-300 hover:bg-zinc-800" onClick={handlePrintReceipt}>
+                  <Printer className="h-4 w-4 mr-2" /> Print Receipt
+                </Button>
+                <Button className="bg-indigo-600 hover:bg-indigo-700 text-white" onClick={startNewSale}>
+                  New Sale
+                </Button>
+              </DialogFooter>
+            </>
+          ) : (
+            <>
+              <DialogHeader>
+                <DialogTitle className="text-xl">Complete Payment</DialogTitle>
+              </DialogHeader>
+
+              <div className="py-6 space-y-6">
+                <div className="text-center p-6 bg-zinc-950 rounded-xl border border-zinc-800">
+                  <p className="text-sm text-zinc-400 mb-1">Total Amount Due</p>
+                  <h3 className="text-4xl font-bold text-emerald-400 tracking-tight">{formatRp(total)}</h3>
+                </div>
+
+                <div className="space-y-3">
+                  <label className="text-sm font-medium text-zinc-400">Payment Method</label>
+                  <Select value={paymentMethod} onValueChange={(val: any) => setPaymentMethod(val || '')}>
+                    <SelectTrigger className="w-full bg-zinc-950 border-zinc-800 h-12 text-base">
+                      <SelectValue placeholder="Select method" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-zinc-900 border-zinc-800">
+                      {paymentMethods.map(method => (
+                        <SelectItem key={method} value={method}>{method}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <DialogFooter className="gap-2 sm:gap-0">
+                <Button variant="outline" className="border-zinc-700 text-zinc-300 hover:bg-zinc-800" onClick={() => setIsCheckoutOpen(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                  onClick={handleCheckout}
+                  disabled={!paymentMethod || processing}
+                >
+                  {processing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CreditCard className="h-4 w-4 mr-2" />}
+                  Confirm Payment
+                </Button>
+              </DialogFooter>
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </div>

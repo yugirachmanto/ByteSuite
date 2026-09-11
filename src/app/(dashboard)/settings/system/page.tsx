@@ -7,8 +7,9 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
-import { AlertTriangle, Loader2, ShieldAlert, Trash2, CheckCircle2, XCircle, CreditCard } from 'lucide-react'
+import { AlertTriangle, Loader2, ShieldAlert, Trash2, CheckCircle2, XCircle, CreditCard, Receipt } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 export default function SystemResetPage() {
   const supabase = createClient()
@@ -20,6 +21,8 @@ export default function SystemResetPage() {
   const [confirmText, setConfirmText] = useState('')
   const [posEnabled, setPosEnabled] = useState(true)
   const [savingModule, setSavingModule] = useState(false)
+  const [receiptPaperWidth, setReceiptPaperWidth] = useState<'58mm' | '80mm'>('58mm')
+  const [savingPaperWidth, setSavingPaperWidth] = useState(false)
   
   useEffect(() => {
     async function checkRole() {
@@ -33,14 +36,15 @@ export default function SystemResetPage() {
 
       const { data: profile } = await supabase
         .from('user_profiles')
-        .select('org_id, role, organizations(pos_enabled)')
+        .select('org_id, role, organizations(pos_enabled, receipt_paper_width)')
         .eq('id', user.id)
         .single()
-      
+
       if (profile) {
         setUserProfile(profile)
         const orgData = profile.organizations as any
         setPosEnabled(orgData?.pos_enabled ?? true)
+        setReceiptPaperWidth((orgData?.receipt_paper_width as '58mm' | '80mm') || '58mm')
       }
       setLoading(false)
     }
@@ -65,6 +69,26 @@ export default function SystemResetPage() {
       toast.error(err.message || 'Failed to update module configuration', { id: toastId })
     } finally {
       setSavingModule(false)
+    }
+  }
+
+  const updatePaperWidth = async (value: '58mm' | '80mm') => {
+    if (!userProfile) return
+    setSavingPaperWidth(true)
+    const toastId = toast.loading('Updating receipt settings...')
+    try {
+      const { error } = await supabase
+        .from('organizations')
+        .update({ receipt_paper_width: value })
+        .eq('id', userProfile.org_id)
+
+      if (error) throw error
+      setReceiptPaperWidth(value)
+      toast.success('Default receipt paper width updated.', { id: toastId })
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update receipt settings', { id: toastId })
+    } finally {
+      setSavingPaperWidth(false)
     }
   }
 
@@ -158,11 +182,35 @@ export default function SystemResetPage() {
           </div>
           <div className="flex items-center gap-3">
             {savingModule && <Loader2 className="h-4 w-4 animate-spin text-zinc-500" />}
-            <Switch 
+            <Switch
               checked={posEnabled}
               onCheckedChange={togglePosModule}
               disabled={savingModule}
             />
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between p-4 rounded-lg bg-zinc-950/50 border border-zinc-800/40 mt-3">
+          <div className="flex items-center gap-4">
+            <div className="p-2 rounded-lg bg-blue-500/10 text-blue-400">
+              <Receipt className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-zinc-200">Receipt Paper Width</p>
+              <p className="text-xs text-zinc-500 mt-0.5">Default thermal paper size for POS receipts. Cashiers can override per print.</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            {savingPaperWidth && <Loader2 className="h-4 w-4 animate-spin text-zinc-500" />}
+            <Select value={receiptPaperWidth} onValueChange={(val: any) => val && updatePaperWidth(val)}>
+              <SelectTrigger className="w-24 bg-zinc-900 border-zinc-800 text-zinc-100 h-9" disabled={savingPaperWidth}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-zinc-900 border-zinc-800">
+                <SelectItem value="58mm">58mm</SelectItem>
+                <SelectItem value="80mm">80mm</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
       </div>

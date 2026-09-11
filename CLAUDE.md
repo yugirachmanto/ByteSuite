@@ -320,9 +320,6 @@ Every list/table page needs an empty state with a contextual CTA. Never show a b
 
 ## Out of scope (do not build)
 
-- POS / sales integration
-- Supplier management module
-- Purchase order workflow
 - Email or push notifications
 - Native mobile app
 - Multi-currency support

@@ -16,6 +16,7 @@ import { ArrowLeft, ClipboardCheck, Loader2, AlertTriangle, ArrowRight, Printer 
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { getCurrentUserRole, canAccess } from '@/lib/auth/canAccess'
+import { ProcurementTracker } from '@/components/procurement/ProcurementTracker'
 
 const WRITE_ROLES = ['owner', 'admin', 'finance']
 
@@ -35,6 +36,7 @@ export default function RequisitionDetailPage({ params }: { params: Promise<{ id
 
   const [pr, setPr] = useState<any>(null)
   const [lines, setLines] = useState<any[]>([])
+  const [linkedPos, setLinkedPos] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [approving, setApproving] = useState(false)
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false)
@@ -51,6 +53,10 @@ export default function RequisitionDetailPage({ params }: { params: Promise<{ id
       .select('*, item_master(name)')
       .eq('pr_id', prId)
     setLines(lineData || [])
+
+    const { data: poData } = await supabase.from('purchase_orders').select('id, po_number').eq('pr_id', prId).order('created_at', { ascending: false })
+    setLinkedPos(poData || [])
+
     setLoading(false)
   }
 
@@ -140,6 +146,18 @@ export default function RequisitionDetailPage({ params }: { params: Promise<{ id
       </div>
 
       {pr.notes && <p className="text-sm text-zinc-400">{pr.notes}</p>}
+
+      {linkedPos.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-zinc-800 bg-zinc-900/30 px-4 py-3 text-xs text-zinc-500">
+          Not yet converted to a Purchase Order.
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {linkedPos.map((po) => (
+            <ProcurementTracker key={po.id} poId={po.id} label={linkedPos.length > 1 ? (po.po_number || 'Draft PO') : undefined} />
+          ))}
+        </div>
+      )}
 
       <div className="rounded-lg border border-zinc-800 bg-zinc-900/50">
         <Table>

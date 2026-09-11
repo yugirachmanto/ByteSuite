@@ -1,10 +1,13 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { canAccess } from '@/lib/auth/canAccess'
+
+const POS_ROLES = ['owner', 'admin', 'cashier']
 
 export async function POST(request: Request) {
   try {
     const supabase = await createClient()
-    
+
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -12,12 +15,26 @@ export async function POST(request: Request) {
 
     const { data: profile } = await supabase
       .from('user_profiles')
-      .select('org_id')
+      .select('org_id, role')
       .eq('id', user.id)
       .single()
 
     if (!profile?.org_id) {
       return NextResponse.json({ error: 'Organization not found' }, { status: 400 })
+    }
+
+    if (!canAccess(profile.role, POS_ROLES)) {
+      return NextResponse.json({ error: 'Forbidden: your role cannot process POS transactions' }, { status: 403 })
+    }
+
+    const { data: org } = await supabase
+      .from('organizations')
+      .select('pos_enabled, pos_tax_rate')
+      .eq('id', profile.org_id)
+      .single()
+
+    if (org && org.pos_enabled === false) {
+      return NextResponse.json({ error: 'POS is disabled for this organization' }, { status: 403 })
     }
 
     const payload = await request.json()
@@ -72,13 +89,7 @@ export async function POST(request: Request) {
       }
     })
 
-    const { data: orgData } = await supabase
-      .from('organizations')
-      .select('pos_tax_rate')
-      .eq('id', profile.org_id)
-      .single()
-
-    const taxRate = orgData?.pos_tax_rate || 0
+    const taxRate = org?.pos_tax_rate || 0
     const tax_amount = Math.round(subtotal * (taxRate / 100))
     const total_amount = subtotal + tax_amount
 

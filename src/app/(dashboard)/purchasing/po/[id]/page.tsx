@@ -13,6 +13,7 @@ import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { formatRp } from '@/lib/format'
 import { getCurrentUserRole, canAccess } from '@/lib/auth/canAccess'
+import { ProcurementTracker } from '@/components/procurement/ProcurementTracker'
 
 const WRITE_ROLES = ['owner', 'admin', 'finance']
 
@@ -152,6 +153,8 @@ export default function PurchaseOrderDetailPage({ params }: { params: Promise<{ 
           )}
         </div>
       </div>
+
+      <ProcurementTracker poId={poId} />
 
       <div className="rounded-lg border border-zinc-800 bg-zinc-900/50">
         <Table>
