@@ -33,12 +33,27 @@ export default function ShiftHistoryPage() {
     async function fetchShifts() {
       if (!selectedOutletId) return
       setLoading(true)
-      const { data: shiftRows } = await supabase
+
+      // Cashiers only see their own shifts (cash counts/variances for other
+      // cashiers aren't theirs to browse); owner/admin/finance/viewer see
+      // every shift at the outlet, same as before.
+      const { data: { user } } = await supabase.auth.getUser()
+      const { data: profile } = user
+        ? await supabase.from('user_profiles').select('role').eq('id', user.id).single()
+        : { data: null }
+
+      let query = supabase
         .from('pos_shifts')
         .select('id, status, cashier_id, opened_at, closed_at, opening_float, closing_counted, expected_cash, variance')
         .eq('outlet_id', selectedOutletId)
         .order('opened_at', { ascending: false })
         .limit(100)
+
+      if (profile?.role === 'cashier' && user) {
+        query = query.eq('cashier_id', user.id)
+      }
+
+      const { data: shiftRows } = await query
 
       const cashierIds = Array.from(new Set((shiftRows || []).map(s => s.cashier_id).filter(Boolean)))
       const { data: cashiers } = cashierIds.length > 0
