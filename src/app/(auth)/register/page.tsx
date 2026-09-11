@@ -72,7 +72,7 @@ export default function RegisterPage() {
 
       if (authData.session) {
         toast.success('Account created! Welcome to ByteSuite.')
-        router.push('/dashboard')
+        router.push('/onboarding')
       } else {
         setStep('email_confirm')
       }
