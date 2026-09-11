@@ -11,6 +11,7 @@ export interface QueuedTender {
   method: string
   amount: number
   cash_received?: number | null
+  notes?: string | null
 }
 
 export interface QueuedCheckout {

@@ -33,6 +33,7 @@ export interface ReceiptPayment {
   amount: number
   cash_received: number | null
   change_due: number | null
+  notes: string | null
 }
 
 export interface ReceiptOrderData {
@@ -140,7 +141,10 @@ export function ReceiptLayout({ order, lines, payments, org, outlet, paperWidth,
 
         <div className="leading-tight space-y-0.5">
           {payments.map((p) => (
-            <Row key={p.id} label={p.payment_method} value={formatRp(p.amount)} />
+            <div key={p.id}>
+              <Row label={p.payment_method} value={formatRp(p.amount)} />
+              {p.notes && <p className="text-[0.9em] text-zinc-600">Catatan: {p.notes}</p>}
+            </div>
           ))}
           {payments.map((p) => p.cash_received != null && (
             <div key={`${p.id}-cash`} className="space-y-0.5">

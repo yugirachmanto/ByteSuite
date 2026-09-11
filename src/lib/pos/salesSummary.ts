@@ -1,15 +1,22 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 
+function isComplimentaryMethod(method: string): boolean {
+  return /komplimen|complimentary|compliment/i.test(method)
+}
+
 export interface PosSalesSummary {
   grossSales: number
   discountTotal: number
   taxTotal: number
   netSales: number
   orderCount: number
+  averageTransaction: number
   voidedCount: number
   voidedAmount: number
   tenders: { method: string; amount: number }[]
   topItems: { name: string; qty: number; revenue: number }[]
+  compTotal: number
+  compRecipients: { notes: string; amount: number }[]
 }
 
 interface SalesSummaryScope {
@@ -25,10 +32,13 @@ const EMPTY_SUMMARY: PosSalesSummary = {
   taxTotal: 0,
   netSales: 0,
   orderCount: 0,
+  averageTransaction: 0,
   voidedCount: 0,
   voidedAmount: 0,
   tenders: [],
-  topItems: []
+  topItems: [],
+  compTotal: 0,
+  compRecipients: []
 }
 
 export async function fetchPosSalesSummary(supabase: SupabaseClient, scope: SalesSummaryScope): Promise<PosSalesSummary> {
@@ -62,18 +72,27 @@ export async function fetchPosSalesSummary(supabase: SupabaseClient, scope: Sale
 
   let tenders: { method: string; amount: number }[] = []
   let topItems: { name: string; qty: number; revenue: number }[] = []
+  let compTotal = 0
+  let compRecipients: { notes: string; amount: number }[] = []
 
   if (completedIds.length > 0) {
     const { data: payments } = await supabase
       .from('pos_order_payments')
-      .select('payment_method, amount')
+      .select('payment_method, amount, notes')
       .in('order_id', completedIds)
 
     const tenderMap = new Map<string, number>()
+    const compMap = new Map<string, number>()
     for (const p of payments || []) {
       tenderMap.set(p.payment_method, (tenderMap.get(p.payment_method) || 0) + (p.amount || 0))
+      if (isComplimentaryMethod(p.payment_method)) {
+        compTotal += p.amount || 0
+        const key = p.notes || 'Tidak ada catatan'
+        compMap.set(key, (compMap.get(key) || 0) + (p.amount || 0))
+      }
     }
     tenders = Array.from(tenderMap.entries()).map(([method, amount]) => ({ method, amount })).sort((a, b) => b.amount - a.amount)
+    compRecipients = Array.from(compMap.entries()).map(([notes, amount]) => ({ notes, amount })).sort((a, b) => b.amount - a.amount)
 
     const { data: lines } = await supabase
       .from('pos_order_lines')
@@ -98,9 +117,36 @@ export async function fetchPosSalesSummary(supabase: SupabaseClient, scope: Sale
     taxTotal,
     netSales,
     orderCount: completed.length,
+    averageTransaction: completed.length > 0 ? netSales / completed.length : 0,
     voidedCount: voided.length,
     voidedAmount,
     tenders,
-    topItems
+    topItems,
+    compTotal,
+    compRecipients
   }
+}
+
+export interface HourlySales {
+  hour: number
+  sales: number
+  orders: number
+}
+
+export async function fetchHourlySales(supabase: SupabaseClient, scope: { outletId: string; startIso: string; endIso: string }): Promise<HourlySales[]> {
+  const { data: orders } = await supabase
+    .from('pos_orders')
+    .select('created_at, total_amount')
+    .eq('outlet_id', scope.outletId)
+    .eq('status', 'completed')
+    .gte('created_at', scope.startIso)
+    .lte('created_at', scope.endIso)
+
+  const buckets: HourlySales[] = Array.from({ length: 24 }, (_, hour) => ({ hour, sales: 0, orders: 0 }))
+  for (const o of orders || []) {
+    const hour = new Date(o.created_at).getHours()
+    buckets[hour].sales += o.total_amount || 0
+    buckets[hour].orders += 1
+  }
+  return buckets
 }

@@ -42,10 +42,15 @@ interface Tender {
   method: string
   amount: number
   cashReceived: number
+  notes: string
 }
 
 function isCashMethod(method: string): boolean {
   return method.toLowerCase() === 'cash'
+}
+
+function isComplimentaryMethod(method: string): boolean {
+  return /komplimen|complimentary|compliment/i.test(method)
 }
 
 function computeDiscountAmount(type: DiscountType, value: number, base: number): number {
@@ -122,7 +127,7 @@ export default function POSPage() {
   const remainingBalance = Math.max(0, total - totalApplied)
 
   const addTenderRow = () => {
-    setTenders(prev => [...prev, { id: crypto.randomUUID(), method: '', amount: Math.max(0, total - totalApplied), cashReceived: 0 }])
+    setTenders(prev => [...prev, { id: crypto.randomUUID(), method: '', amount: Math.max(0, total - totalApplied), cashReceived: 0, notes: '' }])
   }
 
   const removeTenderRow = (id: string) => {
@@ -139,6 +144,10 @@ export default function POSPage() {
 
   const updateTenderCashReceived = (id: string, cashReceived: number) => {
     setTenders(prev => prev.map(t => t.id === id ? { ...t, cashReceived } : t))
+  }
+
+  const updateTenderNotes = (id: string, notes: string) => {
+    setTenders(prev => prev.map(t => t.id === id ? { ...t, notes } : t))
   }
 
   // Persistent Realtime channel for the Customer Facing Display — one
@@ -416,6 +425,10 @@ export default function POSPage() {
       toast.error(`Payment is short by ${formatRp(remainingBalance)}`)
       return
     }
+    if (tenders.some(t => isComplimentaryMethod(t.method) && !t.notes.trim())) {
+      toast.error('Please enter who the complimentary item is for')
+      return
+    }
 
     const clientRequestId = crypto.randomUUID()
     const checkoutLines = cart.map(item => ({
@@ -425,8 +438,8 @@ export default function POSPage() {
       discount_value: item.discountValue
     }))
     const checkoutTenders = tenders.map(t => isCashMethod(t.method)
-      ? { method: t.method, amount: cashApplied, cash_received: cashTender?.cashReceived || 0 }
-      : { method: t.method, amount: t.amount }
+      ? { method: t.method, amount: cashApplied, cash_received: cashTender?.cashReceived || 0, notes: t.notes.trim() || null }
+      : { method: t.method, amount: t.amount, notes: t.notes.trim() || null }
     ).filter(t => t.amount > 0)
 
     setProcessing(true)
@@ -633,7 +646,7 @@ export default function POSPage() {
         <Button
           className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium h-12 text-lg shadow-lg shadow-indigo-500/20"
           disabled={cart.length === 0}
-          onClick={() => { onCharge?.(); setTenders([{ id: crypto.randomUUID(), method: '', amount: total, cashReceived: 0 }]); setIsCheckoutOpen(true) }}
+          onClick={() => { onCharge?.(); setTenders([{ id: crypto.randomUUID(), method: '', amount: total, cashReceived: 0, notes: '' }]); setIsCheckoutOpen(true) }}
         >
           Charge {formatRp(total)}
         </Button>
@@ -949,6 +962,17 @@ export default function POSPage() {
                           />
                         </div>
                       )}
+                      {isComplimentaryMethod(t.method) && (
+                        <div className="space-y-1.5">
+                          <label className="text-xs text-zinc-500">Untuk Siapa / Alasan</label>
+                          <Input
+                            className="bg-zinc-900 border-zinc-800"
+                            placeholder="mis. Budi (staff meal)"
+                            value={t.notes}
+                            onChange={(e) => updateTenderNotes(t.id, e.target.value)}
+                          />
+                        </div>
+                      )}
                     </div>
                   ))}
 
@@ -989,7 +1013,7 @@ export default function POSPage() {
                 <Button
                   className="bg-emerald-600 hover:bg-emerald-700 text-white"
                   onClick={handleCheckout}
-                  disabled={tenders.some(t => !t.method) || remainingBalance > 0 || processing}
+                  disabled={tenders.some(t => !t.method) || tenders.some(t => isComplimentaryMethod(t.method) && !t.notes.trim()) || remainingBalance > 0 || processing}
                 >
                   {processing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CreditCard className="h-4 w-4 mr-2" />}
                   Confirm Payment
