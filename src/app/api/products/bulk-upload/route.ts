@@ -42,12 +42,30 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Forbidden: outlet does not belong to your organization' }, { status: 403 })
     }
 
+    // Resolve each row's human-typed COA code to a real chart_of_accounts.id,
+    // scoped to this org — never trust a client-supplied id directly into
+    // the SECURITY DEFINER RPC. An unmatched/blank code resolves to null,
+    // same as leaving it out entirely.
+    const uniqueCoaCodes = Array.from(new Set(items.map((r: any) => r.coa_code).filter(Boolean)))
+    const coaMap = new Map<string, string>()
+    if (uniqueCoaCodes.length > 0) {
+      const { data: coaRows } = await supabase
+        .from('chart_of_accounts')
+        .select('id, code')
+        .eq('org_id', profile.org_id)
+        .in('code', uniqueCoaCodes)
+      for (const row of coaRows || []) {
+        coaMap.set(row.code, row.id)
+      }
+    }
+
     const payload = items.map((row: any) => ({
       name: row.name,
       code: row.code || '',
       unit: row.unit || '',
       pos_category: row.pos_category || '',
-      selling_price: row.selling_price != null ? Number(row.selling_price) : null
+      selling_price: row.selling_price != null ? Number(row.selling_price) : null,
+      default_coa_id: row.coa_code ? (coaMap.get(row.coa_code) ?? null) : null
     }))
 
     const { data: createdCount, error: rpcError } = await supabase.rpc('bulk_create_products', {
