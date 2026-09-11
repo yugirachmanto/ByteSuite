@@ -7,10 +7,16 @@ export interface QueuedCheckoutLine {
   discount_value?: number | null
 }
 
+export interface QueuedTender {
+  method: string
+  amount: number
+  cash_received?: number | null
+}
+
 export interface QueuedCheckout {
   clientRequestId: string
   outletId: string
-  paymentMethod: string
+  tenders: QueuedTender[]
   lines: QueuedCheckoutLine[]
   shiftId: string | null
   queuedAt: string

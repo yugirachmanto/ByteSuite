@@ -26,7 +26,7 @@ function CustomerDisplayContent() {
     tax: 0,
     total: 0,
     isCheckoutOpen: false,
-    paymentMethod: '',
+    tenders: [],
     qrisImageUrl: '',
     bankInfo: { bankName: '', bankAccountNumber: '', bankAccountHolder: '' }
   })
@@ -55,8 +55,9 @@ function CustomerDisplayContent() {
     }
   }, [outletId])
 
-  const isQris = state.isCheckoutOpen && state.paymentMethod?.toLowerCase()?.includes('qris')
-  const isTransfer = state.isCheckoutOpen && state.paymentMethod?.toLowerCase()?.includes('transfer')
+  const tenders: { method: string }[] = state.tenders || []
+  const isQris = state.isCheckoutOpen && tenders.some(t => t.method?.toLowerCase()?.includes('qris'))
+  const isTransfer = state.isCheckoutOpen && tenders.some(t => t.method?.toLowerCase()?.includes('transfer'))
   const bank = state.bankInfo || {}
 
   if (!outletId) {

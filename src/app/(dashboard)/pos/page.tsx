@@ -37,6 +37,17 @@ type CartItem = Product & {
   discountValue: number
 }
 
+interface Tender {
+  id: string
+  method: string
+  amount: number
+  cashReceived: number
+}
+
+function isCashMethod(method: string): boolean {
+  return method.toLowerCase() === 'cash'
+}
+
 function computeDiscountAmount(type: DiscountType, value: number, base: number): number {
   if (!type || !value || value <= 0 || base <= 0) return 0
   if (type === 'percent') return Math.round(base * Math.min(value, 100) / 100)
@@ -52,12 +63,13 @@ export default function POSPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>('All')
   const [cart, setCart] = useState<CartItem[]>([])
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false)
-  const [paymentMethod, setPaymentMethod] = useState('')
+  const [tenders, setTenders] = useState<Tender[]>([])
   const [paymentMethods, setPaymentMethods] = useState<string[]>(['Cash', 'Card', 'QRIS'])
   const [processing, setProcessing] = useState(false)
   const [checkoutStep, setCheckoutStep] = useState<'payment' | 'success'>('payment')
   const [lastOrderId, setLastOrderId] = useState<string | null>(null)
   const [lastOrderTotal, setLastOrderTotal] = useState<number | null>(null)
+  const [lastOrderChange, setLastOrderChange] = useState<number>(0)
   const [taxRate, setTaxRate] = useState(0)
   const [qrisImageUrl, setQrisImageUrl] = useState('')
   const [bankInfo, setBankInfo] = useState({ bankName: '', bankAccountNumber: '', bankAccountHolder: '' })
@@ -95,6 +107,40 @@ export default function POSPage() {
   const tax = subtotal * (taxRate / 100)
   const total = subtotal + tax
 
+  // Non-cash tenders are entered as an exact amount charged. At most one
+  // Cash tender is expected — it auto-fills to whatever remains after the
+  // non-cash tenders (capped by what was actually received), so the
+  // classic single-cash-sale flow (pick Cash, type amount received, see
+  // change) still works exactly like before, just as a special case of
+  // the general tender list.
+  const nonCashApplied = tenders.filter(t => !isCashMethod(t.method)).reduce((sum, t) => sum + (t.amount || 0), 0)
+  const remainingForCash = Math.max(0, total - nonCashApplied)
+  const cashTender = tenders.find(t => isCashMethod(t.method))
+  const cashApplied = cashTender ? Math.min(cashTender.cashReceived || 0, remainingForCash) : 0
+  const changeDue = cashTender ? Math.max(0, (cashTender.cashReceived || 0) - cashApplied) : 0
+  const totalApplied = nonCashApplied + cashApplied
+  const remainingBalance = Math.max(0, total - totalApplied)
+
+  const addTenderRow = () => {
+    setTenders(prev => [...prev, { id: crypto.randomUUID(), method: '', amount: Math.max(0, total - totalApplied), cashReceived: 0 }])
+  }
+
+  const removeTenderRow = (id: string) => {
+    setTenders(prev => prev.filter(t => t.id !== id))
+  }
+
+  const updateTenderMethod = (id: string, method: string) => {
+    setTenders(prev => prev.map(t => t.id === id ? { ...t, method, amount: isCashMethod(method) ? 0 : t.amount, cashReceived: 0 } : t))
+  }
+
+  const updateTenderAmount = (id: string, amount: number) => {
+    setTenders(prev => prev.map(t => t.id === id ? { ...t, amount } : t))
+  }
+
+  const updateTenderCashReceived = (id: string, cashReceived: number) => {
+    setTenders(prev => prev.map(t => t.id === id ? { ...t, cashReceived } : t))
+  }
+
   // Persistent Realtime channel for the Customer Facing Display — one
   // channel per outlet, opened once and reused, not torn down/reopened per
   // cart change (unlike the old same-device-only BroadcastChannel this
@@ -121,14 +167,14 @@ export default function POSPage() {
         tax,
         total,
         isCheckoutOpen,
-        paymentMethod,
+        tenders,
         outletName,
         qrisImageUrl,
         bankInfo,
         products
       }
     })
-  }, [cart, subtotal, tax, total, isCheckoutOpen, paymentMethod, outletName, qrisImageUrl, bankInfo, products])
+  }, [cart, subtotal, tax, total, isCheckoutOpen, tenders, outletName, qrisImageUrl, bankInfo, products])
 
   const openCustomerDisplay = () => {
     if (!selectedOutletId) return
@@ -184,14 +230,25 @@ export default function POSPage() {
 
   const openCloseShiftDialog = async () => {
     if (!shift) return
-    const { data } = await supabase
+    // Sum only the cash TENDER's amount, not the whole order total — a
+    // split-tender order (part cash, part something else) would otherwise
+    // overstate cash actually collected.
+    const { data: shiftOrders } = await supabase
       .from('pos_orders')
-      .select('total_amount')
+      .select('id')
       .eq('shift_id', shift.id)
       .eq('status', 'completed')
-      .ilike('payment_method', 'cash')
 
-    const sum = (data || []).reduce((s, o) => s + (o.total_amount || 0), 0)
+    const orderIds = (shiftOrders || []).map(o => o.id)
+    let sum = 0
+    if (orderIds.length > 0) {
+      const { data: cashTenders } = await supabase
+        .from('pos_order_payments')
+        .select('amount')
+        .in('order_id', orderIds)
+        .ilike('payment_method', 'cash')
+      sum = (cashTenders || []).reduce((s, t) => s + (t.amount || 0), 0)
+    }
     setCashSalesSoFar(sum)
     setCountedCash('')
     setClosingNotes('')
@@ -345,8 +402,12 @@ export default function POSPage() {
   const uniqueCategories = ['All', ...Array.from(new Set(products.map(p => p.posCategory || 'Uncategorized'))).sort()]
 
   const handleCheckout = async () => {
-    if (!paymentMethod) {
-      toast.error('Please select a payment method')
+    if (tenders.some(t => !t.method)) {
+      toast.error('Please select a payment method for every tender')
+      return
+    }
+    if (remainingBalance > 0) {
+      toast.error(`Payment is short by ${formatRp(remainingBalance)}`)
       return
     }
 
@@ -357,6 +418,10 @@ export default function POSPage() {
       discount_type: item.discountType,
       discount_value: item.discountValue
     }))
+    const checkoutTenders = tenders.map(t => isCashMethod(t.method)
+      ? { method: t.method, amount: cashApplied, cash_received: cashTender?.cashReceived || 0 }
+      : { method: t.method, amount: t.amount }
+    ).filter(t => t.amount > 0)
 
     setProcessing(true)
     try {
@@ -367,7 +432,7 @@ export default function POSPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             outlet_id: selectedOutletId,
-            payment_method: paymentMethod,
+            tenders: checkoutTenders,
             lines: checkoutLines,
             client_request_id: clientRequestId,
             shift_id: shift?.id ?? null,
@@ -381,7 +446,7 @@ export default function POSPage() {
         enqueue({
           clientRequestId,
           outletId: selectedOutletId!,
-          paymentMethod,
+          tenders: checkoutTenders,
           lines: checkoutLines,
           shiftId: shift?.id ?? null,
           queuedAt: new Date().toISOString(),
@@ -393,7 +458,7 @@ export default function POSPage() {
         setCart([])
         setOrderDiscountType(null)
         setOrderDiscountValue(0)
-        setPaymentMethod('')
+        setTenders([])
         setIsCheckoutOpen(false)
         return
       }
@@ -406,6 +471,7 @@ export default function POSPage() {
       cfdChannelRef.current?.send({ type: 'broadcast', event: 'checkout_success' })
 
       setLastOrderTotal(total)
+      setLastOrderChange(changeDue)
       setCart([])
       setOrderDiscountType(null)
       setOrderDiscountValue(0)
@@ -425,9 +491,10 @@ export default function POSPage() {
   const startNewSale = () => {
     setIsCheckoutOpen(false)
     setCheckoutStep('payment')
-    setPaymentMethod('')
+    setTenders([])
     setLastOrderId(null)
     setLastOrderTotal(null)
+    setLastOrderChange(0)
   }
 
   // Shared cart items + totals + Charge button, rendered both in the
@@ -560,7 +627,7 @@ export default function POSPage() {
         <Button
           className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium h-12 text-lg shadow-lg shadow-indigo-500/20"
           disabled={cart.length === 0}
-          onClick={() => { onCharge?.(); setIsCheckoutOpen(true) }}
+          onClick={() => { onCharge?.(); setTenders([{ id: crypto.randomUUID(), method: '', amount: total, cashReceived: 0 }]); setIsCheckoutOpen(true) }}
         >
           Charge {formatRp(total)}
         </Button>
@@ -790,6 +857,9 @@ export default function POSPage() {
                   <CheckCircle2 className="h-12 w-12 text-emerald-500" />
                   <p className="text-sm text-zinc-400">Total Charged</p>
                   <h3 className="text-3xl font-bold text-emerald-400 tracking-tight">{formatRp(lastOrderTotal ?? 0)}</h3>
+                  {lastOrderChange > 0 && (
+                    <p className="text-sm text-amber-400 pt-1">Kembalian: {formatRp(lastOrderChange)}</p>
+                  )}
                 </div>
               </div>
 
@@ -808,24 +878,93 @@ export default function POSPage() {
                 <DialogTitle className="text-xl">Complete Payment</DialogTitle>
               </DialogHeader>
 
-              <div className="py-6 space-y-6">
+              <div className="py-6 space-y-4">
                 <div className="text-center p-6 bg-zinc-950 rounded-xl border border-zinc-800">
                   <p className="text-sm text-zinc-400 mb-1">Total Amount Due</p>
                   <h3 className="text-4xl font-bold text-emerald-400 tracking-tight">{formatRp(total)}</h3>
                 </div>
 
                 <div className="space-y-3">
-                  <label className="text-sm font-medium text-zinc-400">Payment Method</label>
-                  <Select value={paymentMethod} onValueChange={(val: any) => setPaymentMethod(val || '')}>
-                    <SelectTrigger className="w-full bg-zinc-950 border-zinc-800 h-12 text-base">
-                      <SelectValue placeholder="Select method" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-zinc-900 border-zinc-800">
-                      {paymentMethods.map(method => (
-                        <SelectItem key={method} value={method}>{method}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  {tenders.map((t) => (
+                    <div key={t.id} className="space-y-2 p-3 bg-zinc-950 rounded-lg border border-zinc-800">
+                      <div className="flex items-center gap-2">
+                        <Select value={t.method} onValueChange={(val: any) => updateTenderMethod(t.id, val || '')}>
+                          <SelectTrigger className="flex-1 bg-zinc-900 border-zinc-800 h-10">
+                            <SelectValue placeholder="Metode Pembayaran" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-zinc-900 border-zinc-800">
+                            {paymentMethods
+                              .filter(method => !isCashMethod(method) || t.method === method || !tenders.some(other => other.id !== t.id && isCashMethod(other.method)))
+                              .map(method => (
+                                <SelectItem key={method} value={method}>{method}</SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
+                        {tenders.length > 1 && (
+                          <Button variant="ghost" size="icon" className="h-9 w-9 text-rose-400 hover:text-rose-300 shrink-0" onClick={() => removeTenderRow(t.id)}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                      {isCashMethod(t.method) ? (
+                        <div className="space-y-1.5">
+                          <label className="text-xs text-zinc-500">Tunai Diterima</label>
+                          <Input
+                            type="number"
+                            min={0}
+                            className="bg-zinc-900 border-zinc-800"
+                            value={t.cashReceived || ''}
+                            onChange={(e) => updateTenderCashReceived(t.id, Number(e.target.value))}
+                          />
+                          {t.cashReceived > 0 && (
+                            <div className="flex justify-between text-xs text-zinc-500 pt-1">
+                              <span>Diterapkan: {formatRp(t.id === cashTender?.id ? cashApplied : 0)}</span>
+                              {changeDue > 0 && <span className="text-amber-400">Kembalian: {formatRp(changeDue)}</span>}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="space-y-1.5">
+                          <label className="text-xs text-zinc-500">Jumlah</label>
+                          <Input
+                            type="number"
+                            min={0}
+                            className="bg-zinc-900 border-zinc-800"
+                            value={t.amount || ''}
+                            onChange={(e) => updateTenderAmount(t.id, Number(e.target.value))}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  ))}
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full border-dashed border-zinc-700 text-zinc-400 hover:bg-zinc-800"
+                    onClick={addTenderRow}
+                  >
+                    <Plus className="h-4 w-4 mr-2" /> Tambah Metode Pembayaran
+                  </Button>
+
+                  <div className="space-y-1 pt-2 border-t border-zinc-800 text-sm">
+                    <div className="flex justify-between text-zinc-400">
+                      <span>Sudah Dibayar</span>
+                      <span>{formatRp(totalApplied)}</span>
+                    </div>
+                    {remainingBalance > 0 && (
+                      <div className="flex justify-between text-rose-400 font-medium">
+                        <span>Sisa</span>
+                        <span>{formatRp(remainingBalance)}</span>
+                      </div>
+                    )}
+                    {changeDue > 0 && (
+                      <div className="flex justify-between text-amber-400 font-medium">
+                        <span>Kembalian</span>
+                        <span>{formatRp(changeDue)}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -836,7 +975,7 @@ export default function POSPage() {
                 <Button
                   className="bg-emerald-600 hover:bg-emerald-700 text-white"
                   onClick={handleCheckout}
-                  disabled={!paymentMethod || processing}
+                  disabled={tenders.some(t => !t.method) || remainingBalance > 0 || processing}
                 >
                   {processing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CreditCard className="h-4 w-4 mr-2" />}
                   Confirm Payment
