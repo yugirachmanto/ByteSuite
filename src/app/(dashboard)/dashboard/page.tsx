@@ -1,9 +1,11 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useOutlet } from '@/lib/contexts/outlet-context'
 import { useDateWindow } from '@/lib/contexts/date-window-context'
+import { getCurrentUserRole } from '@/lib/auth/canAccess'
 import { Button } from '@/components/ui/button'
 import {
   FileText,
@@ -27,9 +29,24 @@ import { SetupChecklist } from '@/components/dashboard/SetupChecklist'
 
 export default function DashboardPage() {
   const supabase = createClient()
+  const router = useRouter()
   const { selectedOutletId, outlets, posEnabled } = useOutlet()
   const { startDate, endDate } = useDateWindow()
   const selectedOutlet = outlets.find((o) => o.id === selectedOutletId)
+
+  // Cashiers land on POS, not the financial dashboard — this page has no
+  // per-widget gating (invoices, AP, inventory value are all shown as-is),
+  // so a cashier never sees it rather than seeing a stripped-down version.
+  const [checkingRole, setCheckingRole] = useState(true)
+  useEffect(() => {
+    getCurrentUserRole(supabase).then((role) => {
+      if (role === 'cashier') {
+        router.replace('/pos')
+      } else {
+        setCheckingRole(false)
+      }
+    })
+  }, [supabase, router])
 
   const [loading, setLoading] = useState(true)
   const [userName, setUserName] = useState<string | null>(null)
@@ -280,6 +297,10 @@ export default function DashboardPage() {
   const getHour = () => new Date().getHours()
   const greeting =
     getHour() < 12 ? 'Good morning' : getHour() < 18 ? 'Good afternoon' : 'Good evening'
+
+  if (checkingRole) {
+    return null
+  }
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
