@@ -30,6 +30,7 @@ export default function NewProductPage() {
     name: '',
     code: '',
     unit: 'PCS',
+    pos_category: '',
     default_coa_id: ''
   })
 
@@ -100,6 +101,7 @@ export default function NewProductPage() {
           code: formData.code,
           unit: formData.unit,
           category: 'finished',
+          pos_category: formData.pos_category || null,
           default_coa_id: formData.default_coa_id || null,
           is_inventory: true,
           image_url: imageUrl || null
@@ -210,6 +212,24 @@ export default function NewProductPage() {
                   <option value="PACK">PACK</option>
                 </select>
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs text-zinc-500 font-medium uppercase tracking-wider flex items-center gap-2">
+                <Tag className="h-3 w-3" /> POS Category (Optional)
+              </label>
+              <select
+                className="w-full bg-zinc-950 border border-zinc-800 rounded-md px-3 h-11 text-sm text-zinc-100 focus:outline-none focus:ring-1 focus:ring-zinc-700"
+                value={formData.pos_category}
+                onChange={e => setFormData({...formData, pos_category: e.target.value})}
+              >
+                <option value="">Uncategorized</option>
+                <option value="Food">Food</option>
+                <option value="Beverage">Beverage</option>
+                <option value="Snacks">Snacks</option>
+                <option value="Merchandise">Merchandise</option>
+              </select>
+              <p className="text-[10px] text-zinc-500">Groups this product in the POS terminal's category filter.</p>
             </div>
 
             <div className="space-y-2">

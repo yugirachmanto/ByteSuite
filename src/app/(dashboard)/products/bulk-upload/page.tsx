@@ -17,9 +17,11 @@ interface ParsedRow {
   unit: string
   pos_category: string
   selling_price: number | null
+  coa_code: string
   valid: boolean
   error?: string
   possibleDuplicate: boolean
+  coaNotFound: boolean
 }
 
 export default function BulkUploadProductsPage() {
@@ -29,6 +31,7 @@ export default function BulkUploadProductsPage() {
   const [loading, setLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [existingNames, setExistingNames] = useState<Set<string>>(new Set())
+  const [existingCoaCodes, setExistingCoaCodes] = useState<Set<string>>(new Set())
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -40,10 +43,19 @@ export default function BulkUploadProductsPage() {
       setExistingNames(new Set((items || []).map(i => i.name?.toLowerCase().trim())))
     }
     fetchExistingNames()
+
+    async function fetchCoaCodes() {
+      const { data: coa } = await supabase
+        .from('chart_of_accounts')
+        .select('code')
+
+      setExistingCoaCodes(new Set((coa || []).map(c => c.code)))
+    }
+    fetchCoaCodes()
   }, [supabase])
 
   const handleDownloadTemplate = () => {
-    const csvContent = "data:text/csv;charset=utf-8,Name,Code,Unit,POS Category,Selling Price\nNasi Goreng Spesial,,PCS,Mains,35000\nEs Teh Manis,,PCS,Beverages,8000"
+    const csvContent = "data:text/csv;charset=utf-8,Name,Code,Unit,POS Category,Selling Price,COA Code\nNasi Goreng Spesial,,PCS,Mains,35000,\nEs Teh Manis,,PCS,Beverages,8000,"
     const encodedUri = encodeURI(csvContent)
     const link = document.createElement("a")
     link.setAttribute("href", encodedUri)
@@ -67,6 +79,7 @@ export default function BulkUploadProductsPage() {
           const code = (row['Code'] || row['code'] || '').trim()
           const unit = (row['Unit'] || row['unit'] || '').trim()
           const posCategory = (row['POS Category'] || row['pos_category'] || row['PosCategory'] || '').trim()
+          const coaCode = (row['COA Code'] || row['coa_code'] || row['COA'] || '').trim()
           const priceStr = row['Selling Price'] || row['selling_price'] || row['Price']
 
           let sellingPrice: number | null = null
@@ -86,6 +99,7 @@ export default function BulkUploadProductsPage() {
           }
 
           const possibleDuplicate = !!name && existingNames.has(name.toLowerCase())
+          const coaNotFound = !!coaCode && !existingCoaCodes.has(coaCode)
 
           return {
             name,
@@ -93,9 +107,11 @@ export default function BulkUploadProductsPage() {
             unit,
             pos_category: posCategory,
             selling_price: sellingPrice,
+            coa_code: coaCode,
             valid: !error,
             error,
-            possibleDuplicate
+            possibleDuplicate,
+            coaNotFound
           }
         })
 
@@ -136,7 +152,8 @@ export default function BulkUploadProductsPage() {
             code: r.code,
             unit: r.unit,
             pos_category: r.pos_category,
-            selling_price: r.selling_price
+            selling_price: r.selling_price,
+            coa_code: r.coa_code
           }))
         }),
       })
@@ -158,6 +175,7 @@ export default function BulkUploadProductsPage() {
 
   const validCount = data.filter(r => r.valid).length
   const duplicateCount = data.filter(r => r.valid && r.possibleDuplicate).length
+  const coaNotFoundCount = data.filter(r => r.valid && r.coaNotFound).length
 
   return (
     <div className="space-y-6">
@@ -208,6 +226,9 @@ export default function BulkUploadProductsPage() {
                 <span className="text-emerald-500">Valid: <strong>{validCount}</strong></span>
                 <span className="text-red-400">Errors: <strong>{data.length - validCount}</strong></span>
                 <span className="text-amber-500">Possible Duplicates: <strong>{duplicateCount}</strong></span>
+                {coaNotFoundCount > 0 && (
+                  <span className="text-amber-500">COA Tidak Ditemukan: <strong>{coaNotFoundCount}</strong></span>
+                )}
               </div>
             </div>
             <div className="flex gap-2">
@@ -234,12 +255,13 @@ export default function BulkUploadProductsPage() {
                   <TableHead className="text-zinc-400">Code</TableHead>
                   <TableHead className="text-zinc-400">Unit</TableHead>
                   <TableHead className="text-zinc-400">POS Category</TableHead>
+                  <TableHead className="text-zinc-400">COA Code</TableHead>
                   <TableHead className="text-zinc-400 text-right">Selling Price</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {data.map((row, i) => (
-                  <TableRow key={i} className={`border-zinc-800 ${!row.valid ? 'bg-red-950/10' : row.possibleDuplicate ? 'bg-amber-950/10' : 'hover:bg-zinc-800/30'}`}>
+                  <TableRow key={i} className={`border-zinc-800 ${!row.valid ? 'bg-red-950/10' : (row.possibleDuplicate || row.coaNotFound) ? 'bg-amber-950/10' : 'hover:bg-zinc-800/30'}`}>
                     <TableCell>
                       {!row.valid ? (
                         <span className="inline-flex items-center rounded bg-red-500/10 px-2 py-1 text-xs font-medium text-red-400" title={row.error}>
@@ -248,6 +270,10 @@ export default function BulkUploadProductsPage() {
                       ) : row.possibleDuplicate ? (
                         <span className="inline-flex items-center rounded bg-amber-500/10 px-2 py-1 text-xs font-medium text-amber-500">
                           Possible Duplicate
+                        </span>
+                      ) : row.coaNotFound ? (
+                        <span className="inline-flex items-center rounded bg-amber-500/10 px-2 py-1 text-xs font-medium text-amber-500">
+                          Kode COA tidak ditemukan
                         </span>
                       ) : (
                         <span className="inline-flex items-center rounded bg-emerald-500/10 px-2 py-1 text-xs font-medium text-emerald-500">
@@ -259,6 +285,7 @@ export default function BulkUploadProductsPage() {
                     <TableCell className="font-mono text-zinc-300">{row.code || <span className="text-zinc-600 italic">—</span>}</TableCell>
                     <TableCell className="text-zinc-400">{row.unit || <span className="text-zinc-600 italic">PCS (default)</span>}</TableCell>
                     <TableCell className="text-zinc-400">{row.pos_category || <span className="text-zinc-600 italic">—</span>}</TableCell>
+                    <TableCell className={`font-mono ${row.coaNotFound ? 'text-amber-500' : 'text-zinc-400'}`}>{row.coa_code || <span className="text-zinc-600 italic">—</span>}</TableCell>
                     <TableCell className="text-right text-zinc-100 font-mono">
                       {row.selling_price != null ? formatRp(row.selling_price) : <span className="text-zinc-600 italic text-xs">Not set</span>}
                     </TableCell>
@@ -274,7 +301,7 @@ export default function BulkUploadProductsPage() {
         <div className="flex h-64 flex-col items-center justify-center rounded-md border border-dashed border-zinc-800 bg-zinc-900/30 text-zinc-500">
           <Upload className="mb-4 h-8 w-8 opacity-20" />
           <p className="mb-1 text-sm font-medium">Upload CSV to begin</p>
-          <p className="text-xs text-zinc-600">Only Name is required — Code, Unit, POS Category, and Selling Price are optional</p>
+          <p className="text-xs text-zinc-600">Only Name is required — Code, Unit, POS Category, Selling Price, and COA Code are optional</p>
         </div>
       )}
     </div>
