@@ -42,9 +42,10 @@ interface ReceiptLayoutProps {
   org: ReceiptOrg
   outlet: ReceiptOutlet
   paperWidth: '58mm' | '80mm'
+  voided?: boolean
 }
 
-export function ReceiptLayout({ order, lines, org, outlet, paperWidth }: ReceiptLayoutProps) {
+export function ReceiptLayout({ order, lines, org, outlet, paperWidth, voided }: ReceiptLayoutProps) {
   const isQris = order.payment_method.toLowerCase().includes('qris')
   const isTransfer = order.payment_method.toLowerCase().includes('transfer')
   const fontSize = paperWidth === '58mm' ? '10.5px' : '12px'
@@ -52,9 +53,23 @@ export function ReceiptLayout({ order, lines, org, outlet, paperWidth }: Receipt
   return (
     <>
       <div
-        className="mx-auto bg-white text-black font-mono"
+        className="relative mx-auto bg-white text-black font-mono"
         style={{ width: paperWidth, boxSizing: 'border-box', padding: '3mm', fontSize }}
       >
+        {voided && (
+          <div
+            className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center overflow-hidden"
+            aria-hidden="true"
+          >
+            <span
+              className="font-sans font-black text-red-600/40 border-4 border-red-600/40 rounded-lg px-4 py-1 select-none"
+              style={{ fontSize: paperWidth === '58mm' ? '28px' : '38px', transform: 'rotate(-20deg)' }}
+            >
+              VOID
+            </span>
+          </div>
+        )}
+
         <div className="text-center mb-2">
           <p className="font-bold text-[1.15em] leading-tight">{org.name}</p>
           {outlet.address || org.address ? (
