@@ -1,11 +1,25 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
 import { Card } from '@/components/ui/card'
 import { formatRp } from '@/lib/format'
-import { ShoppingCart, CheckCircle2, QrCode, Smartphone, Building2, Copy } from 'lucide-react'
+import { ShoppingCart, CheckCircle2, QrCode, Smartphone, Building2, Copy, MonitorOff, Loader2 } from 'lucide-react'
 
 export default function POSCustomerDisplay() {
+  return (
+    <Suspense fallback={null}>
+      <CustomerDisplayContent />
+    </Suspense>
+  )
+}
+
+function CustomerDisplayContent() {
+  const searchParams = useSearchParams()
+  const outletId = searchParams.get('outlet')
+  const supabase = createClient()
+
   const [state, setState] = useState<any>({
     cart: [],
     subtotal: 0,
@@ -17,29 +31,55 @@ export default function POSCustomerDisplay() {
     bankInfo: { bankName: '', bankAccountNumber: '', bankAccountHolder: '' }
   })
   const [showSuccess, setShowSuccess] = useState(false)
+  const [connected, setConnected] = useState(false)
 
   useEffect(() => {
-    const bc = new BroadcastChannel('pos-channel')
-    
-    bc.onmessage = (event) => {
-      if (event.data.type === 'SYNC_STATE') {
-        setState(event.data.payload)
-        if (showSuccess && event.data.payload.cart.length > 0) {
-          setShowSuccess(false)
-        }
-      } else if (event.data.type === 'CHECKOUT_SUCCESS') {
+    if (!outletId) return
+
+    const channel = supabase
+      .channel(`pos-cfd-${outletId}`)
+      .on('broadcast', { event: 'sync_state' }, ({ payload }) => {
+        setConnected(true)
+        setState(payload)
+        setShowSuccess((prev) => (prev && payload.cart.length > 0 ? false : prev))
+      })
+      .on('broadcast', { event: 'checkout_success' }, () => {
         setShowSuccess(true)
         setState((prev: any) => ({ ...prev, cart: [], subtotal: 0, tax: 0, total: 0 }))
         setTimeout(() => setShowSuccess(false), 5000)
-      }
-    }
+      })
+      .subscribe()
 
-    return () => bc.close()
-  }, [showSuccess])
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [outletId])
 
   const isQris = state.isCheckoutOpen && state.paymentMethod?.toLowerCase()?.includes('qris')
   const isTransfer = state.isCheckoutOpen && state.paymentMethod?.toLowerCase()?.includes('transfer')
   const bank = state.bankInfo || {}
+
+  if (!outletId) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen bg-zinc-950 text-center px-6">
+        <MonitorOff className="h-16 w-16 text-zinc-700 mb-4" />
+        <h1 className="text-2xl font-bold text-white mb-2">Missing outlet</h1>
+        <p className="text-zinc-400 max-w-sm">
+          Open this display from the POS terminal&apos;s &quot;Open Customer Display&quot; button so it knows which outlet to show.
+        </p>
+      </div>
+    )
+  }
+
+  if (!connected && !showSuccess) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen bg-zinc-950 text-center px-6">
+        <Loader2 className="h-10 w-10 text-zinc-600 animate-spin mb-4" />
+        <h1 className="text-2xl font-bold text-white mb-2">Waiting for the cashier...</h1>
+        <p className="text-zinc-400">This screen will update live once a sale starts.</p>
+      </div>
+    )
+  }
 
   if (showSuccess) {
     return (
