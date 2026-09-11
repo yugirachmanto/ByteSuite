@@ -32,7 +32,8 @@ import {
   Users,
   Trash2,
   Workflow,
-  History
+  History,
+  TrendingUp
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button, buttonVariants } from '@/components/ui/button'
@@ -61,7 +62,15 @@ const sidebarGroups = [
     roles: ['owner', 'admin', 'finance', 'cashier', 'kitchen', 'viewer'],
     items: [
       { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+    ]
+  },
+  {
+    name: 'Kasir',
+    roles: ['owner', 'admin', 'cashier', 'finance', 'viewer'],
+    items: [
       { name: 'Point of Sale', href: '/pos', icon: CreditCard, roles: ['owner', 'admin', 'cashier'] },
+      { name: 'Riwayat Shift', href: '/pos/shift-history', icon: History },
+      { name: 'Penjualan POS', href: '/pos/sales-report', icon: TrendingUp },
     ]
   },
   {
@@ -77,7 +86,6 @@ const sidebarGroups = [
       { name: 'Customers', href: '/customers', icon: Users },
       { name: 'Accounting', href: '/accounting', icon: BookOpen },
       { name: 'Reports', href: '/reports', icon: BarChart3 },
-      { name: 'Riwayat Shift', href: '/pos/shift-history', icon: History },
     ]
   },
   {
