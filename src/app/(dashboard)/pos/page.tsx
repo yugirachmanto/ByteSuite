@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import type { RealtimeChannel } from '@supabase/supabase-js'
 import { useOutlet } from '@/lib/contexts/outlet-context'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Plus, Minus, Search, Trash2, CreditCard, Loader2, ShoppingCart, Ban, CheckCircle2, Printer } from 'lucide-react'
+import { Plus, Minus, Search, Trash2, CreditCard, Loader2, ShoppingCart, Ban, CheckCircle2, Printer, Monitor } from 'lucide-react'
 import { formatRp } from '@/lib/format'
 import { toast } from 'sonner'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
@@ -43,6 +44,7 @@ export default function POSPage() {
   const [qrisImageUrl, setQrisImageUrl] = useState('')
   const [bankInfo, setBankInfo] = useState({ bankName: '', bankAccountNumber: '', bankAccountHolder: '' })
   const [posEnabled, setPosEnabled] = useState(true)
+  const cfdChannelRef = useRef<RealtimeChannel | null>(null)
 
   const outletName = outlets.find(o => o.id === selectedOutletId)?.name || 'ByteSuite'
 
@@ -50,12 +52,26 @@ export default function POSPage() {
   const tax = subtotal * (taxRate / 100)
   const total = subtotal + tax
 
-  // Broadcast channel for customer facing display
+  // Persistent Realtime channel for the Customer Facing Display — one
+  // channel per outlet, opened once and reused, not torn down/reopened per
+  // cart change (unlike the old same-device-only BroadcastChannel this
+  // replaces). Works across separate devices since it's a real network channel.
   useEffect(() => {
-    const bc = new BroadcastChannel('pos-channel')
+    if (!selectedOutletId) return
+    const channel = supabase.channel(`pos-cfd-${selectedOutletId}`)
+    channel.subscribe()
+    cfdChannelRef.current = channel
 
-    bc.postMessage({
-      type: 'SYNC_STATE',
+    return () => {
+      supabase.removeChannel(channel)
+      cfdChannelRef.current = null
+    }
+  }, [selectedOutletId])
+
+  useEffect(() => {
+    cfdChannelRef.current?.send({
+      type: 'broadcast',
+      event: 'sync_state',
       payload: {
         cart,
         subtotal,
@@ -69,9 +85,12 @@ export default function POSPage() {
         products
       }
     })
-
-    return () => bc.close()
   }, [cart, subtotal, tax, total, isCheckoutOpen, paymentMethod, outletName, qrisImageUrl, bankInfo, products])
+
+  const openCustomerDisplay = () => {
+    if (!selectedOutletId) return
+    window.open(`/pos/customer?outlet=${selectedOutletId}`, '_blank')
+  }
 
   useEffect(() => {
     if (!selectedOutletId) return
@@ -206,9 +225,7 @@ export default function POSPage() {
 
       toast.success('Transaction completed successfully!')
 
-      const bc = new BroadcastChannel('pos-channel')
-      bc.postMessage({ type: 'CHECKOUT_SUCCESS' })
-      bc.close()
+      cfdChannelRef.current?.send({ type: 'broadcast', event: 'checkout_success' })
 
       setCart([])
       setLastOrderId(data.order_id)
@@ -250,6 +267,14 @@ export default function POSPage() {
           <h2 className="text-2xl font-bold text-zinc-100">Point of Sale</h2>
           <p className="text-sm text-zinc-400">Process retail transactions</p>
         </div>
+        <Button
+          variant="outline"
+          className="border-zinc-800 bg-zinc-900 text-zinc-300 hover:bg-zinc-800"
+          onClick={openCustomerDisplay}
+          disabled={!selectedOutletId}
+        >
+          <Monitor className="mr-2 h-4 w-4" /> Open Customer Display
+        </Button>
       </div>
 
       <div className="flex gap-6 h-full flex-1 min-h-0">
