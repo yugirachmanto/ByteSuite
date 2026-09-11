@@ -24,7 +24,8 @@ import {
   ChevronRight, 
   Filter,
   ArrowUpRight,
-  Package
+  Package,
+  Upload
 } from 'lucide-react'
 import { formatRp } from '@/lib/format'
 import { toast } from 'sonner'
@@ -118,11 +119,18 @@ export default function ProductsPage() {
           <h2 className="text-2xl font-bold tracking-tight text-zinc-100">Product Management</h2>
           <p className="text-zinc-400 text-sm">Manage menu items, pricing, and recipes.</p>
         </div>
-        <Link href="/products/new">
-          <Button className="bg-zinc-100 text-zinc-900 hover:bg-zinc-200">
-            <Plus className="h-4 w-4 mr-2" /> Add New Product
-          </Button>
-        </Link>
+        <div className="flex gap-2">
+          <Link href="/products/bulk-upload">
+            <Button variant="outline" className="border-zinc-800 text-zinc-300 hover:bg-zinc-800">
+              <Upload className="h-4 w-4 mr-2" /> Bulk Upload
+            </Button>
+          </Link>
+          <Link href="/products/new">
+            <Button className="bg-zinc-100 text-zinc-900 hover:bg-zinc-200">
+              <Plus className="h-4 w-4 mr-2" /> Add New Product
+            </Button>
+          </Link>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
