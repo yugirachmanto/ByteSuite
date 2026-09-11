@@ -11,11 +11,40 @@ import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 
+const HIDDEN_STORAGE_KEY = 'bytesuite_chat_widget_hidden'
+
 export function ChatWidget() {
   const [isOpen, setIsOpen] = useState(false)
   const [isExpanded, setIsExpanded] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [isHidden, setIsHidden] = useState(false)
+
+  useEffect(() => {
+    try {
+      setIsHidden(localStorage.getItem(HIDDEN_STORAGE_KEY) === '1')
+    } catch {
+      // localStorage unavailable (private browsing, SSR) — default to visible.
+    }
+  }, [])
+
+  const hideWidget = () => {
+    setIsHidden(true)
+    try {
+      localStorage.setItem(HIDDEN_STORAGE_KEY, '1')
+    } catch {
+      // ignore — worst case the hidden state doesn't persist across reloads
+    }
+  }
+
+  const showWidget = () => {
+    setIsHidden(false)
+    try {
+      localStorage.removeItem(HIDDEN_STORAGE_KEY)
+    } catch {
+      // ignore
+    }
+  }
   const { selectedOutletId } = useOutlet()
   const [currentOrgId, setCurrentOrgId] = useState<string | null>(null)
   const supabase = createClient()
@@ -172,17 +201,43 @@ export function ChatWidget() {
     if (!error) loadSessions()
   }
 
-  if (!isOpen) {
+  if (!isOpen && isHidden) {
     return (
-      <button 
-        onClick={() => setIsOpen(true)}
+      <button
+        onClick={showWidget}
+        title="Show Sigma AI Assistant"
         className={cn(
-          "fixed bottom-4 right-4 sm:bottom-6 sm:right-6 w-14 h-14 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full shadow-lg flex items-center justify-center transition-all duration-300 z-50",
-          drawerOpen ? "opacity-0 pointer-events-none scale-75" : "opacity-100 scale-100 hover:scale-105"
+          "fixed bottom-4 right-4 sm:bottom-6 sm:right-6 w-8 h-8 bg-indigo-600/40 hover:bg-indigo-600 text-white/70 hover:text-white rounded-full shadow flex items-center justify-center transition-all duration-300 z-50",
+          drawerOpen ? "opacity-0 pointer-events-none scale-75" : "opacity-100"
         )}
       >
-        <MessageCircle size={24} />
+        <MessageCircle size={14} />
       </button>
+    )
+  }
+
+  if (!isOpen) {
+    return (
+      <div
+        className={cn(
+          "group fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 transition-all duration-300",
+          drawerOpen ? "opacity-0 pointer-events-none scale-75" : "opacity-100 scale-100"
+        )}
+      >
+        <button
+          onClick={hideWidget}
+          title="Hide"
+          className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10"
+        >
+          <X size={11} />
+        </button>
+        <button
+          onClick={() => setIsOpen(true)}
+          className="w-14 h-14 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full shadow-lg flex items-center justify-center transition-transform hover:scale-105"
+        >
+          <MessageCircle size={24} />
+        </button>
+      </div>
     )
   }
 
