@@ -58,8 +58,11 @@ import { ChatWidget } from '@/components/chat/ChatWidget'
 
 const sidebarGroups = [
   {
+    // Cashiers land on /pos, not this financial dashboard (invoices, AP,
+    // inventory value) — excluded here rather than shown a stripped-down
+    // version, matching the redirect in dashboard/page.tsx.
     name: 'Main',
-    roles: ['owner', 'admin', 'finance', 'cashier', 'kitchen', 'viewer'],
+    roles: ['owner', 'admin', 'finance', 'kitchen', 'viewer'],
     items: [
       { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     ]
