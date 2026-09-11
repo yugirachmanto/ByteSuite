@@ -31,7 +31,8 @@ import {
   PackageCheck,
   Users,
   Trash2,
-  Workflow
+  Workflow,
+  History
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button, buttonVariants } from '@/components/ui/button'
@@ -76,6 +77,7 @@ const sidebarGroups = [
       { name: 'Customers', href: '/customers', icon: Users },
       { name: 'Accounting', href: '/accounting', icon: BookOpen },
       { name: 'Reports', href: '/reports', icon: BarChart3 },
+      { name: 'Riwayat Shift', href: '/pos/shift-history', icon: History },
     ]
   },
   {

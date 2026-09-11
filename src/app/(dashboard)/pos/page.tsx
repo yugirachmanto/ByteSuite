@@ -7,7 +7,7 @@ import { useOutlet } from '@/lib/contexts/outlet-context'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Plus, Minus, Search, Trash2, CreditCard, Loader2, ShoppingCart, Ban, CheckCircle2, Printer, Monitor, Clock, LogOut, Wallet, ChevronUp, RefreshCw } from 'lucide-react'
+import { Plus, Minus, Search, Trash2, CreditCard, Loader2, ShoppingCart, Ban, CheckCircle2, Printer, Monitor, Clock, LogOut, Wallet, ChevronUp, RefreshCw, FileText } from 'lucide-react'
 import { formatRp } from '@/lib/format'
 import { toast } from 'sonner'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
@@ -272,7 +272,13 @@ export default function POSPage() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to close shift')
 
-      toast.success('Shift closed')
+      const closedShiftId = shift.id
+      toast.success('Shift closed', {
+        action: {
+          label: 'Lihat Laporan',
+          onClick: () => window.open(`/pos/shift-report/${closedShiftId}`, '_blank')
+        }
+      })
       setCloseShiftOpen(false)
       setShift(null)
       fetchShift()
@@ -713,6 +719,14 @@ export default function POSPage() {
                 <Clock className="h-3.5 w-3.5 text-indigo-400 shrink-0" />
                 <span className="whitespace-nowrap">Shift since {format(new Date(shift.opened_at), 'HH:mm')} · {formatRp(shift.opening_float)}</span>
               </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-zinc-800 bg-zinc-900 text-zinc-300 hover:bg-zinc-800"
+                onClick={() => window.open(`/pos/shift-report/${shift.id}`, '_blank')}
+              >
+                <FileText className="mr-2 h-4 w-4" /> Preview Laporan
+              </Button>
               <Button
                 variant="outline"
                 size="sm"
