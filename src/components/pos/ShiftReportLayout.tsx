@@ -82,10 +82,23 @@ export function ShiftReportLayout({ shift, summary, org, outlet, paperWidth, isF
             <span>{formatRp(summary.netSales)}</span>
           </div>
           <Row label="Jumlah Transaksi" value={String(summary.orderCount)} />
+          <Row label="Rata-rata Transaksi" value={formatRp(summary.averageTransaction)} />
           {summary.voidedCount > 0 && (
             <Row label="Dibatalkan" value={`${summary.voidedCount} transaksi (${formatRp(summary.voidedAmount)})`} />
           )}
         </div>
+
+        {summary.compTotal > 0 && (
+          <>
+            <Divider />
+            <div className="leading-tight space-y-0.5">
+              <p className="font-bold">KOMPLIMEN ({formatRp(summary.compTotal)})</p>
+              {summary.compRecipients.map((r, i) => (
+                <Row key={i} label={r.notes} value={formatRp(r.amount)} />
+              ))}
+            </div>
+          </>
+        )}
 
         <Divider />
 

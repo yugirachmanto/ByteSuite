@@ -61,7 +61,7 @@ export default function POSReceiptPage({ params }: { params: Promise<{ id: strin
 
     const [lineRes, paymentRes, orgRes, outletRes, cashierRes, voidedByRes] = await Promise.all([
       supabase.from('pos_order_lines').select('id, qty, unit_price, subtotal, discount_amount, item_master(name)').eq('order_id', orderId),
-      supabase.from('pos_order_payments').select('id, payment_method, amount, cash_received, change_due').eq('order_id', orderId),
+      supabase.from('pos_order_payments').select('id, payment_method, amount, cash_received, change_due, notes').eq('order_id', orderId),
       supabase.from('organizations').select('name, address, npwp, receipt_paper_width, qris_image_url, bank_name, bank_account_number, bank_account_holder').eq('id', orderData.org_id).single(),
       supabase.from('outlets').select('name, address').eq('id', orderData.outlet_id).single(),
       orderData.cashier_id
@@ -103,6 +103,7 @@ export default function POSReceiptPage({ params }: { params: Promise<{ id: strin
       amount: p.amount,
       cash_received: p.cash_received,
       change_due: p.change_due,
+      notes: p.notes,
     })))
     if (orgRes.data) {
       setOrg(orgRes.data)

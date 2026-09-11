@@ -4,6 +4,10 @@ import { canAccess } from '@/lib/auth/canAccess'
 
 const POS_ROLES = ['owner', 'admin', 'cashier']
 
+function isComplimentaryMethod(method: string): boolean {
+  return /komplimen|complimentary|compliment/i.test(method)
+}
+
 export async function POST(request: Request) {
   try {
     const supabase = await createClient()
@@ -53,6 +57,9 @@ export async function POST(request: Request) {
     for (const t of tenders) {
       if (!t.method || typeof t.amount !== 'number' || t.amount <= 0) {
         return NextResponse.json({ error: 'Each tender needs a method and a positive amount' }, { status: 400 })
+      }
+      if (isComplimentaryMethod(t.method) && !String(t.notes || '').trim()) {
+        return NextResponse.json({ error: 'A note (who this comp is for) is required for a complimentary tender' }, { status: 400 })
       }
     }
 
@@ -175,7 +182,8 @@ export async function POST(request: Request) {
       method: t.method,
       amount: t.amount,
       cash_received: t.cash_received ?? null,
-      change_due: t.cash_received != null ? t.cash_received - t.amount : null
+      change_due: t.cash_received != null ? t.cash_received - t.amount : null,
+      notes: t.notes ? String(t.notes).trim() : null
     }))
     const paymentSummary = Array.from(new Set(tenders.map((t: any) => t.method))).join(' + ')
 
