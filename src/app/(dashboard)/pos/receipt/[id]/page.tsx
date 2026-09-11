@@ -14,7 +14,7 @@ import {
 import { ArrowLeft, Printer, Loader2, Ban } from 'lucide-react'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
-import { ReceiptLayout, type ReceiptOrderData, type ReceiptLine, type ReceiptOrg, type ReceiptOutlet } from '@/components/pos/ReceiptLayout'
+import { ReceiptLayout, type ReceiptOrderData, type ReceiptLine, type ReceiptPayment, type ReceiptOrg, type ReceiptOutlet } from '@/components/pos/ReceiptLayout'
 import { getCurrentUserRole, canAccess } from '@/lib/auth/canAccess'
 
 const VOID_ROLES = ['owner', 'admin', 'cashier']
@@ -34,6 +34,7 @@ export default function POSReceiptPage({ params }: { params: Promise<{ id: strin
   const [order, setOrder] = useState<ReceiptOrderData | null>(null)
   const [orderMeta, setOrderMeta] = useState<OrderMeta | null>(null)
   const [lines, setLines] = useState<ReceiptLine[]>([])
+  const [payments, setPayments] = useState<ReceiptPayment[]>([])
   const [org, setOrg] = useState<ReceiptOrg | null>(null)
   const [outlet, setOutlet] = useState<ReceiptOutlet | null>(null)
   const [paperWidth, setPaperWidth] = useState<'58mm' | '80mm'>('58mm')
@@ -58,8 +59,9 @@ export default function POSReceiptPage({ params }: { params: Promise<{ id: strin
 
     if (!orderData) { setLoading(false); return }
 
-    const [lineRes, orgRes, outletRes, cashierRes, voidedByRes] = await Promise.all([
+    const [lineRes, paymentRes, orgRes, outletRes, cashierRes, voidedByRes] = await Promise.all([
       supabase.from('pos_order_lines').select('id, qty, unit_price, subtotal, discount_amount, item_master(name)').eq('order_id', orderId),
+      supabase.from('pos_order_payments').select('id, payment_method, amount, cash_received, change_due').eq('order_id', orderId),
       supabase.from('organizations').select('name, address, npwp, receipt_paper_width, qris_image_url, bank_name, bank_account_number, bank_account_holder').eq('id', orderData.org_id).single(),
       supabase.from('outlets').select('name, address').eq('id', orderData.outlet_id).single(),
       orderData.cashier_id
@@ -94,6 +96,13 @@ export default function POSReceiptPage({ params }: { params: Promise<{ id: strin
       unit_price: l.unit_price,
       subtotal: l.subtotal,
       discount_amount: l.discount_amount || 0,
+    })))
+    setPayments((paymentRes.data || []).map((p: any) => ({
+      id: p.id,
+      payment_method: p.payment_method,
+      amount: p.amount,
+      cash_received: p.cash_received,
+      change_due: p.change_due,
     })))
     if (orgRes.data) {
       setOrg(orgRes.data)
@@ -205,7 +214,7 @@ export default function POSReceiptPage({ params }: { params: Promise<{ id: strin
       </div>
 
       <div className="mx-auto max-w-sm bg-zinc-900 border border-zinc-800 rounded-lg p-4 print:p-0 print:border-0 print:bg-transparent print:shadow-none">
-        <ReceiptLayout order={order} lines={lines} org={org} outlet={outlet} paperWidth={paperWidth} voided={isVoided} />
+        <ReceiptLayout order={order} lines={lines} payments={payments} org={org} outlet={outlet} paperWidth={paperWidth} voided={isVoided} />
       </div>
 
       <AlertDialog open={voidDialogOpen} onOpenChange={setVoidDialogOpen}>

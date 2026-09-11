@@ -35,7 +35,7 @@ export function useOfflineCheckoutSync() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               outlet_id: item.outletId,
-              payment_method: item.paymentMethod,
+              tenders: item.tenders,
               lines: item.lines,
               client_request_id: item.clientRequestId,
               shift_id: item.shiftId,

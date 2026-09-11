@@ -27,6 +27,14 @@ export interface ReceiptLine {
   discount_amount: number
 }
 
+export interface ReceiptPayment {
+  id: string
+  payment_method: string
+  amount: number
+  cash_received: number | null
+  change_due: number | null
+}
+
 export interface ReceiptOrderData {
   id: string
   created_at: string
@@ -41,15 +49,16 @@ export interface ReceiptOrderData {
 interface ReceiptLayoutProps {
   order: ReceiptOrderData
   lines: ReceiptLine[]
+  payments: ReceiptPayment[]
   org: ReceiptOrg
   outlet: ReceiptOutlet
   paperWidth: '58mm' | '80mm'
   voided?: boolean
 }
 
-export function ReceiptLayout({ order, lines, org, outlet, paperWidth, voided }: ReceiptLayoutProps) {
-  const isQris = order.payment_method.toLowerCase().includes('qris')
-  const isTransfer = order.payment_method.toLowerCase().includes('transfer')
+export function ReceiptLayout({ order, lines, payments, org, outlet, paperWidth, voided }: ReceiptLayoutProps) {
+  const isQris = payments.some(p => p.payment_method.toLowerCase().includes('qris'))
+  const isTransfer = payments.some(p => p.payment_method.toLowerCase().includes('transfer'))
   const fontSize = paperWidth === '58mm' ? '10.5px' : '12px'
   // order.subtotal is already net of both line-level and order-level
   // discounts (the persisted, GL-correct figure) — reconstruct the gross
@@ -125,6 +134,20 @@ export function ReceiptLayout({ order, lines, org, outlet, paperWidth, voided }:
             <span>TOTAL</span>
             <span>{formatRp(order.total_amount)}</span>
           </div>
+        </div>
+
+        <Divider />
+
+        <div className="leading-tight space-y-0.5">
+          {payments.map((p) => (
+            <Row key={p.id} label={p.payment_method} value={formatRp(p.amount)} />
+          ))}
+          {payments.map((p) => p.cash_received != null && (
+            <div key={`${p.id}-cash`} className="space-y-0.5">
+              <Row label="Tunai Diterima" value={formatRp(p.cash_received)} />
+              {p.change_due != null && p.change_due > 0 && <Row label="Kembalian" value={formatRp(p.change_due)} />}
+            </div>
+          ))}
         </div>
 
         {isQris && org.qris_image_url && (

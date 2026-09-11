@@ -38,7 +38,7 @@ export async function POST(request: Request) {
     }
 
     const payload = await request.json()
-    const { outlet_id, payment_method, lines, client_request_id, shift_id: queued_shift_id, order_discount_type, order_discount_value } = payload
+    const { outlet_id, tenders, lines, client_request_id, shift_id: queued_shift_id, order_discount_type, order_discount_value } = payload
 
     // Discounts are owner/admin only. A cashier's attempt to include one
     // (whether via a tampered request or a stale client) is silently
@@ -46,8 +46,14 @@ export async function POST(request: Request) {
     // just undiscounted.
     const canDiscount = canAccess(profile.role, ['owner', 'admin'])
 
-    if (!outlet_id || !payment_method || !lines || lines.length === 0) {
+    if (!outlet_id || !Array.isArray(tenders) || tenders.length === 0 || !lines || lines.length === 0) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+    }
+
+    for (const t of tenders) {
+      if (!t.method || typeof t.amount !== 'number' || t.amount <= 0) {
+        return NextResponse.json({ error: 'Each tender needs a method and a positive amount' }, { status: 400 })
+      }
     }
 
     if (!client_request_id) {
@@ -160,12 +166,25 @@ export async function POST(request: Request) {
     const tax_amount = Math.round(subtotal * (taxRate / 100))
     const total_amount = subtotal + tax_amount
 
+    const tendersSum = tenders.reduce((sum: number, t: any) => sum + t.amount, 0)
+    if (tendersSum !== total_amount) {
+      return NextResponse.json({ error: `Tender amounts (${tendersSum}) do not match the order total (${total_amount})` }, { status: 400 })
+    }
+
+    const processedTenders = tenders.map((t: any) => ({
+      method: t.method,
+      amount: t.amount,
+      cash_received: t.cash_received ?? null,
+      change_due: t.cash_received != null ? t.cash_received - t.amount : null
+    }))
+    const paymentSummary = Array.from(new Set(tenders.map((t: any) => t.method))).join(' + ')
+
     // 2. Call the RPC to process the order
     const { data: orderId, error: rpcError } = await supabase.rpc('process_pos_order', {
       p_org_id: profile.org_id,
       p_outlet_id: outlet_id,
       p_cashier_id: user.id,
-      p_payment_method: payment_method,
+      p_tenders: processedTenders,
       p_subtotal: subtotal,
       p_tax_amount: tax_amount,
       p_total_amount: total_amount,
@@ -174,7 +193,8 @@ export async function POST(request: Request) {
       p_client_request_id: client_request_id,
       p_order_discount_type: orderDiscountType,
       p_order_discount_value: orderDiscountValue,
-      p_order_discount_amount: orderDiscountAmount
+      p_order_discount_amount: orderDiscountAmount,
+      p_payment_summary: paymentSummary
     })
 
     if (rpcError) {
