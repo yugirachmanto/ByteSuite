@@ -30,7 +30,8 @@ import {
   ShoppingCart,
   PackageCheck,
   Users,
-  Trash2
+  Trash2,
+  Workflow
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button, buttonVariants } from '@/components/ui/button'
@@ -59,7 +60,7 @@ const sidebarGroups = [
     roles: ['owner', 'admin', 'finance', 'cashier', 'kitchen', 'viewer'],
     items: [
       { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-      { name: 'Point of Sale', href: '/pos', icon: CreditCard },
+      { name: 'Point of Sale', href: '/pos', icon: CreditCard, roles: ['owner', 'admin', 'cashier'] },
     ]
   },
   {
@@ -68,6 +69,7 @@ const sidebarGroups = [
     items: [
       { name: 'Requisitions', href: '/purchasing/pr', icon: ClipboardCheck },
       { name: 'Purchase Orders', href: '/purchasing/po', icon: ShoppingCart },
+      { name: 'Pipeline', href: '/purchasing/pipeline', icon: Workflow },
       { name: 'Goods Receipt', href: '/purchasing/gr', icon: PackageCheck },
       { name: 'Invoices', href: '/invoices', icon: FileText },
       { name: 'Vendors', href: '/vendors', icon: Building2 },
@@ -248,6 +250,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                   <div className="space-y-0.5">
                     {mounted && group.items.map((item) => {
                       if (!posEnabled && item.name === 'Point of Sale') return null;
+                      if ((item as any).roles && userRole && !(item as any).roles.includes(userRole)) return null;
                       const isActive =
                         pathname === item.href ||
                         (item.href !== '/dashboard' && pathname?.startsWith(item.href))
