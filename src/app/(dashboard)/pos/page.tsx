@@ -7,13 +7,15 @@ import { useOutlet } from '@/lib/contexts/outlet-context'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Plus, Minus, Search, Trash2, CreditCard, Loader2, ShoppingCart, Ban, CheckCircle2, Printer, Monitor, Clock, LogOut, Wallet, ChevronUp } from 'lucide-react'
+import { Plus, Minus, Search, Trash2, CreditCard, Loader2, ShoppingCart, Ban, CheckCircle2, Printer, Monitor, Clock, LogOut, Wallet, ChevronUp, RefreshCw } from 'lucide-react'
 import { formatRp } from '@/lib/format'
 import { toast } from 'sonner'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { format } from 'date-fns'
+import { enqueue } from '@/lib/pos/offlineQueue'
+import { useOfflineCheckoutSync } from '@/lib/pos/useOfflineCheckoutSync'
 
 interface Product {
   id: string
@@ -47,6 +49,7 @@ export default function POSPage() {
   const [bankInfo, setBankInfo] = useState({ bankName: '', bankAccountNumber: '', bankAccountHolder: '' })
   const [posEnabled, setPosEnabled] = useState(true)
   const cfdChannelRef = useRef<RealtimeChannel | null>(null)
+  const offlineQueueSync = useOfflineCheckoutSync()
 
   const [shift, setShift] = useState<{ id: string; opened_at: string; opening_float: number } | null>(null)
   const [shiftLoading, setShiftLoading] = useState(true)
@@ -313,20 +316,42 @@ export default function POSPage() {
       return
     }
 
+    const clientRequestId = crypto.randomUUID()
+    const checkoutLines = cart.map(item => ({ item_id: item.id, qty: item.qty }))
+
     setProcessing(true)
     try {
-      const res = await fetch('/api/pos/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          outlet_id: selectedOutletId,
-          payment_method: paymentMethod,
-          lines: cart.map(item => ({
-            item_id: item.id,
-            qty: item.qty
-          }))
+      let res: Response
+      try {
+        res = await fetch('/api/pos/checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            outlet_id: selectedOutletId,
+            payment_method: paymentMethod,
+            lines: checkoutLines,
+            client_request_id: clientRequestId,
+            shift_id: shift?.id ?? null
+          })
         })
-      })
+      } catch {
+        // The request never reached the server — a genuine network blip.
+        // Queue it for background retry instead of blocking the cashier.
+        enqueue({
+          clientRequestId,
+          outletId: selectedOutletId!,
+          paymentMethod,
+          lines: checkoutLines,
+          shiftId: shift?.id ?? null,
+          queuedAt: new Date().toISOString()
+        })
+        offlineQueueSync.refreshPendingCount()
+        toast.success('No connection — sale queued, will sync automatically')
+        setCart([])
+        setPaymentMethod('')
+        setIsCheckoutOpen(false)
+        return
+      }
 
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to checkout')
@@ -495,6 +520,12 @@ export default function POSPage() {
           <p className="text-sm text-zinc-400 hidden sm:block">Process retail transactions</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {offlineQueueSync.pendingCount > 0 && (
+            <div className="flex items-center gap-1.5 text-xs text-amber-400 bg-zinc-900 border border-zinc-800 rounded-md px-3 h-9">
+              <RefreshCw className={`h-3.5 w-3.5 shrink-0 ${offlineQueueSync.isSyncing ? 'animate-spin' : ''}`} />
+              <span className="whitespace-nowrap">{offlineQueueSync.pendingCount} pending sync</span>
+            </div>
+          )}
           {shift && (
             <>
               <div className="flex items-center gap-1.5 text-xs text-zinc-400 bg-zinc-900 border border-zinc-800 rounded-md px-3 h-9">

@@ -38,10 +38,14 @@ export async function POST(request: Request) {
     }
 
     const payload = await request.json()
-    const { outlet_id, payment_method, lines } = payload
+    const { outlet_id, payment_method, lines, client_request_id, shift_id: queued_shift_id } = payload
 
     if (!outlet_id || !payment_method || !lines || lines.length === 0) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+    }
+
+    if (!client_request_id) {
+      return NextResponse.json({ error: 'Missing client_request_id' }, { status: 400 })
     }
 
     // Verify the outlet actually belongs to the caller's org — process_pos_order is
@@ -58,16 +62,34 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Forbidden: outlet does not belong to your organization' }, { status: 403 })
     }
 
-    // Never trust a client-supplied shift id — look up the caller's own
-    // open shift at this outlet server-side, same reasoning as
+    // Never trust a client-supplied shift id for a live sale — look up the
+    // caller's own open shift at this outlet server-side, same reasoning as
     // recalculating prices below instead of trusting the cart.
-    const { data: shift } = await supabase
+    let { data: shift } = await supabase
       .from('pos_shifts')
       .select('id')
       .eq('cashier_id', user.id)
       .eq('outlet_id', outlet_id)
       .eq('status', 'open')
       .maybeSingle()
+
+    // Fallback for an offline-queued sale replayed after its shift has
+    // since closed: the client sends the shift id it captured at the
+    // moment of the original sale. Ownership is still verified (org/outlet/
+    // cashier), but status is intentionally not checked — this is what lets
+    // a late-arriving sale post into the shift it actually happened under.
+    if (!shift && queued_shift_id) {
+      const { data: originalShift } = await supabase
+        .from('pos_shifts')
+        .select('id')
+        .eq('id', queued_shift_id)
+        .eq('cashier_id', user.id)
+        .eq('outlet_id', outlet_id)
+        .eq('org_id', profile.org_id)
+        .maybeSingle()
+
+      shift = originalShift
+    }
 
     if (!shift) {
       return NextResponse.json({ error: 'No open shift — open a shift before selling' }, { status: 403 })
@@ -118,7 +140,8 @@ export async function POST(request: Request) {
       p_tax_amount: tax_amount,
       p_total_amount: total_amount,
       p_lines: processedLines,
-      p_shift_id: shift.id
+      p_shift_id: shift.id,
+      p_client_request_id: client_request_id
     })
 
     if (rpcError) {
