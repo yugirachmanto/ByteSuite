@@ -24,6 +24,7 @@ export interface ReceiptLine {
   qty: number
   unit_price: number
   subtotal: number
+  discount_amount: number
 }
 
 export interface ReceiptOrderData {
@@ -33,6 +34,7 @@ export interface ReceiptOrderData {
   subtotal: number
   tax_amount: number
   total_amount: number
+  discount_amount: number
   cashier_name: string | null
 }
 
@@ -49,6 +51,11 @@ export function ReceiptLayout({ order, lines, org, outlet, paperWidth, voided }:
   const isQris = order.payment_method.toLowerCase().includes('qris')
   const isTransfer = order.payment_method.toLowerCase().includes('transfer')
   const fontSize = paperWidth === '58mm' ? '10.5px' : '12px'
+  // order.subtotal is already net of both line-level and order-level
+  // discounts (the persisted, GL-correct figure) — reconstruct the gross
+  // (pre-discount) subtotal from the lines for display.
+  const grossSubtotal = lines.reduce((sum, line) => sum + line.subtotal + line.discount_amount, 0)
+  const totalDiscount = grossSubtotal - order.subtotal
 
   return (
     <>
@@ -98,6 +105,12 @@ export function ReceiptLayout({ order, lines, org, outlet, paperWidth, voided }:
                 <span>{line.qty} x {formatRp(line.unit_price)}</span>
                 <span>{formatRp(line.subtotal)}</span>
               </div>
+              {line.discount_amount > 0 && (
+                <div className="flex justify-between text-[0.9em]">
+                  <span>Diskon item</span>
+                  <span>-{formatRp(line.discount_amount)}</span>
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -105,7 +118,8 @@ export function ReceiptLayout({ order, lines, org, outlet, paperWidth, voided }:
         <Divider />
 
         <div className="leading-tight space-y-0.5">
-          <Row label="Subtotal" value={formatRp(order.subtotal)} />
+          <Row label="Subtotal" value={formatRp(grossSubtotal)} />
+          {totalDiscount > 0 && <Row label="Diskon" value={`-${formatRp(totalDiscount)}`} />}
           {order.tax_amount > 0 && <Row label="Pajak" value={formatRp(order.tax_amount)} />}
           <div className="flex justify-between font-bold text-[1.1em] pt-1">
             <span>TOTAL</span>

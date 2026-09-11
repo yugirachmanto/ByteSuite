@@ -38,7 +38,9 @@ export function useOfflineCheckoutSync() {
               payment_method: item.paymentMethod,
               lines: item.lines,
               client_request_id: item.clientRequestId,
-              shift_id: item.shiftId
+              shift_id: item.shiftId,
+              order_discount_type: item.orderDiscountType,
+              order_discount_value: item.orderDiscountValue
             })
           })
         } catch {
