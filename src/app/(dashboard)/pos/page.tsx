@@ -16,6 +16,9 @@ import { Textarea } from '@/components/ui/textarea'
 import { format } from 'date-fns'
 import { enqueue } from '@/lib/pos/offlineQueue'
 import { useOfflineCheckoutSync } from '@/lib/pos/useOfflineCheckoutSync'
+import { getCurrentUserRole, canAccess } from '@/lib/auth/canAccess'
+
+const DISCOUNT_ROLES = ['owner', 'admin']
 
 interface Product {
   id: string
@@ -26,8 +29,18 @@ interface Product {
   imageUrl?: string
 }
 
+type DiscountType = 'percent' | 'fixed' | null
+
 type CartItem = Product & {
   qty: number
+  discountType: DiscountType
+  discountValue: number
+}
+
+function computeDiscountAmount(type: DiscountType, value: number, base: number): number {
+  if (!type || !value || value <= 0 || base <= 0) return 0
+  if (type === 'percent') return Math.round(base * Math.min(value, 100) / 100)
+  return Math.min(Math.max(value, 0), base)
 }
 
 export default function POSPage() {
@@ -44,6 +57,7 @@ export default function POSPage() {
   const [processing, setProcessing] = useState(false)
   const [checkoutStep, setCheckoutStep] = useState<'payment' | 'success'>('payment')
   const [lastOrderId, setLastOrderId] = useState<string | null>(null)
+  const [lastOrderTotal, setLastOrderTotal] = useState<number | null>(null)
   const [taxRate, setTaxRate] = useState(0)
   const [qrisImageUrl, setQrisImageUrl] = useState('')
   const [bankInfo, setBankInfo] = useState({ bankName: '', bankAccountNumber: '', bankAccountHolder: '' })
@@ -62,10 +76,22 @@ export default function POSPage() {
   const [closingNotes, setClosingNotes] = useState('')
   const [closingShift, setClosingShift] = useState(false)
   const [isCartSheetOpen, setIsCartSheetOpen] = useState(false)
+  const [canDiscount, setCanDiscount] = useState(false)
+  const [orderDiscountType, setOrderDiscountType] = useState<DiscountType>(null)
+  const [orderDiscountValue, setOrderDiscountValue] = useState(0)
+
+  useEffect(() => {
+    getCurrentUserRole(supabase).then((role) => setCanDiscount(canAccess(role, DISCOUNT_ROLES)))
+  }, [])
 
   const outletName = outlets.find(o => o.id === selectedOutletId)?.name || 'ByteSuite'
 
-  const subtotal = cart.reduce((sum, item) => sum + (item.price * item.qty), 0)
+  const grossSubtotal = cart.reduce((sum, item) => sum + (item.price * item.qty), 0)
+  const lineDiscountTotal = cart.reduce((sum, item) => sum + computeDiscountAmount(item.discountType, item.discountValue, item.price * item.qty), 0)
+  const preOrderDiscountSubtotal = grossSubtotal - lineDiscountTotal
+  const orderDiscountAmount = computeDiscountAmount(orderDiscountType, orderDiscountValue, preOrderDiscountSubtotal)
+  const discountTotal = lineDiscountTotal + orderDiscountAmount
+  const subtotal = preOrderDiscountSubtotal - orderDiscountAmount
   const tax = subtotal * (taxRate / 100)
   const total = subtotal + tax
 
@@ -286,8 +312,12 @@ export default function POSPage() {
       if (existing) {
         return prev.map(p => p.id === product.id ? { ...p, qty: p.qty + 1 } : p)
       }
-      return [...prev, { ...product, qty: 1 }]
+      return [...prev, { ...product, qty: 1, discountType: null, discountValue: 0 }]
     })
+  }
+
+  const updateLineDiscount = (id: string, discountType: DiscountType, discountValue: number) => {
+    setCart(prev => prev.map(p => p.id === id ? { ...p, discountType, discountValue } : p))
   }
 
   const updateQty = (id: string, delta: number) => {
@@ -300,7 +330,11 @@ export default function POSPage() {
     }).filter(p => p.qty > 0))
   }
 
-  const clearCart = () => setCart([])
+  const clearCart = () => {
+    setCart([])
+    setOrderDiscountType(null)
+    setOrderDiscountValue(0)
+  }
 
   const filteredProducts = products.filter(p => {
     const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase())
@@ -317,7 +351,12 @@ export default function POSPage() {
     }
 
     const clientRequestId = crypto.randomUUID()
-    const checkoutLines = cart.map(item => ({ item_id: item.id, qty: item.qty }))
+    const checkoutLines = cart.map(item => ({
+      item_id: item.id,
+      qty: item.qty,
+      discount_type: item.discountType,
+      discount_value: item.discountValue
+    }))
 
     setProcessing(true)
     try {
@@ -331,7 +370,9 @@ export default function POSPage() {
             payment_method: paymentMethod,
             lines: checkoutLines,
             client_request_id: clientRequestId,
-            shift_id: shift?.id ?? null
+            shift_id: shift?.id ?? null,
+            order_discount_type: orderDiscountType,
+            order_discount_value: orderDiscountValue
           })
         })
       } catch {
@@ -343,11 +384,15 @@ export default function POSPage() {
           paymentMethod,
           lines: checkoutLines,
           shiftId: shift?.id ?? null,
-          queuedAt: new Date().toISOString()
+          queuedAt: new Date().toISOString(),
+          orderDiscountType,
+          orderDiscountValue
         })
         offlineQueueSync.refreshPendingCount()
         toast.success('No connection — sale queued, will sync automatically')
         setCart([])
+        setOrderDiscountType(null)
+        setOrderDiscountValue(0)
         setPaymentMethod('')
         setIsCheckoutOpen(false)
         return
@@ -360,7 +405,10 @@ export default function POSPage() {
 
       cfdChannelRef.current?.send({ type: 'broadcast', event: 'checkout_success' })
 
+      setLastOrderTotal(total)
       setCart([])
+      setOrderDiscountType(null)
+      setOrderDiscountValue(0)
       setLastOrderId(data.order_id)
       setCheckoutStep('success')
     } catch (error: any) {
@@ -379,6 +427,7 @@ export default function POSPage() {
     setCheckoutStep('payment')
     setPaymentMethod('')
     setLastOrderId(null)
+    setLastOrderTotal(null)
   }
 
   // Shared cart items + totals + Charge button, rendered both in the
@@ -404,11 +453,19 @@ export default function POSPage() {
             <p className="text-sm">Cart is empty</p>
           </div>
         ) : (
-          cart.map(item => (
+          cart.map(item => {
+            const lineGross = item.price * item.qty
+            const lineDiscountAmount = computeDiscountAmount(item.discountType, item.discountValue, lineGross)
+            return (
             <div key={item.id} className="flex flex-col gap-2 p-3 bg-zinc-800/50 rounded-lg border border-zinc-800/50">
               <div className="flex justify-between items-start">
                 <span className="text-sm font-medium text-zinc-200 line-clamp-1">{item.name}</span>
-                <span className="text-sm font-semibold text-zinc-300">{formatRp(item.price * item.qty)}</span>
+                <div className="text-right">
+                  {lineDiscountAmount > 0 && (
+                    <div className="text-xs text-zinc-500 line-through">{formatRp(lineGross)}</div>
+                  )}
+                  <span className="text-sm font-semibold text-zinc-300">{formatRp(lineGross - lineDiscountAmount)}</span>
+                </div>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-xs text-zinc-500">{formatRp(item.price)} each</span>
@@ -422,17 +479,74 @@ export default function POSPage() {
                   </Button>
                 </div>
               </div>
+              {canDiscount && (
+                <div className="flex items-center gap-1.5 pt-1">
+                  <button
+                    type="button"
+                    className={`text-xs px-2 py-1 rounded ${item.discountType === 'percent' ? 'bg-indigo-600 text-white' : 'bg-zinc-900 text-zinc-400 border border-zinc-800'}`}
+                    onClick={() => updateLineDiscount(item.id, 'percent', item.discountValue)}
+                  >%</button>
+                  <button
+                    type="button"
+                    className={`text-xs px-2 py-1 rounded ${item.discountType === 'fixed' ? 'bg-indigo-600 text-white' : 'bg-zinc-900 text-zinc-400 border border-zinc-800'}`}
+                    onClick={() => updateLineDiscount(item.id, 'fixed', item.discountValue)}
+                  >Rp</button>
+                  <Input
+                    type="number"
+                    min={0}
+                    placeholder="Diskon"
+                    className="h-7 text-xs bg-zinc-900 border-zinc-800 w-24"
+                    value={item.discountValue || ''}
+                    onChange={(e) => updateLineDiscount(item.id, item.discountType ?? 'percent', Number(e.target.value))}
+                  />
+                  {item.discountType && item.discountValue > 0 && (
+                    <button type="button" className="text-xs text-rose-400 hover:text-rose-300" onClick={() => updateLineDiscount(item.id, null, 0)}>
+                      Clear
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
-          ))
+            )
+          })
         )}
       </div>
 
       <div className="p-4 bg-zinc-950 border-t border-zinc-800 shrink-0">
+        {canDiscount && (
+          <div className="flex items-center gap-1.5 mb-3">
+            <span className="text-xs text-zinc-500 mr-auto">Diskon Pesanan</span>
+            <button
+              type="button"
+              className={`text-xs px-2 py-1 rounded ${orderDiscountType === 'percent' ? 'bg-indigo-600 text-white' : 'bg-zinc-900 text-zinc-400 border border-zinc-800'}`}
+              onClick={() => setOrderDiscountType('percent')}
+            >%</button>
+            <button
+              type="button"
+              className={`text-xs px-2 py-1 rounded ${orderDiscountType === 'fixed' ? 'bg-indigo-600 text-white' : 'bg-zinc-900 text-zinc-400 border border-zinc-800'}`}
+              onClick={() => setOrderDiscountType('fixed')}
+            >Rp</button>
+            <Input
+              type="number"
+              min={0}
+              placeholder="0"
+              className="h-7 text-xs bg-zinc-900 border-zinc-800 w-24"
+              value={orderDiscountValue || ''}
+              onChange={(e) => { setOrderDiscountValue(Number(e.target.value)); if (!orderDiscountType) setOrderDiscountType('percent') }}
+            />
+          </div>
+        )}
         <div className="space-y-2 mb-4">
           <div className="flex justify-between text-sm text-zinc-400">
             <span>Subtotal</span>
-            <span>{formatRp(subtotal)}</span>
+            <span>{formatRp(grossSubtotal)}</span>
           </div>
+          {discountTotal > 0 && (
+            <div className="flex justify-between text-sm text-emerald-400">
+              <span>Diskon</span>
+              <span>-{formatRp(discountTotal)}</span>
+            </div>
+          )}
           <div className="flex justify-between text-sm text-zinc-400">
             <span>Tax</span>
             <span>{formatRp(tax)}</span>
@@ -675,7 +789,7 @@ export default function POSPage() {
                 <div className="text-center p-6 bg-zinc-950 rounded-xl border border-zinc-800 flex flex-col items-center gap-2">
                   <CheckCircle2 className="h-12 w-12 text-emerald-500" />
                   <p className="text-sm text-zinc-400">Total Charged</p>
-                  <h3 className="text-3xl font-bold text-emerald-400 tracking-tight">{formatRp(total)}</h3>
+                  <h3 className="text-3xl font-bold text-emerald-400 tracking-tight">{formatRp(lastOrderTotal ?? 0)}</h3>
                 </div>
               </div>
 

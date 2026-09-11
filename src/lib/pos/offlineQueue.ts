@@ -1,12 +1,21 @@
 const STORAGE_KEY = 'bytesuite_pos_checkout_queue'
 
+export interface QueuedCheckoutLine {
+  item_id: string
+  qty: number
+  discount_type?: 'percent' | 'fixed' | null
+  discount_value?: number | null
+}
+
 export interface QueuedCheckout {
   clientRequestId: string
   outletId: string
   paymentMethod: string
-  lines: { item_id: string; qty: number }[]
+  lines: QueuedCheckoutLine[]
   shiftId: string | null
   queuedAt: string
+  orderDiscountType?: 'percent' | 'fixed' | null
+  orderDiscountValue?: number | null
 }
 
 export function getQueue(): QueuedCheckout[] {

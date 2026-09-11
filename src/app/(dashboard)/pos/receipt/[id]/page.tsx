@@ -52,14 +52,14 @@ export default function POSReceiptPage({ params }: { params: Promise<{ id: strin
     setLoading(true)
     const { data: orderData } = await supabase
       .from('pos_orders')
-      .select('id, created_at, payment_method, subtotal, tax_amount, total_amount, org_id, outlet_id, cashier_id, status, voided_by, voided_at, void_reason')
+      .select('id, created_at, payment_method, subtotal, tax_amount, total_amount, discount_amount, org_id, outlet_id, cashier_id, status, voided_by, voided_at, void_reason')
       .eq('id', orderId)
       .single()
 
     if (!orderData) { setLoading(false); return }
 
     const [lineRes, orgRes, outletRes, cashierRes, voidedByRes] = await Promise.all([
-      supabase.from('pos_order_lines').select('id, qty, unit_price, subtotal, item_master(name)').eq('order_id', orderId),
+      supabase.from('pos_order_lines').select('id, qty, unit_price, subtotal, discount_amount, item_master(name)').eq('order_id', orderId),
       supabase.from('organizations').select('name, address, npwp, receipt_paper_width, qris_image_url, bank_name, bank_account_number, bank_account_holder').eq('id', orderData.org_id).single(),
       supabase.from('outlets').select('name, address').eq('id', orderData.outlet_id).single(),
       orderData.cashier_id
@@ -77,6 +77,7 @@ export default function POSReceiptPage({ params }: { params: Promise<{ id: strin
       subtotal: orderData.subtotal,
       tax_amount: orderData.tax_amount,
       total_amount: orderData.total_amount,
+      discount_amount: orderData.discount_amount || 0,
       cashier_name: cashierRes.data?.full_name || null,
     })
     setOrderMeta({
@@ -92,6 +93,7 @@ export default function POSReceiptPage({ params }: { params: Promise<{ id: strin
       qty: l.qty,
       unit_price: l.unit_price,
       subtotal: l.subtotal,
+      discount_amount: l.discount_amount || 0,
     })))
     if (orgRes.data) {
       setOrg(orgRes.data)

@@ -38,7 +38,13 @@ export async function POST(request: Request) {
     }
 
     const payload = await request.json()
-    const { outlet_id, payment_method, lines, client_request_id, shift_id: queued_shift_id } = payload
+    const { outlet_id, payment_method, lines, client_request_id, shift_id: queued_shift_id, order_discount_type, order_discount_value } = payload
+
+    // Discounts are owner/admin only. A cashier's attempt to include one
+    // (whether via a tampered request or a stale client) is silently
+    // dropped rather than blocking the sale — the sale still goes through,
+    // just undiscounted.
+    const canDiscount = canAccess(profile.role, ['owner', 'admin'])
 
     if (!outlet_id || !payment_method || !lines || lines.length === 0) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
@@ -111,20 +117,44 @@ export async function POST(request: Request) {
 
     const priceMap = new Map(prices.map(p => [p.item_id, p]))
 
-    let subtotal = 0
+    // A percent discount is clamped to [0,100] of the base amount; a fixed
+    // discount is clamped to [0, base] — neither can push a line or the
+    // order below zero.
+    const computeDiscount = (type: string | null | undefined, value: number | null | undefined, base: number) => {
+      if (!canDiscount || !type || value == null || value <= 0) return 0
+      if (type === 'percent') return Math.round(base * Math.min(value, 100) / 100)
+      if (type === 'fixed') return Math.min(Math.max(value, 0), base)
+      return 0
+    }
+
+    let netSubtotal = 0
     const processedLines = lines.map((line: any) => {
       const priceData = priceMap.get(line.item_id)
       const unit_price = priceData?.selling_price || 0
-      const line_subtotal = unit_price * line.qty
-      subtotal += line_subtotal
+      const line_gross = unit_price * line.qty
+      const line_discount_type = canDiscount ? (line.discount_type ?? null) : null
+      const line_discount_value = canDiscount ? (line.discount_value ?? null) : null
+      const line_discount_amount = computeDiscount(line_discount_type, line_discount_value, line_gross)
+      const line_subtotal = line_gross - line_discount_amount
+
+      netSubtotal += line_subtotal
+
       return {
         item_id: line.item_id,
         qty: line.qty,
         unit_price,
         subtotal: line_subtotal,
-        cogs_per_unit: priceData?.estimated_hpp || 0
+        cogs_per_unit: priceData?.estimated_hpp || 0,
+        discount_type: line_discount_type,
+        discount_value: line_discount_value,
+        discount_amount: line_discount_amount
       }
     })
+
+    const orderDiscountType = canDiscount ? (order_discount_type ?? null) : null
+    const orderDiscountValue = canDiscount ? (order_discount_value ?? null) : null
+    const orderDiscountAmount = computeDiscount(orderDiscountType, orderDiscountValue, netSubtotal)
+    const subtotal = netSubtotal - orderDiscountAmount
 
     const taxRate = org?.pos_tax_rate || 0
     const tax_amount = Math.round(subtotal * (taxRate / 100))
@@ -141,7 +171,10 @@ export async function POST(request: Request) {
       p_total_amount: total_amount,
       p_lines: processedLines,
       p_shift_id: shift.id,
-      p_client_request_id: client_request_id
+      p_client_request_id: client_request_id,
+      p_order_discount_type: orderDiscountType,
+      p_order_discount_value: orderDiscountValue,
+      p_order_discount_amount: orderDiscountAmount
     })
 
     if (rpcError) {
