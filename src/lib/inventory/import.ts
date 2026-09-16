@@ -28,8 +28,8 @@ export function parseCSV(text: string) {
 }
 
 export function generateItemTemplate() {
-  const headers = ['code', 'name', 'category', 'unit', 'purchase_unit', 'conversion_factor', 'reorder_level', 'coa_code']
-  const example = ['RAW-001', 'Fillet Paha Ayam', 'raw', 'GR', 'KG', '1000', '500', '1100-001']
-  
+  const headers = ['code', 'name', 'category', 'unit', 'purchase_unit', 'conversion_factor', 'reorder_level', 'coa_code', 'is_inventory']
+  const example = ['RAW-001', 'Fillet Paha Ayam', 'raw', 'GR', 'KG', '1000', '500', '1100-001', 'true']
+
   return [headers.join(','), example.join(',')].join('\n')
 }
