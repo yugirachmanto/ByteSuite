@@ -15,7 +15,7 @@ import {
   TableRow,
   TableFooter
 } from '@/components/ui/table'
-import { Plus, Trash2, Save, ArrowLeft, Loader2, Info, ChevronRight, Search, Upload } from 'lucide-react'
+import { Plus, Trash2, Save, Loader2, Info, ChevronRight, Search, Upload } from 'lucide-react'
 import { toast } from 'sonner'
 import Link from 'next/link'
 
@@ -358,18 +358,7 @@ export default function BOMPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Link href="/settings">
-            <Button variant="ghost" size="icon" className="text-zinc-400">
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-          </Link>
-          <div>
-            <h2 className="text-2xl font-bold tracking-tight text-zinc-100">Bill of Materials (BOM)</h2>
-            <p className="text-zinc-400 text-sm">Define recipe ingredients for your WIP items.</p>
-          </div>
-        </div>
+      <div className="flex items-center justify-end">
         <div className="flex items-center gap-2">
           <Link href="/settings/bom/bulk-upload">
             <Button variant="outline" className="border-zinc-800 text-zinc-300 hover:bg-zinc-800">

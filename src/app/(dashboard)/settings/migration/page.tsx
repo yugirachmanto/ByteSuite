@@ -5,34 +5,38 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { Tag, Layers, ShoppingBag, ArrowRight, Loader2 } from 'lucide-react'
+import { Tag, Layers, ShoppingBag, PackagePlus, ArrowRight, Loader2 } from 'lucide-react'
 
 interface StepCounts {
   rawItems: number
   bomRecipes: number
   products: number
+  stockedItems: number
 }
 
 export default function MigrationHubPage() {
   const supabase = createClient()
   const [loading, setLoading] = useState(true)
-  const [counts, setCounts] = useState<StepCounts>({ rawItems: 0, bomRecipes: 0, products: 0 })
+  const [counts, setCounts] = useState<StepCounts>({ rawItems: 0, bomRecipes: 0, products: 0, stockedItems: 0 })
 
   useEffect(() => {
     async function fetchCounts() {
       setLoading(true)
-      const [rawRes, bomRes, productRes] = await Promise.all([
+      const [rawRes, bomRes, productRes, balanceRes] = await Promise.all([
         supabase.from('item_master').select('*', { count: 'exact', head: true }).in('category', ['raw', 'packaging']),
         supabase.from('bom').select('output_item_id'),
         supabase.from('item_master').select('*', { count: 'exact', head: true }).eq('category', 'finished'),
+        supabase.from('inventory_balance').select('item_id').gt('qty_on_hand', 0),
       ])
 
       const uniqueBomOutputs = new Set((bomRes.data || []).map(r => r.output_item_id)).size
+      const uniqueStockedItems = new Set((balanceRes.data || []).map(r => r.item_id)).size
 
       setCounts({
         rawItems: rawRes.count || 0,
         bomRecipes: uniqueBomOutputs,
         products: productRes.count || 0,
+        stockedItems: uniqueStockedItems,
       })
       setLoading(false)
     }
@@ -47,7 +51,7 @@ export default function MigrationHubPage() {
       icon: Tag,
       count: counts.rawItems,
       countLabel: 'bahan baku terdaftar',
-      href: '/settings',
+      href: '/settings/items',
       cta: 'Buka Halaman Items',
     },
     {
@@ -70,18 +74,21 @@ export default function MigrationHubPage() {
       href: '/products/bulk-upload',
       cta: 'Bulk Upload Produk',
     },
+    {
+      step: 4,
+      title: 'Saldo Awal Inventori',
+      description: 'Setelah item dan resep siap, masukkan saldo awal stok (qty + nilai) per outlet.',
+      icon: PackagePlus,
+      count: counts.stockedItems,
+      countLabel: 'item punya saldo',
+      href: '/settings/import',
+      cta: 'Import Saldo Awal',
+    },
   ]
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight text-zinc-100">Migrasi Data</h2>
-        <p className="text-zinc-400 text-sm mt-0.5">
-          Urutan yang disarankan untuk migrasi dari sistem lama — tiap langkah bisa diupload bertahap, tidak wajib berurutan.
-        </p>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {steps.map((s) => (
           <Card key={s.step} className="border-zinc-800 bg-zinc-900/50 backdrop-blur-sm flex flex-col">
             <CardHeader className="pb-3">

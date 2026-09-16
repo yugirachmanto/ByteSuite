@@ -1,56 +1,42 @@
 'use client'
 
-import { Fragment } from 'react'
-import { usePathname, useRouter } from 'next/navigation'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import {
-  Tag,
-  Layers,
-  BookOpen,
-  Landmark,
-  CreditCard,
-  Building2,
-  Users,
-  Upload,
-  RotateCcw,
-  Rocket,
-} from 'lucide-react'
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
+import { ArrowLeft } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 
-const settingsGroups = [
-  {
-    label: 'Catalog',
-    tabs: [
-      { value: 'items', label: 'Items', href: '/settings', icon: Tag },
-      { value: 'bom', label: 'BOM', href: '/settings/bom', icon: Layers },
-    ],
-  },
-  {
-    label: 'Accounting',
-    tabs: [
-      { value: 'coa', label: 'Chart of Accounts', href: '/settings/coa', icon: BookOpen },
-      { value: 'accounting', label: 'Accounting Rules', href: '/settings/accounting', icon: Landmark },
-      { value: 'pos-mapping', label: 'POS Mapping', href: '/settings/accounting/pos-mapping', icon: CreditCard },
-    ],
-  },
-  {
-    label: 'Organization',
-    tabs: [
-      { value: 'organization', label: 'Profile', href: '/settings/organization', icon: Building2 },
-      { value: 'outlets', label: 'Outlets', href: '/settings/outlets', icon: Building2 },
-      { value: 'users', label: 'Users', href: '/settings/users', icon: Users },
-    ],
-  },
-  {
-    label: 'Data',
-    tabs: [
-      { value: 'migration', label: 'Migrasi Data', href: '/settings/migration', icon: Rocket },
-      { value: 'import', label: 'Data Import', href: '/settings/import', icon: Upload },
-      { value: 'system', label: 'System Reset', href: '/settings/system', icon: RotateCcw },
-    ],
-  },
+interface SectionMeta {
+  prefix: string
+  label: string
+  description: string
+  /** Page already renders its own header/back-link (e.g. one level deeper than a settings section) — layout adds nothing. */
+  ownHeader?: boolean
+}
+
+// Drives the back-link + title shown above every settings subpage. Sorted
+// by prefix length (longest first) at lookup time so a nested route like
+// /settings/accounting/pos-mapping resolves before its parent /settings/accounting.
+const SECTION_META: SectionMeta[] = [
+  { prefix: '/settings/items', label: 'Items', description: 'Bahan baku, packaging, dan produk beserta satuannya.' },
+  { prefix: '/settings/bom/bulk-upload', label: '', description: '', ownHeader: true },
+  { prefix: '/settings/bom', label: 'BOM / Resep', description: 'Definisikan bahan resep untuk item WIP dan produk Anda.' },
+  { prefix: '/settings/accounting/pos-mapping', label: 'POS Payment Mapping', description: 'Petakan metode pembayaran POS ke akun akuntansi.' },
+  { prefix: '/settings/accounting', label: 'Accounting Rules', description: 'Akun default yang dipakai sistem untuk posting otomatis.' },
+  { prefix: '/settings/coa', label: 'Chart of Accounts', description: 'Struktur dan daftar akun akuntansi Anda.' },
+  { prefix: '/settings/organization', label: 'Organization Profile', description: 'Identitas dan informasi perusahaan.' },
+  { prefix: '/settings/outlets', label: 'Outlets', description: 'Kelola lokasi/cabang outlet Anda.' },
+  { prefix: '/settings/users', label: 'Users & Roles', description: 'Anggota tim dan hak akses mereka.' },
+  { prefix: '/settings/migration', label: 'Migrasi Data', description: 'Urutan yang disarankan untuk migrasi dari sistem lama — tiap langkah bisa diupload bertahap, tidak wajib berurutan.' },
+  { prefix: '/settings/import', label: 'Saldo Awal Inventori', description: 'Import saldo awal stok bahan baku dan WIP.' },
+  { prefix: '/settings/system', label: 'Sistem', description: 'Modul organisasi dan opsi reset data.' },
 ]
 
-const settingsTabs = settingsGroups.flatMap((g) => g.tabs)
+function getSectionMeta(pathname: string): SectionMeta | null {
+  const matches = SECTION_META
+    .filter(s => pathname === s.prefix || pathname.startsWith(s.prefix + '/'))
+    .sort((a, b) => b.prefix.length - a.prefix.length)
+  return matches[0] || null
+}
 
 export default function SettingsLayout({
   children,
@@ -58,47 +44,31 @@ export default function SettingsLayout({
   children: React.ReactNode
 }) {
   const pathname = usePathname()
-  const router = useRouter()
-
-  const currentTab = settingsTabs.find(
-    (t) => t.href === pathname
-  )?.value || 'items'
+  const isRoot = pathname === '/settings'
+  const section = !isRoot && pathname ? getSectionMeta(pathname) : null
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight text-zinc-100">Settings</h2>
-        <p className="text-zinc-400 text-sm">Manage items, recipes, accounts, and users.</p>
-      </div>
-
-      <Tabs value={currentTab} onValueChange={(val) => {
-        const tab = settingsTabs.find(t => t.value === val)
-        if (tab) router.push(tab.href)
-      }}>
-        {/* Nine tabs across four groups don't fit one row on most screens —
-            scrolls horizontally instead of wrapping or clipping. */}
-        <div className="overflow-x-auto">
-          <TabsList className="h-11 w-max min-w-full flex-nowrap items-center gap-1 rounded-xl border border-zinc-800 bg-zinc-900 p-1.5">
-            {settingsGroups.map((group, groupIndex) => (
-              <Fragment key={group.label}>
-                {groupIndex > 0 && (
-                  <div aria-hidden className="mx-1 h-6 w-px shrink-0 self-center bg-zinc-800" />
-                )}
-                {group.tabs.map((tab) => (
-                  <TabsTrigger
-                    key={tab.value}
-                    value={tab.value}
-                    className="flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg px-3.5 text-sm font-medium text-zinc-400 hover:text-zinc-200 data-[state=active]:bg-zinc-800 data-[state=active]:text-zinc-100"
-                  >
-                    <tab.icon className="h-4 w-4" />
-                    {tab.label}
-                  </TabsTrigger>
-                ))}
-              </Fragment>
-            ))}
-          </TabsList>
+      {isRoot && (
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight text-zinc-100">Settings</h2>
+          <p className="text-zinc-400 text-sm">Kelola item, resep, akun, tim, dan migrasi data Anda.</p>
         </div>
-      </Tabs>
+      )}
+
+      {section && !section.ownHeader && (
+        <div className="flex items-center gap-4">
+          <Link href="/settings">
+            <Button variant="ghost" size="icon" className="text-zinc-400">
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+          </Link>
+          <div>
+            <h2 className="text-2xl font-bold tracking-tight text-zinc-100">{section.label}</h2>
+            <p className="text-zinc-400 text-sm">{section.description}</p>
+          </div>
+        </div>
+      )}
 
       {children}
     </div>
