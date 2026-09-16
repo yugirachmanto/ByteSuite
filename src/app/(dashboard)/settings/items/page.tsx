@@ -118,6 +118,10 @@ export default function ItemsSettingsPage() {
   const [importing, setImporting] = useState(false)
   const [importPreview, setImportPreview] = useState<ImportPreviewRow[] | null>(null)
   const [importSubmitting, setImportSubmitting] = useState(false)
+  // Names of items that currently have recorded stock (inventory_balance.qty_on_hand > 0)
+  // — used to warn when Track as Inventory is switched off for one of them, since
+  // existing stock/opname records are NOT cleared automatically by that toggle.
+  const [namesWithStock, setNamesWithStock] = useState<Set<string>>(new Set())
   const fileInputRef = useRef<any>(null)
   
   const [activeItemForDisassembly, setActiveItemForDisassembly] = useState<any>(null)
@@ -131,13 +135,21 @@ export default function ItemsSettingsPage() {
 
   async function fetchData() {
     setLoading(true)
-    const [{ data: itemsData }, { data: coaData }] = await Promise.all([
+    const [{ data: itemsData }, { data: coaData }, { data: balanceData }] = await Promise.all([
       supabase.from('item_master').select('*').order('name'),
       supabase.from('chart_of_accounts').select('id, code, name, type'),
+      supabase.from('inventory_balance').select('qty_on_hand, item_master(name)').gt('qty_on_hand', 0),
     ])
     setItems(itemsData || [])
     setCoa(coaData || [])
+    setNamesWithStock(new Set((balanceData || []).map((b: any) => b.item_master?.name).filter(Boolean)))
     setLoading(false)
+  }
+
+  const warnIfDisablingWithStock = (name: string, nowTracking: boolean) => {
+    if (!nowTracking && namesWithStock.has(name)) {
+      toast.warning(`"${name}" masih punya stok tercatat. Menonaktifkan Track as Inventory tidak menghapus stok tersebut — item akan tetap muncul di Stok Opname sampai stoknya dinolkan lewat Opname.`)
+    }
   }
 
   async function handleSave() {
@@ -326,6 +338,11 @@ export default function ItemsSettingsPage() {
           ? !['false', '0', 'no'].includes(String(r.is_inventory).toLowerCase().trim())
           : r.category !== 'finished'
       }))
+
+      const flaggedRows = preview.filter((r) => !r.is_inventory && namesWithStock.has(r.name))
+      if (flaggedRows.length > 0) {
+        toast.warning(`${flaggedRows.length} item di CSV ini punya stok tercatat dan di-set Track as Inventory = false. Stok yang sudah ada tidak akan otomatis terhapus — akan tetap muncul di Stok Opname sampai dinolkan lewat Opname.`)
+      }
 
       setImportPreview(preview)
     } catch (error: any) {
@@ -683,7 +700,10 @@ export default function ItemsSettingsPage() {
               </div>
               <Switch
                 checked={editItem.is_inventory}
-                onCheckedChange={(val) => setEditItem({ ...editItem, is_inventory: val })}
+                onCheckedChange={(val) => {
+                  setEditItem({ ...editItem, is_inventory: val })
+                  warnIfDisablingWithStock(editItem.name, val)
+                }}
               />
             </div>
 
@@ -852,7 +872,10 @@ export default function ItemsSettingsPage() {
                     <TableCell className="p-1.5 text-center">
                       <Switch
                         checked={row.is_inventory}
-                        onCheckedChange={(val) => updatePreviewRow(i, { is_inventory: val })}
+                        onCheckedChange={(val) => {
+                          updatePreviewRow(i, { is_inventory: val })
+                          warnIfDisablingWithStock(row.name, val)
+                        }}
                       />
                     </TableCell>
                     <TableCell className="p-1.5">
