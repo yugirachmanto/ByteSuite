@@ -33,28 +33,32 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid payload: missing outlet_id or items array' }, { status: 400 })
     }
 
-    // 2. Fetch all items for this org to map codes to item IDs
+    // 2. Fetch all items for this org to map names to item IDs — users
+    // filling out migration CSVs think in item names, not internal codes,
+    // so name is the identifier they supply; the system already owns the
+    // code/id assignment from the Items import step.
     const { data: orgItems, error: itemsError } = await supabase
       .from('item_master')
-      .select('id, code, name')
+      .select('id, name')
       .eq('org_id', profile.org_id)
       .eq('is_inventory', true)
 
     if (itemsError) throw itemsError
 
-    const itemMap = new Map()
+    const itemMap = new Map<string, string>()
     orgItems?.forEach(i => {
-      if (i.code) itemMap.set(i.code.toUpperCase(), i.id)
+      if (i.name) itemMap.set(i.name.trim().toLowerCase(), i.id)
     })
 
-    // 3. Resolve item codes to IDs, skipping rows that can't be matched
+    // 3. Resolve item names to IDs, skipping rows that can't be matched
     const resolvedItems: { item_id: string; qty: number; unit_cost: number }[] = []
+    const notFound = new Set<string>()
     for (const row of items) {
-      const code = row.item_code?.toUpperCase()
-      const itemId = itemMap.get(code)
+      const name = row.item_name?.trim()
+      const itemId = itemMap.get(name?.toLowerCase())
 
       if (!itemId) {
-        console.warn(`Item code not found: ${code}`)
+        if (name) notFound.add(name)
         continue
       }
 
@@ -66,7 +70,11 @@ export async function POST(request: Request) {
     }
 
     if (resolvedItems.length === 0) {
-      return NextResponse.json({ error: 'No valid items found to import' }, { status: 400 })
+      return NextResponse.json({
+        error: notFound.size > 0
+          ? `No valid items found to import. Item(s) not found: ${Array.from(notFound).join(', ')}`
+          : 'No valid items found to import'
+      }, { status: 400 })
     }
 
     // 4. Perform the import atomically — validates outlet ownership, and is
@@ -80,7 +88,7 @@ export async function POST(request: Request) {
 
     if (rpcError) throw rpcError
 
-    return NextResponse.json({ success: true, imported_count: importedCount })
+    return NextResponse.json({ success: true, imported_count: importedCount, not_found: Array.from(notFound) })
 
   } catch (error: any) {
     console.error('Import error:', error)

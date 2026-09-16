@@ -10,7 +10,7 @@ import { toast } from 'sonner'
 import Papa from 'papaparse'
 
 interface ParsedRow {
-  item_code: string
+  item_name: string
   qty: number
   unit_cost: number
   total_value: number
@@ -26,7 +26,7 @@ export default function ImportSettingsPage() {
   const { selectedOutletId } = useOutlet()
 
   const handleDownloadTemplate = () => {
-    const csvContent = "data:text/csv;charset=utf-8,Item Code,Quantity,Unit Cost\nSKU-001,100,15000\nSKU-002,50,25000"
+    const csvContent = "data:text/csv;charset=utf-8,Item Name,Quantity,Unit Cost\nCabai Merah,5000,45\nBeras,25000,13"
     const encodedUri = encodeURI(csvContent)
     const link = document.createElement("a")
     link.setAttribute("href", encodedUri)
@@ -46,22 +46,22 @@ export default function ImportSettingsPage() {
       skipEmptyLines: true,
       complete: (results) => {
         const parsed: ParsedRow[] = results.data.map((row: any, index: number) => {
-          const code = row['Item Code'] || row['item_code'] || row['ItemCode']
+          const name = row['Item Name'] || row['item_name'] || row['ItemName']
           const qtyStr = row['Quantity'] || row['qty'] || row['quantity']
           const costStr = row['Unit Cost'] || row['unit_cost'] || row['cost'] || row['Value']
 
           const qty = parseFloat(qtyStr)
           const cost = parseFloat(costStr)
 
-          const valid = !!code && !isNaN(qty) && !isNaN(cost) && qty > 0 && cost >= 0
+          const valid = !!name && !isNaN(qty) && !isNaN(cost) && qty > 0 && cost >= 0
 
           let error = undefined
-          if (!code) error = 'Missing Item Code'
+          if (!name) error = 'Missing Item Name'
           else if (isNaN(qty) || qty <= 0) error = 'Invalid Quantity'
           else if (isNaN(cost) || cost < 0) error = 'Invalid Unit Cost'
 
           return {
-            item_code: code?.trim(),
+            item_name: name?.trim(),
             qty: isNaN(qty) ? 0 : qty,
             unit_cost: isNaN(cost) ? 0 : cost,
             total_value: (!isNaN(qty) && !isNaN(cost)) ? (qty * cost) : 0,
@@ -113,6 +113,9 @@ export default function ImportSettingsPage() {
       }
 
       toast.success(`Successfully imported ${result.imported_count} items!`)
+      if (result.not_found?.length > 0) {
+        toast.warning(`Item tidak ditemukan (dilewati): ${result.not_found.join(', ')}`)
+      }
       setData([])
     } catch (error: any) {
       toast.error(error.message || 'An error occurred during import')
@@ -191,7 +194,7 @@ export default function ImportSettingsPage() {
               <TableHeader className="bg-zinc-900/80">
                 <TableRow className="border-zinc-800 hover:bg-transparent">
                   <TableHead className="text-zinc-400">Status</TableHead>
-                  <TableHead className="text-zinc-400">Item Code</TableHead>
+                  <TableHead className="text-zinc-400">Item Name</TableHead>
                   <TableHead className="text-zinc-400 text-right">Quantity</TableHead>
                   <TableHead className="text-zinc-400 text-right">Unit Cost</TableHead>
                   <TableHead className="text-zinc-400 text-right">Total Value</TableHead>
@@ -211,7 +214,7 @@ export default function ImportSettingsPage() {
                         </span>
                       )}
                     </TableCell>
-                    <TableCell className="font-mono text-zinc-300">{row.item_code}</TableCell>
+                    <TableCell className="text-zinc-300">{row.item_name}</TableCell>
                     <TableCell className="text-right text-zinc-300 font-mono">{row.qty.toLocaleString()}</TableCell>
                     <TableCell className="text-right text-zinc-400 font-mono">
                       {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(row.unit_cost)}
@@ -231,7 +234,7 @@ export default function ImportSettingsPage() {
         <div className="flex h-64 flex-col items-center justify-center rounded-md border border-dashed border-zinc-800 bg-zinc-900/30 text-zinc-500">
           <Upload className="mb-4 h-8 w-8 opacity-20" />
           <p className="mb-1 text-sm font-medium">Upload CSV to begin</p>
-          <p className="text-xs text-zinc-600">Ensure it has Item Code, Quantity, and Unit Cost columns</p>
+          <p className="text-xs text-zinc-600">Ensure it has Item Name, Quantity, and Unit Cost columns</p>
         </div>
       )}
     </div>
