@@ -59,6 +59,18 @@ interface Item {
   image_url?: string | null
 }
 
+interface ImportPreviewRow {
+  code: string
+  name: string
+  category: string
+  unit: string
+  purchase_unit: string
+  conversion_factor: number
+  reorder_level: number
+  coa_id: string | null
+  is_inventory: boolean
+}
+
 const emptyItem: Omit<Item, 'id'> = {
   code: '',
   name: '',
@@ -104,6 +116,12 @@ export default function ItemsSettingsPage() {
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [editItem, setEditItem] = useState<Omit<Item, 'id'> & { id?: string }>(emptyItem)
   const [importing, setImporting] = useState(false)
+  const [importPreview, setImportPreview] = useState<ImportPreviewRow[] | null>(null)
+  const [importSubmitting, setImportSubmitting] = useState(false)
+  // Names of items that currently have recorded stock (inventory_balance.qty_on_hand > 0)
+  // — used to warn when Track as Inventory is switched off for one of them, since
+  // existing stock/opname records are NOT cleared automatically by that toggle.
+  const [namesWithStock, setNamesWithStock] = useState<Set<string>>(new Set())
   const fileInputRef = useRef<any>(null)
   
   const [activeItemForDisassembly, setActiveItemForDisassembly] = useState<any>(null)
@@ -117,13 +135,21 @@ export default function ItemsSettingsPage() {
 
   async function fetchData() {
     setLoading(true)
-    const [{ data: itemsData }, { data: coaData }] = await Promise.all([
+    const [{ data: itemsData }, { data: coaData }, { data: balanceData }] = await Promise.all([
       supabase.from('item_master').select('*').order('name'),
       supabase.from('chart_of_accounts').select('id, code, name, type'),
+      supabase.from('inventory_balance').select('qty_on_hand, item_master(name)').gt('qty_on_hand', 0),
     ])
     setItems(itemsData || [])
     setCoa(coaData || [])
+    setNamesWithStock(new Set((balanceData || []).map((b: any) => b.item_master?.name).filter(Boolean)))
     setLoading(false)
+  }
+
+  const warnIfDisablingWithStock = (name: string, nowTracking: boolean) => {
+    if (!nowTracking && namesWithStock.has(name)) {
+      toast.warning(`"${name}" masih punya stok tercatat. Menonaktifkan Track as Inventory tidak menghapus stok tersebut — item akan tetap muncul di Stok Opname sampai stoknya dinolkan lewat Opname.`)
+    }
   }
 
   async function handleSave() {
@@ -278,42 +304,84 @@ export default function ItemsSettingsPage() {
     window.URL.revokeObjectURL(url)
   }
 
+  // Parses the CSV into an editable preview only — nothing is written to the
+  // database yet. This gives the user a chance to fix a typo, flip Track as
+  // Inventory, or map a Default COA for rows the CSV didn't specify one for,
+  // before anything actually becomes live data.
   const handleImportCSV = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
 
     setImporting(true)
     try {
-      // Get org_id
+      const text = await file.text()
+      const rawData = parseCSV(text)
+
+      if (rawData.length === 0) throw new Error('CSV is empty or invalid')
+
+      const coaByCode = new Map(coa.map((c) => [c.code, c.id]))
+
+      const preview: ImportPreviewRow[] = rawData.map((r) => ({
+        code: r.code || '',
+        name: r.name || '',
+        category: r.category || 'raw',
+        unit: r.unit || 'pcs',
+        purchase_unit: r.purchase_unit || r.unit || 'pcs',
+        conversion_factor: parseFloat(r.conversion_factor) || 1,
+        reorder_level: parseFloat(r.reorder_level) || 0,
+        coa_id: r.coa_code ? coaByCode.get(r.coa_code) || null : null,
+        // Honor an explicit is_inventory column if the CSV has one (e.g.
+        // "false"/"0" for direct-expense perishables/supplies); otherwise
+        // fall back to the old category-based default so existing import
+        // templates keep working unchanged.
+        is_inventory: r.is_inventory !== undefined && r.is_inventory !== ''
+          ? !['false', '0', 'no'].includes(String(r.is_inventory).toLowerCase().trim())
+          : r.category !== 'finished'
+      }))
+
+      const flaggedRows = preview.filter((r) => !r.is_inventory && namesWithStock.has(r.name))
+      if (flaggedRows.length > 0) {
+        toast.warning(`${flaggedRows.length} item di CSV ini punya stok tercatat dan di-set Track as Inventory = false. Stok yang sudah ada tidak akan otomatis terhapus — akan tetap muncul di Stok Opname sampai dinolkan lewat Opname.`)
+      }
+
+      setImportPreview(preview)
+    } catch (error: any) {
+      console.error('Import parse error:', error)
+      toast.error(error.message || 'Failed to parse CSV')
+    } finally {
+      setImporting(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  const updatePreviewRow = (index: number, patch: Partial<ImportPreviewRow>) => {
+    setImportPreview((prev) => prev ? prev.map((row, i) => (i === index ? { ...row, ...patch } : row)) : prev)
+  }
+
+  const removePreviewRow = (index: number) => {
+    setImportPreview((prev) => prev ? prev.filter((_, i) => i !== index) : prev)
+  }
+
+  const handleConfirmImport = async () => {
+    if (!importPreview || importPreview.length === 0) return
+
+    const missingName = importPreview.filter((r) => !r.name.trim()).length
+    if (missingName > 0) {
+      toast.error(`${missingName} row(s) are missing a name`)
+      return
+    }
+
+    setImportSubmitting(true)
+    try {
       const { data: { user } } = await supabase.auth.getUser()
       const { data: profile } = await supabase
         .from('user_profiles')
         .select('org_id')
         .eq('id', user?.id)
         .single()
-      
+
       const orgId = profile?.org_id
       if (!orgId) throw new Error('Could not identify organization')
-
-      const text = await file.text()
-      const rawData = parseCSV(text)
-      
-      if (rawData.length === 0) throw new Error('CSV is empty or invalid')
-
-      // Map COA codes to IDs
-      const coaCodes = Array.from(new Set(rawData.map(r => r.coa_code).filter(Boolean)))
-      let coaMap: Record<string, string> = {}
-      
-      if (coaCodes.length > 0) {
-        const { data: coas } = await supabase
-          .from('chart_of_accounts')
-          .select('id, code')
-          .in('code', coaCodes)
-        
-        coas?.forEach(c => {
-          coaMap[c.code] = c.id
-        })
-      }
 
       // item_master has no unique constraint on (org_id, name) — some orgs
       // already have legitimate duplicate names, so we can't add one without
@@ -321,7 +389,7 @@ export default function ItemsSettingsPage() {
       // upsert against the primary key instead, which always has a real
       // unique constraint: a name match updates that row in place, anything
       // unmatched gets a fresh id and inserts as new.
-      const importNames = Array.from(new Set(rawData.map(r => r.name).filter(Boolean)))
+      const importNames = Array.from(new Set(importPreview.map((r) => r.name).filter(Boolean)))
       const nameToId = new Map<string, string>()
       if (importNames.length > 0) {
         const { data: existingItems } = await supabase
@@ -335,24 +403,18 @@ export default function ItemsSettingsPage() {
         }
       }
 
-      const itemsToUpsert = rawData.map(r => ({
+      const itemsToUpsert = importPreview.map((r) => ({
         id: nameToId.get(r.name) || crypto.randomUUID(),
         org_id: orgId,
         code: r.code || null,
         name: r.name,
-        category: r.category || 'raw',
-        unit: r.unit || 'pcs',
-        purchase_unit: r.purchase_unit || r.unit || 'pcs',
-        conversion_factor: parseFloat(r.conversion_factor) || 1,
-        reorder_level: parseFloat(r.reorder_level) || 0,
-        default_coa_id: r.coa_code ? coaMap[r.coa_code] : null,
-        // Honor an explicit is_inventory column if the CSV has one (e.g.
-        // "false"/"0" for direct-expense perishables/supplies); otherwise
-        // fall back to the old category-based default so existing import
-        // templates keep working unchanged.
-        is_inventory: r.is_inventory !== undefined && r.is_inventory !== ''
-          ? !['false', '0', 'no'].includes(String(r.is_inventory).toLowerCase().trim())
-          : r.category !== 'finished'
+        category: r.category,
+        unit: r.unit,
+        purchase_unit: r.purchase_unit,
+        conversion_factor: r.conversion_factor,
+        reorder_level: r.reorder_level,
+        default_coa_id: r.coa_id,
+        is_inventory: r.is_inventory,
       }))
 
       const { error } = await supabase
@@ -362,13 +424,13 @@ export default function ItemsSettingsPage() {
       if (error) throw error
 
       toast.success(`Successfully imported ${itemsToUpsert.length} items`)
+      setImportPreview(null)
       fetchData()
     } catch (error: any) {
       console.error('Import error:', error)
       toast.error(error.message || 'Failed to import CSV')
     } finally {
-      setImporting(false)
-      if (fileInputRef.current) fileInputRef.current.value = ''
+      setImportSubmitting(false)
     }
   }
 
@@ -638,7 +700,10 @@ export default function ItemsSettingsPage() {
               </div>
               <Switch
                 checked={editItem.is_inventory}
-                onCheckedChange={(val) => setEditItem({ ...editItem, is_inventory: val })}
+                onCheckedChange={(val) => {
+                  setEditItem({ ...editItem, is_inventory: val })
+                  warnIfDisablingWithStock(editItem.name, val)
+                }}
               />
             </div>
 
@@ -701,6 +766,144 @@ export default function ItemsSettingsPage() {
             <Button className="bg-zinc-100 text-zinc-900 hover:bg-zinc-200" onClick={handleSave} disabled={saving}>
               {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {editItem.id ? 'Save Changes' : 'Create Item'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Import Preview — nothing is saved until the user confirms here */}
+      <Dialog open={!!importPreview} onOpenChange={(open) => !open && setImportPreview(null)}>
+        <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 sm:max-w-6xl max-h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Review Import — {importPreview?.length || 0} Items</DialogTitle>
+          </DialogHeader>
+          <p className="text-xs text-zinc-500 -mt-2">
+            Nothing is saved yet. Fix any row, set Track as Inventory, and map a Default COA if the CSV didn't set one — then confirm to import.
+          </p>
+          <div className="flex-1 overflow-auto rounded-md border border-zinc-800">
+            <Table>
+              <TableHeader className="bg-zinc-950/80 sticky top-0">
+                <TableRow className="hover:bg-transparent border-zinc-800">
+                  <TableHead className="text-zinc-400">Code</TableHead>
+                  <TableHead className="text-zinc-400">Name</TableHead>
+                  <TableHead className="text-zinc-400">Category</TableHead>
+                  <TableHead className="text-zinc-400">Unit</TableHead>
+                  <TableHead className="text-zinc-400">Purchase Unit</TableHead>
+                  <TableHead className="text-zinc-400 text-right">Conv. Factor</TableHead>
+                  <TableHead className="text-zinc-400 text-right">Reorder</TableHead>
+                  <TableHead className="text-zinc-400">Default COA</TableHead>
+                  <TableHead className="text-zinc-400 text-center">Track Inv.</TableHead>
+                  <TableHead className="w-[40px]"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(importPreview || []).map((row, i) => (
+                  <TableRow key={i} className={`border-zinc-800 ${!row.name.trim() ? 'bg-red-950/10' : ''}`}>
+                    <TableCell className="p-1.5">
+                      <Input
+                        className="h-8 w-24 bg-zinc-950 border-zinc-800 text-xs"
+                        value={row.code}
+                        onChange={(e) => updatePreviewRow(i, { code: e.target.value })}
+                      />
+                    </TableCell>
+                    <TableCell className="p-1.5">
+                      <Input
+                        className="h-8 w-40 bg-zinc-950 border-zinc-800 text-xs"
+                        value={row.name}
+                        placeholder="Required"
+                        onChange={(e) => updatePreviewRow(i, { name: e.target.value })}
+                      />
+                    </TableCell>
+                    <TableCell className="p-1.5">
+                      <select
+                        value={row.category}
+                        onChange={(e) => updatePreviewRow(i, { category: e.target.value })}
+                        className="h-8 w-full bg-zinc-950 border border-zinc-800 rounded px-1.5 text-xs text-zinc-100 focus:outline-none"
+                      >
+                        <option value="raw">Bahan Baku</option>
+                        <option value="wip">WIP</option>
+                        <option value="packaging">Packaging</option>
+                        <option value="finished">Finished</option>
+                        <option value="recipe">Recipe</option>
+                      </select>
+                    </TableCell>
+                    <TableCell className="p-1.5">
+                      <Input
+                        className="h-8 w-16 bg-zinc-950 border-zinc-800 text-xs"
+                        value={row.unit}
+                        onChange={(e) => updatePreviewRow(i, { unit: e.target.value })}
+                      />
+                    </TableCell>
+                    <TableCell className="p-1.5">
+                      <Input
+                        className="h-8 w-20 bg-zinc-950 border-zinc-800 text-xs"
+                        value={row.purchase_unit}
+                        onChange={(e) => updatePreviewRow(i, { purchase_unit: e.target.value })}
+                      />
+                    </TableCell>
+                    <TableCell className="p-1.5">
+                      <Input
+                        type="number"
+                        className="h-8 w-20 bg-zinc-950 border-zinc-800 text-xs text-right"
+                        value={row.conversion_factor}
+                        onChange={(e) => updatePreviewRow(i, { conversion_factor: parseFloat(e.target.value) || 1 })}
+                      />
+                    </TableCell>
+                    <TableCell className="p-1.5">
+                      <Input
+                        type="number"
+                        className="h-8 w-20 bg-zinc-950 border-zinc-800 text-xs text-right"
+                        value={row.reorder_level}
+                        onChange={(e) => updatePreviewRow(i, { reorder_level: parseFloat(e.target.value) || 0 })}
+                      />
+                    </TableCell>
+                    <TableCell className="p-1.5">
+                      <select
+                        value={row.coa_id || 'none'}
+                        onChange={(e) => updatePreviewRow(i, { coa_id: e.target.value === 'none' ? null : e.target.value })}
+                        className="h-8 w-44 bg-zinc-950 border border-zinc-800 rounded px-1.5 text-xs text-zinc-100 focus:outline-none"
+                      >
+                        <option value="none">No Default Account</option>
+                        {coa.map((a) => (
+                          <option key={a.id} value={a.id}>{a.code} — {a.name}</option>
+                        ))}
+                      </select>
+                    </TableCell>
+                    <TableCell className="p-1.5 text-center">
+                      <Switch
+                        checked={row.is_inventory}
+                        onCheckedChange={(val) => {
+                          updatePreviewRow(i, { is_inventory: val })
+                          warnIfDisablingWithStock(row.name, val)
+                        }}
+                      />
+                    </TableCell>
+                    <TableCell className="p-1.5">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-zinc-500 hover:text-red-400"
+                        onClick={() => removePreviewRow(i)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" className="border-zinc-800" onClick={() => setImportPreview(null)}>
+              Cancel
+            </Button>
+            <Button
+              className="bg-zinc-100 text-zinc-900 hover:bg-zinc-200"
+              onClick={handleConfirmImport}
+              disabled={importSubmitting || (importPreview?.length || 0) === 0}
+            >
+              {importSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Import {importPreview?.length || 0} Items
             </Button>
           </DialogFooter>
         </DialogContent>
