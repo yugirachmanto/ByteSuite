@@ -315,7 +315,28 @@ export default function ItemsSettingsPage() {
         })
       }
 
+      // item_master has no unique constraint on (org_id, name) — some orgs
+      // already have legitimate duplicate names, so we can't add one without
+      // a data cleanup first. Resolve existing rows by name ourselves and
+      // upsert against the primary key instead, which always has a real
+      // unique constraint: a name match updates that row in place, anything
+      // unmatched gets a fresh id and inserts as new.
+      const importNames = Array.from(new Set(rawData.map(r => r.name).filter(Boolean)))
+      const nameToId = new Map<string, string>()
+      if (importNames.length > 0) {
+        const { data: existingItems } = await supabase
+          .from('item_master')
+          .select('id, name')
+          .eq('org_id', orgId)
+          .in('name', importNames)
+
+        for (const item of existingItems || []) {
+          if (!nameToId.has(item.name)) nameToId.set(item.name, item.id)
+        }
+      }
+
       const itemsToUpsert = rawData.map(r => ({
+        id: nameToId.get(r.name) || crypto.randomUUID(),
         org_id: orgId,
         code: r.code || null,
         name: r.name,
@@ -336,7 +357,7 @@ export default function ItemsSettingsPage() {
 
       const { error } = await supabase
         .from('item_master')
-        .upsert(itemsToUpsert, { onConflict: 'org_id,name' })
+        .upsert(itemsToUpsert, { onConflict: 'id' })
 
       if (error) throw error
 
