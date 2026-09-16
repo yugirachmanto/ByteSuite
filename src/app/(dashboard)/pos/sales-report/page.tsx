@@ -22,18 +22,32 @@ export default function PosSalesReportPage() {
   const [posSalesSummary, setPosSalesSummary] = useState<PosSalesSummary | null>(null)
   const [posSalesLoading, setPosSalesLoading] = useState(true)
   const [hourlySales, setHourlySales] = useState<HourlySales[]>([])
+  const [cashierScope, setCashierScope] = useState<string | undefined>(undefined)
+  const [scopeResolved, setScopeResolved] = useState(false)
 
   const selectedOutlet = outlets.find(o => o.id === selectedOutletId)
   const periodLabel = `${format(startDate, 'd MMM yyyy', { locale: localeId })} — ${format(endDate, 'd MMM yyyy', { locale: localeId })}`
 
   useEffect(() => {
-    if (!selectedOutletId) return
+    async function resolveScope() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { setScopeResolved(true); return }
+      const { data: profile } = await supabase.from('user_profiles').select('role').eq('id', user.id).single()
+      setCashierScope(profile?.role === 'cashier' ? user.id : undefined)
+      setScopeResolved(true)
+    }
+    resolveScope()
+  }, [supabase])
+
+  useEffect(() => {
+    if (!selectedOutletId || !scopeResolved) return
     async function fetchPosSales() {
       setPosSalesLoading(true)
       const summary = await fetchPosSalesSummary(supabase, {
         outletId: selectedOutletId!,
         startIso: startDate.toISOString(),
-        endIso: endDate.toISOString()
+        endIso: endDate.toISOString(),
+        cashierId: cashierScope
       })
       setPosSalesSummary(summary)
       setPosSalesLoading(false)
@@ -44,12 +58,13 @@ export default function PosSalesReportPage() {
       const hourly = await fetchHourlySales(supabase, {
         outletId: selectedOutletId!,
         startIso: startDate.toISOString(),
-        endIso: endDate.toISOString()
+        endIso: endDate.toISOString(),
+        cashierId: cashierScope
       })
       setHourlySales(hourly)
     }
     fetchHourly()
-  }, [selectedOutletId, supabase, startDate, endDate])
+  }, [selectedOutletId, supabase, startDate, endDate, scopeResolved, cashierScope])
 
   return (
     <div className="space-y-6">
@@ -57,6 +72,7 @@ export default function PosSalesReportPage() {
         <h2 className="text-2xl font-bold tracking-tight text-zinc-100">Penjualan POS</h2>
         <p className="text-zinc-400 text-sm mt-0.5">
           {selectedOutlet?.name || '—'} · <span className="text-zinc-300">{periodLabel}</span>
+          {cashierScope && <span className="text-indigo-400"> · Menampilkan penjualan Anda sendiri</span>}
         </p>
       </div>
 
