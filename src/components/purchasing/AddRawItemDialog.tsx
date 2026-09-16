@@ -123,7 +123,7 @@ export function AddRawItemDialog({ open, onOpenChange, orgId, accounts, onCreate
 
           <div className="space-y-2">
             <label className="text-xs text-zinc-500 font-medium uppercase">{t('purchasing.addItemDialog.defaultAccountLabel')}</label>
-            <CoaCombobox coas={accounts} value={defaultCoaId} onChange={setDefaultCoaId} placeholder={t('purchasing.addItemDialog.selectAccount')} />
+            <CoaCombobox coas={accounts} value={defaultCoaId} onChange={setDefaultCoaId} placeholder={t('purchasing.addItemDialog.selectAccount')} typeFilter={['asset', 'expense']} />
           </div>
 
           <div className="flex items-center justify-between p-2.5 rounded-lg border border-zinc-800 bg-zinc-950/50">

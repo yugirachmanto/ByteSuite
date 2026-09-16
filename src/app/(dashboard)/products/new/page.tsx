@@ -15,6 +15,7 @@ import {
   Layers
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { CoaCombobox } from '@/components/ui/coa-combobox'
 
 export default function NewProductPage() {
   const router = useRouter()
@@ -50,7 +51,7 @@ export default function NewProductPage() {
       if (profile?.org_id) {
         const { data: accounts } = await supabase
           .from('chart_of_accounts')
-          .select('id, code, name, is_header')
+          .select('id, code, name, is_header, type')
           .eq('org_id', profile.org_id)
           .eq('is_active', true)
           .order('code')
@@ -236,23 +237,14 @@ export default function NewProductPage() {
               <label className="text-xs text-zinc-500 font-medium uppercase tracking-wider flex items-center gap-2">
                 <Layers className="h-3 w-3" /> Default COA (Optional)
               </label>
-              <select 
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-md px-3 h-11 text-sm text-zinc-100 focus:outline-none focus:ring-1 focus:ring-zinc-700"
+              <CoaCombobox
+                coas={coa}
                 value={formData.default_coa_id}
-                onChange={e => setFormData({...formData, default_coa_id: e.target.value})}
-              >
-                <option value="">No Default Account</option>
-                {coa.map(acc => (
-                  <option 
-                    key={acc.id} 
-                    value={acc.id} 
-                    disabled={acc.is_header}
-                    className={acc.is_header ? "font-bold text-zinc-500 bg-zinc-900" : ""}
-                  >
-                    {acc.code} - {acc.name} {acc.is_header ? '(Header - Cannot Select)' : ''}
-                  </option>
-                ))}
-              </select>
+                onChange={(val) => setFormData({...formData, default_coa_id: val})}
+                placeholder="No Default Account"
+                typeFilter="income"
+                className="bg-zinc-950 border-zinc-800"
+              />
               <p className="text-[10px] text-zinc-500">Mapping to an income account helps with automated sales journalization.</p>
             </div>
 

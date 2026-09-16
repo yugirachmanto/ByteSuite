@@ -1225,6 +1225,7 @@ export default function InvoiceReviewPage() {
                                 disabled={isPosted}
                                 placeholder="Select Account..."
                                 className="bg-zinc-950 border-zinc-800"
+                                typeFilter={['asset', 'expense']}
                               />
                               {item.match_source === 'history' && (
                                 <span title="Matched from a past invoice you already confirmed — likely correct.">
@@ -1553,6 +1554,7 @@ export default function InvoiceReviewPage() {
                     placeholder="Select Closing Account..."
                     dropdownPosition="top"
                     dropdownClassName="w-max min-w-[350px]"
+                    typeFilter={['liability', 'asset']}
                   />
 
                   {/* Payment Due Date for AP Accounts */}
@@ -1656,6 +1658,7 @@ export default function InvoiceReviewPage() {
                   value={newItemData.default_coa_id || ""}
                   onChange={(val) => setNewItemData({...newItemData, default_coa_id: val})}
                   placeholder="No Default Account"
+                  typeFilter={['asset', 'expense']}
                 />
               </div>
             </div>

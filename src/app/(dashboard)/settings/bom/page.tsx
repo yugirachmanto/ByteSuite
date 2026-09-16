@@ -21,6 +21,7 @@ import Link from 'next/link'
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
 import { STANDARD_UOMS } from '@/lib/constants'
+import { CoaCombobox } from '@/components/ui/coa-combobox'
 
 const convertQty = (qty: number, fromUnit: string, toUnit: string): number => {
   const from = (fromUnit || '').toUpperCase().trim()
@@ -69,7 +70,6 @@ export default function BOMPage() {
     name: '',
     unit: 'PCS',
     default_coa_id: '',
-    default_coa_search: '',
   })
   const [savingWip, setSavingWip] = useState(false)
   
@@ -111,7 +111,7 @@ export default function BOMPage() {
 
       const { data: accounts } = await supabase
         .from('chart_of_accounts')
-        .select('id, code, name')
+        .select('id, code, name, type, is_header')
         .eq('is_active', true)
         .order('code')
       if (accounts) {
@@ -170,7 +170,7 @@ export default function BOMPage() {
       setWipItems(prev => [data, ...prev])
       setSelectedWipId(data.id)
       setNewWipModalOpen(false)
-      setNewWipData({ name: '', unit: 'PCS', default_coa_id: '', default_coa_search: '' })
+      setNewWipData({ name: '', unit: 'PCS', default_coa_id: '' })
       toast.success(`WIP "${data.name}" created! You can now define its BOM below.`)
     } catch (error: any) {
       toast.error(error.message || 'Failed to create WIP item')
@@ -671,28 +671,14 @@ export default function BOMPage() {
               </div>
               <div className="space-y-2">
                 <label className="text-xs text-zinc-500 font-medium uppercase">Default COA (Optional)</label>
-                <div className="relative">
-                  <Input
-                    list="coa-list"
-                    placeholder="Search account code or name..."
-                    value={newWipData.default_coa_search}
-                    onChange={(e) => {
-                      const val = e.target.value
-                      const match = coa.find(a => `${a.code} - ${a.name}` === val)
-                      setNewWipData({
-                        ...newWipData, 
-                        default_coa_search: val,
-                        default_coa_id: match ? match.id : ''
-                      })
-                    }}
-                    className="w-full bg-zinc-900 border-zinc-800 h-9 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none"
-                  />
-                  <datalist id="coa-list">
-                    {coa.map(acc => (
-                      <option key={acc.id} value={`${acc.code} - ${acc.name}`} />
-                    ))}
-                  </datalist>
-                </div>
+                <CoaCombobox
+                  coas={coa}
+                  value={newWipData.default_coa_id}
+                  onChange={(val) => setNewWipData({ ...newWipData, default_coa_id: val })}
+                  placeholder="No Default Account"
+                  typeFilter={['asset', 'expense']}
+                  className="bg-zinc-900 border-zinc-800"
+                />
               </div>
             </div>
           </div>

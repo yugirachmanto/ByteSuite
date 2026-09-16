@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { CoaCombobox } from '@/components/ui/coa-combobox'
+import { CoaCombobox, type CoaType } from '@/components/ui/coa-combobox'
 import { Button } from '@/components/ui/button'
 import { Loader2, Save, CheckCircle2 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -13,11 +13,11 @@ interface Mapping {
   coa_id: string
 }
 
-const CORE_ROLES = [
-  { value: 'accounts_payable', label: 'Accounts Payable' },
-  { value: 'ppn_masukan', label: 'PPN Masukan (Input Tax)' },
-  { value: 'ppn_keluaran', label: 'PPN Keluaran (Output Tax)' },
-  { value: 'freight_expense', label: 'Freight/Transport Expense' },
+const CORE_ROLES: { value: string; label: string; typeFilter: CoaType }[] = [
+  { value: 'accounts_payable', label: 'Accounts Payable', typeFilter: 'liability' },
+  { value: 'ppn_masukan', label: 'PPN Masukan (Input Tax)', typeFilter: 'asset' },
+  { value: 'ppn_keluaran', label: 'PPN Keluaran (Output Tax)', typeFilter: 'liability' },
+  { value: 'freight_expense', label: 'Freight/Transport Expense', typeFilter: 'expense' },
 ]
 
 export function CoaMappingStep({ orgId, accounts, markDone }: StepProps) {
@@ -88,7 +88,7 @@ export function CoaMappingStep({ orgId, accounts, markDone }: StepProps) {
           return (
             <div key={role.value} className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center border-b border-zinc-800/50 pb-4 last:border-0 last:pb-0">
               <label className="text-sm text-zinc-200">{role.label}</label>
-              <CoaCombobox coas={accounts} value={currentVal} onChange={(val) => updateMapping(role.value, val)} placeholder="Select account..." />
+              <CoaCombobox coas={accounts} value={currentVal} onChange={(val) => updateMapping(role.value, val)} placeholder="Select account..." typeFilter={role.typeFilter} />
             </div>
           )
         })}

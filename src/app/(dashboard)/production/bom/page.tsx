@@ -21,6 +21,7 @@ import Link from 'next/link'
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
 import { STANDARD_UOMS } from '@/lib/constants'
+import { CoaCombobox } from '@/components/ui/coa-combobox'
 
 const convertQty = (qty: number, fromUnit: string, toUnit: string): number => {
   const from = (fromUnit || '').toUpperCase().trim()
@@ -102,7 +103,7 @@ export default function BOMPage() {
 
       const { data: accounts } = await supabase
         .from('chart_of_accounts')
-        .select('id, code, name')
+        .select('id, code, name, type, is_header')
         .eq('is_active', true)
         .order('code')
       if (accounts) {
@@ -625,16 +626,14 @@ export default function BOMPage() {
               </div>
               <div className="space-y-2">
                 <label className="text-xs text-zinc-500 font-medium uppercase">Default COA (Optional)</label>
-                <select 
+                <CoaCombobox
+                  coas={coa}
                   value={newWipData.default_coa_id}
-                  onChange={e => setNewWipData({...newWipData, default_coa_id: e.target.value})}
-                  className="w-full bg-zinc-900 border border-zinc-800 rounded-md px-3 h-9 text-sm text-zinc-100 focus:outline-none"
-                >
-                  <option value="">No Default Account</option>
-                  {coa.map(acc => (
-                    <option key={acc.id} value={acc.id}>{acc.code} - {acc.name}</option>
-                  ))}
-                </select>
+                  onChange={(val) => setNewWipData({...newWipData, default_coa_id: val})}
+                  placeholder="No Default Account"
+                  typeFilter={['asset', 'expense']}
+                  className="bg-zinc-900 border-zinc-800"
+                />
               </div>
             </div>
           </div>

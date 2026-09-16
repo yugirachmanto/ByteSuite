@@ -36,6 +36,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatRp } from '@/lib/format'
+import { CoaCombobox } from '@/components/ui/coa-combobox'
 
 export default function APDashboardPage() {
   const supabase = createClient()
@@ -123,7 +124,7 @@ export default function APDashboardPage() {
         // ── 3. Cash/Bank accounts for payment modal ───────────────────────────
         const { data: coaData } = await supabase
           .from('chart_of_accounts')
-          .select('id, code, name')
+          .select('id, code, name, type, is_header')
           .eq('org_id', currentOrgId)
           .eq('is_active', true)
           .in('type', ['asset'])
@@ -483,14 +484,14 @@ export default function APDashboardPage() {
               </div>
               <div className="space-y-2">
                 <label className="text-xs text-zinc-500 font-medium uppercase">Pay From (Cash/Bank)</label>
-                <select 
-                  className="w-full bg-zinc-900 border border-zinc-800 rounded-md px-3 h-10 text-sm text-zinc-100 focus:outline-none"
+                <CoaCombobox
+                  coas={coa}
                   value={selectedCoa}
-                  onChange={(e) => setSelectedCoa(e.target.value)}
-                >
-                  <option value="">Select Account...</option>
-                  {coa.map(acc => <option key={acc.id} value={acc.id}>{acc.code} - {acc.name}</option>)}
-                </select>
+                  onChange={setSelectedCoa}
+                  placeholder="Select Account..."
+                  typeFilter="asset"
+                  className="bg-zinc-900 border-zinc-800"
+                />
               </div>
             </div>
 

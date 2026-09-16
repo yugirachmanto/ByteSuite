@@ -39,6 +39,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Switch } from '@/components/ui/switch'
+import { CoaCombobox } from '@/components/ui/coa-combobox'
 import { Plus, Pencil, Trash2, Search, Loader2, AlertTriangle, Download, Upload, Image as ImageIcon, Scissors, Save } from 'lucide-react'
 import { parseCSV, generateItemTemplate } from '@/lib/inventory/import'
 import { STANDARD_UOMS } from '@/lib/constants'
@@ -137,7 +138,7 @@ export default function ItemsSettingsPage() {
     setLoading(true)
     const [{ data: itemsData }, { data: coaData }, { data: balanceData }] = await Promise.all([
       supabase.from('item_master').select('*').order('name'),
-      supabase.from('chart_of_accounts').select('id, code, name, type'),
+      supabase.from('chart_of_accounts').select('id, code, name, type, is_header'),
       supabase.from('inventory_balance').select('qty_on_hand, item_master(name)').gt('qty_on_hand', 0),
     ])
     setItems(itemsData || [])
@@ -672,20 +673,14 @@ export default function ItemsSettingsPage() {
               </div>
               <div className="space-y-2">
                 <Label>Default COA</Label>
-                <select
-                  value={editItem.default_coa_id || 'none'}
-                  onChange={(e) =>
-                    setEditItem({ ...editItem, default_coa_id: e.target.value === 'none' ? null : e.target.value })
-                  }
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-md px-3 h-9 text-sm text-zinc-100 focus:outline-none"
-                >
-                  <option value="none">No Default Account</option>
-                  {coa.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.code} — {a.name}
-                    </option>
-                  ))}
-                </select>
+                <CoaCombobox
+                  coas={coa}
+                  value={editItem.default_coa_id || ''}
+                  onChange={(val) => setEditItem({ ...editItem, default_coa_id: val || null })}
+                  placeholder="No Default Account"
+                  typeFilter={['asset', 'expense']}
+                  className="bg-zinc-950 border-zinc-800"
+                />
               </div>
             </div>
 
@@ -858,16 +853,14 @@ export default function ItemsSettingsPage() {
                       />
                     </TableCell>
                     <TableCell className="p-1.5">
-                      <select
-                        value={row.coa_id || 'none'}
-                        onChange={(e) => updatePreviewRow(i, { coa_id: e.target.value === 'none' ? null : e.target.value })}
-                        className="h-8 w-44 bg-zinc-950 border border-zinc-800 rounded px-1.5 text-xs text-zinc-100 focus:outline-none"
-                      >
-                        <option value="none">No Default Account</option>
-                        {coa.map((a) => (
-                          <option key={a.id} value={a.id}>{a.code} — {a.name}</option>
-                        ))}
-                      </select>
+                      <CoaCombobox
+                        coas={coa}
+                        value={row.coa_id || ''}
+                        onChange={(val) => updatePreviewRow(i, { coa_id: val || null })}
+                        placeholder="No Default Account"
+                        typeFilter={['asset', 'expense']}
+                        className="h-8 w-44 bg-zinc-950 border-zinc-800 text-xs"
+                      />
                     </TableCell>
                     <TableCell className="p-1.5 text-center">
                       <Switch
