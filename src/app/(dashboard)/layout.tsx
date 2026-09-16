@@ -128,6 +128,42 @@ const SIDEBAR_LABEL_KEYS: Record<string, string> = {
   '/purchasing/gr': 'purchasing.sidebar.goodsReceipt',
 }
 
+// Route-level access control — the sidebar above only decides what's *shown*
+// in the nav; without this, a role could still open a restricted page by
+// typing its URL directly (e.g. a cashier browsing straight to /accounting).
+// Ordered so a more specific rule (checked first, `exact: true`) can carve
+// out a narrower allowance than its own broader prefix (e.g. the POS
+// terminal itself is cashier-only, but /pos/sales-report and /pos/receipt/*
+// under the same prefix are also open to finance/viewer).
+const ROUTE_ACCESS: { prefix: string; exact?: boolean; roles: string[] }[] = [
+  { prefix: '/dashboard', roles: ['owner', 'admin', 'finance', 'kitchen', 'viewer'] },
+  { prefix: '/pos', exact: true, roles: ['owner', 'admin', 'cashier'] },
+  { prefix: '/pos', roles: ['owner', 'admin', 'cashier', 'finance', 'viewer'] },
+  { prefix: '/purchasing', roles: ['owner', 'admin', 'finance', 'viewer'] },
+  { prefix: '/invoices', roles: ['owner', 'admin', 'finance', 'viewer'] },
+  { prefix: '/vendors', roles: ['owner', 'admin', 'finance', 'viewer'] },
+  { prefix: '/customers', roles: ['owner', 'admin', 'finance', 'viewer'] },
+  { prefix: '/accounting', roles: ['owner', 'admin', 'finance', 'viewer'] },
+  { prefix: '/reports', roles: ['owner', 'admin', 'finance', 'viewer'] },
+  { prefix: '/projects', roles: ['owner', 'admin', 'finance', 'kitchen', 'viewer'] },
+  { prefix: '/inventory', roles: ['owner', 'admin', 'kitchen', 'finance', 'viewer'] },
+  { prefix: '/products', roles: ['owner', 'admin', 'kitchen', 'finance', 'viewer'] },
+  { prefix: '/production', roles: ['owner', 'admin', 'kitchen', 'finance', 'viewer'] },
+  { prefix: '/opname', roles: ['owner', 'admin', 'kitchen', 'finance', 'viewer'] },
+  { prefix: '/waste', roles: ['owner', 'admin', 'kitchen', 'finance', 'viewer'] },
+  { prefix: '/recipes', roles: ['owner', 'admin', 'kitchen', 'finance', 'viewer'] },
+  { prefix: '/integrations', roles: ['owner', 'admin'] },
+  { prefix: '/billing', roles: ['owner', 'admin'] },
+  { prefix: '/settings', roles: ['owner', 'admin'] },
+]
+
+function getAllowedRoles(pathname: string): string[] | null {
+  const exactMatch = ROUTE_ACCESS.find(r => r.exact && pathname === r.prefix)
+  if (exactMatch) return exactMatch.roles
+  const prefixMatch = ROUTE_ACCESS.find(r => !r.exact && (pathname === r.prefix || pathname.startsWith(r.prefix + '/')))
+  return prefixMatch ? prefixMatch.roles : null
+}
+
 // ── Inner shell (consumes OutletProvider context) ────────────────────────────
 function DashboardShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
@@ -151,6 +187,21 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       setIsSidebarOpen(false)
     }
   }, [pathname])
+
+  const routeAllowedRoles = pathname ? getAllowedRoles(pathname) : null
+  const roleResolved = !outletLoading && !!userRole
+  // Unrestricted routes (no entry in ROUTE_ACCESS, e.g. /profile) always
+  // render immediately. Restricted ones wait for the role to resolve before
+  // rendering at all, so a disallowed role never sees a flash of the page
+  // before the redirect below kicks in.
+  const isAuthorized = !routeAllowedRoles || (roleResolved && routeAllowedRoles.includes(userRole!))
+
+  useEffect(() => {
+    if (!roleResolved || !routeAllowedRoles) return
+    if (!routeAllowedRoles.includes(userRole!)) {
+      router.replace(userRole === 'cashier' ? '/pos' : '/dashboard')
+    }
+  }, [pathname, userRole, roleResolved, routeAllowedRoles, router])
 
   useEffect(() => {
     async function checkBilling() {
@@ -368,7 +419,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
         <div className="flex-1 overflow-auto bg-zinc-950 p-4 md:p-8 print:bg-white print:p-0 print:overflow-visible">
-          <div className="mx-auto max-w-7xl print:max-w-none">{children}</div>
+          <div className="mx-auto max-w-7xl print:max-w-none">{isAuthorized ? children : null}</div>
         </div>
       </main>
     </div>

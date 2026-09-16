@@ -24,6 +24,7 @@ interface SalesSummaryScope {
   shiftId?: string
   startIso?: string
   endIso?: string
+  cashierId?: string
 }
 
 const EMPTY_SUMMARY: PosSalesSummary = {
@@ -42,12 +43,14 @@ const EMPTY_SUMMARY: PosSalesSummary = {
 }
 
 export async function fetchPosSalesSummary(supabase: SupabaseClient, scope: SalesSummaryScope): Promise<PosSalesSummary> {
-  const { outletId, shiftId, startIso, endIso } = scope
+  const { outletId, shiftId, startIso, endIso, cashierId } = scope
 
   let query = supabase
     .from('pos_orders')
     .select('id, status, subtotal, tax_amount, total_amount, discount_amount')
     .eq('outlet_id', outletId)
+
+  if (cashierId) query = query.eq('cashier_id', cashierId)
 
   if (shiftId) {
     query = query.eq('shift_id', shiftId)
@@ -133,14 +136,18 @@ export interface HourlySales {
   orders: number
 }
 
-export async function fetchHourlySales(supabase: SupabaseClient, scope: { outletId: string; startIso: string; endIso: string }): Promise<HourlySales[]> {
-  const { data: orders } = await supabase
+export async function fetchHourlySales(supabase: SupabaseClient, scope: { outletId: string; startIso: string; endIso: string; cashierId?: string }): Promise<HourlySales[]> {
+  let query = supabase
     .from('pos_orders')
     .select('created_at, total_amount')
     .eq('outlet_id', scope.outletId)
     .eq('status', 'completed')
     .gte('created_at', scope.startIso)
     .lte('created_at', scope.endIso)
+
+  if (scope.cashierId) query = query.eq('cashier_id', scope.cashierId)
+
+  const { data: orders } = await query
 
   const buckets: HourlySales[] = Array.from({ length: 24 }, (_, hour) => ({ hour, sales: 0, orders: 0 }))
   for (const o of orders || []) {
