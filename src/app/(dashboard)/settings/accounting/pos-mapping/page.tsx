@@ -26,12 +26,14 @@ import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
 import { Loader2, Plus, Trash2, Save, Store, CreditCard, Layers, AlertTriangle, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
+import { CoaCombobox } from '@/components/ui/coa-combobox'
 
 interface CoaAccount {
   id: string
   code: string
   name: string
   type: string
+  is_header: boolean
 }
 
 interface Outlet {
@@ -115,7 +117,7 @@ export default function PosMappingSettingsPage() {
           // Fetch COA (Active)
           const { data: coaData } = await supabase
             .from('chart_of_accounts')
-            .select('id, code, name, type')
+            .select('id, code, name, type, is_header')
             .eq('org_id', currentOrgId)
             .eq('is_active', true)
             .order('code')
@@ -308,11 +310,6 @@ export default function PosMappingSettingsPage() {
     )
   }
 
-  // Filter COA for specific types to guide user selection
-  const revenueAccounts = accounts.filter(a => a.type === 'income')
-  const assetExpenseAccounts = accounts.filter(a => a.type === 'asset' || a.type === 'expense' || a.type === 'cost_of_sales')
-  const bankCashArAccounts = accounts.filter(a => a.type === 'asset' || a.type === 'liability')
-
   return (
     <div className="space-y-6">
       {pendingGlCount > 0 && (
@@ -419,58 +416,26 @@ export default function PosMappingSettingsPage() {
 
                       {/* Revenue Account Selector */}
                       <TableCell>
-                        <Select 
-                          value={mapping.revenue_coa_id} 
-                          onValueChange={(val) => updateCoaMapping(idx, 'revenue_coa_id', val)}
-                        >
-                          <SelectTrigger className="bg-zinc-950 border-zinc-800 text-zinc-100">
-                            <SelectValue placeholder="Select Revenue Account...">
-                              {mapping.revenue_coa_id ? (
-                                accounts.find(a => a.id === mapping.revenue_coa_id) 
-                                  ? `${accounts.find(a => a.id === mapping.revenue_coa_id)?.code} - ${accounts.find(a => a.id === mapping.revenue_coa_id)?.name}`
-                                  : 'Select account'
-                              ) : 'Select account'}
-                            </SelectValue>
-                          </SelectTrigger>
-                          <SelectContent className="bg-zinc-900 border-zinc-800 max-h-60">
-                            {revenueAccounts.map(acc => (
-                              <SelectItem key={acc.id} value={acc.id}>
-                                {acc.code} - {acc.name}
-                              </SelectItem>
-                            ))}
-                            {revenueAccounts.length === 0 && (
-                              <div className="p-2 text-xs text-zinc-500 text-center">No Revenue accounts found. Please add Income accounts in COA.</div>
-                            )}
-                          </SelectContent>
-                        </Select>
+                        <CoaCombobox
+                          coas={accounts}
+                          value={mapping.revenue_coa_id}
+                          onChange={(val) => updateCoaMapping(idx, 'revenue_coa_id', val)}
+                          placeholder="Select Revenue Account..."
+                          typeFilter="income"
+                          className="bg-zinc-950 border-zinc-800 text-zinc-100"
+                        />
                       </TableCell>
 
                       {/* COGS Account Selector */}
                       <TableCell>
-                        <Select 
-                          value={mapping.cogs_coa_id || 'none'} 
-                          onValueChange={(val) => updateCoaMapping(idx, 'cogs_coa_id', val === 'none' ? null : val)}
-                        >
-                          <SelectTrigger className="bg-zinc-950 border-zinc-800 text-zinc-100">
-                            <SelectValue placeholder="No COGS tracking">
-                              {mapping.cogs_coa_id && accounts.find(a => a.id === mapping.cogs_coa_id) ? (
-                                `${accounts.find(a => a.id === mapping.cogs_coa_id)?.code} - ${accounts.find(a => a.id === mapping.cogs_coa_id)?.name}`
-                              ) : (
-                                <span className="text-zinc-500">No COGS tracking</span>
-                              )}
-                            </SelectValue>
-                          </SelectTrigger>
-                          <SelectContent className="bg-zinc-900 border-zinc-800 max-h-60">
-                            <SelectItem value="none">
-                              <span className="text-zinc-500">No COGS tracking</span>
-                            </SelectItem>
-                            {assetExpenseAccounts.map(acc => (
-                              <SelectItem key={acc.id} value={acc.id}>
-                                {acc.code} - {acc.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <CoaCombobox
+                          coas={accounts}
+                          value={mapping.cogs_coa_id || ''}
+                          onChange={(val) => updateCoaMapping(idx, 'cogs_coa_id', val || null)}
+                          placeholder="No COGS tracking"
+                          typeFilter="expense"
+                          className="bg-zinc-950 border-zinc-800 text-zinc-100"
+                        />
                       </TableCell>
 
                       {/* Remove Row */}
@@ -569,27 +534,14 @@ export default function PosMappingSettingsPage() {
 
                       {/* Clearing Account Selector */}
                       <TableCell>
-                        <Select 
-                          value={mapping.coa_id} 
-                          onValueChange={(val) => updatePaymentMapping(idx, 'coa_id', val)}
-                        >
-                          <SelectTrigger className="bg-zinc-950 border-zinc-800 text-zinc-100">
-                            <SelectValue placeholder="Select Clearing Account...">
-                              {mapping.coa_id ? (
-                                accounts.find(a => a.id === mapping.coa_id) 
-                                  ? `${accounts.find(a => a.id === mapping.coa_id)?.code} - ${accounts.find(a => a.id === mapping.coa_id)?.name}`
-                                  : 'Select account'
-                              ) : 'Select account'}
-                            </SelectValue>
-                          </SelectTrigger>
-                          <SelectContent className="bg-zinc-900 border-zinc-800 max-h-60">
-                            {bankCashArAccounts.map(acc => (
-                              <SelectItem key={acc.id} value={acc.id}>
-                                {acc.code} - {acc.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <CoaCombobox
+                          coas={accounts}
+                          value={mapping.coa_id}
+                          onChange={(val) => updatePaymentMapping(idx, 'coa_id', val)}
+                          placeholder="Select Clearing Account..."
+                          typeFilter={['asset', 'liability']}
+                          className="bg-zinc-950 border-zinc-800 text-zinc-100"
+                        />
                       </TableCell>
 
                       {/* Settlement Delay Flag */}

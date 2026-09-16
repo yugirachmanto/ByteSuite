@@ -17,6 +17,7 @@ export default function RegisterPage() {
     password: '',
     orgName: '',
     outletName: '',
+    coaTemplate: 'default',
   })
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -66,6 +67,7 @@ export default function RegisterPage() {
         p_full_name:   formData.fullName,
         p_org_name:    formData.orgName,
         p_outlet_name: formData.outletName,
+        p_coa_template: formData.coaTemplate,
       })
 
       if (rpcError) throw rpcError
@@ -222,6 +224,20 @@ export default function RegisterPage() {
                   className="h-11"
                 />
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="coaTemplate">Chart of Accounts Template</Label>
+              <select
+                id="coaTemplate"
+                value={formData.coaTemplate}
+                onChange={(e) => setFormData((prev) => ({ ...prev, coaTemplate: e.target.value }))}
+                className="flex h-11 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                <option value="default">Default ByteSuite (~200 akun standar F&amp;B)</option>
+                <option value="kl">Kopitiam Lim (struktur COA custom)</option>
+              </select>
+              <p className="text-xs text-muted-foreground">Bisa disesuaikan lagi kapan saja lewat Settings setelah akun dibuat.</p>
             </div>
           </div>
 

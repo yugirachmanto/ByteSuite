@@ -99,7 +99,7 @@ export function ItemsStep({ orgId, accounts, items, onItemCreated, markDone }: S
           </div>
           <div className="space-y-1.5">
             <label className="text-xs text-zinc-500 font-medium uppercase">Default Account</label>
-            <CoaCombobox coas={accounts} value={defaultCoaId} onChange={setDefaultCoaId} placeholder="Select account..." />
+            <CoaCombobox coas={accounts} value={defaultCoaId} onChange={setDefaultCoaId} placeholder="Select account..." typeFilter={['asset', 'expense']} />
           </div>
         </div>
 

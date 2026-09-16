@@ -59,7 +59,7 @@ export default function NewRequisitionPage() {
       setOrgId(profile.org_id)
 
       const [{ data: coaData }] = await Promise.all([
-        supabase.from('chart_of_accounts').select('id, code, name, is_header').eq('org_id', profile.org_id).order('code'),
+        supabase.from('chart_of_accounts').select('id, code, name, is_header, type').eq('org_id', profile.org_id).order('code'),
       ])
       setAccounts(coaData || [])
       await fetchItems(profile.org_id)

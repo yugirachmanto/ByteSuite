@@ -6,11 +6,14 @@ import { ChevronDown, Search, Check } from 'lucide-react'
 import { Input } from './input'
 import { toast } from 'sonner'
 
+export type CoaType = 'asset' | 'liability' | 'equity' | 'income' | 'expense'
+
 interface Coa {
   id: string
   code: string
   name: string
   is_header?: boolean
+  type?: CoaType | string
 }
 
 interface CoaComboboxProps {
@@ -23,6 +26,16 @@ interface CoaComboboxProps {
   allowAll?: boolean // For ledger filter
   dropdownPosition?: 'top' | 'bottom'
   dropdownClassName?: string
+  /**
+   * Restrict selectable accounts to one or more account types (e.g. only
+   * 'income' for a revenue mapping, only 'expense' for a COGS mapping).
+   * A header account is still shown (for context/grouping) as long as it
+   * has at least one matching descendant — filtering purely by the
+   * header's own `type` would hide the group entirely in many COA trees
+   * where a header's type doesn't exactly match its children's.
+   * Omit to show every type (e.g. a general journal entry).
+   */
+  typeFilter?: CoaType | CoaType[]
 }
 
 export function CoaCombobox({
@@ -34,12 +47,25 @@ export function CoaCombobox({
   disabled = false,
   allowAll = false,
   dropdownPosition = 'bottom',
-  dropdownClassName
+  dropdownClassName,
+  typeFilter
 }: CoaComboboxProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [search, setSearch] = useState('')
   const containerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+
+  const typeFilterList = typeFilter ? (Array.isArray(typeFilter) ? typeFilter : [typeFilter]) : null
+
+  // Apply the type filter before anything else. Every seeded account (header
+  // or leaf) carries the `type` of its top-level category — a header and its
+  // descendants always share the same type in this schema — so filtering by
+  // `type` alone naturally keeps a matching header alongside its matching
+  // children, with no separate hierarchy walk needed.
+  const scopedCoas = useMemo(() => {
+    if (!typeFilterList) return coas
+    return coas.filter((c) => c.type && typeFilterList.includes(c.type as CoaType))
+  }, [coas, typeFilterList])
 
   // Click outside to close
   useEffect(() => {
@@ -62,13 +88,13 @@ export function CoaCombobox({
   }, [isOpen])
 
   const filteredCoas = useMemo(() => {
-    if (!search) return coas
+    if (!search) return scopedCoas
     const lowerSearch = search.toLowerCase()
-    return coas.filter(c => 
-      c.code.toLowerCase().includes(lowerSearch) || 
+    return scopedCoas.filter(c =>
+      c.code.toLowerCase().includes(lowerSearch) ||
       c.name.toLowerCase().includes(lowerSearch)
     )
-  }, [coas, search])
+  }, [scopedCoas, search])
 
   const selectedCoa = allowAll && value === 'all' 
     ? { id: 'all', code: '', name: 'All Accounts' } 

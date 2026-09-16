@@ -70,7 +70,7 @@ function OnboardingWizard() {
       setOrgId(currentOrgId)
 
       const [accountsRes, outletsRes, itemsRes, vendorsRes] = await Promise.all([
-        supabase.from('chart_of_accounts').select('id, code, name, is_header').eq('org_id', currentOrgId).eq('is_active', true).order('code'),
+        supabase.from('chart_of_accounts').select('id, code, name, is_header, type').eq('org_id', currentOrgId).eq('is_active', true).order('code'),
         supabase.from('outlets').select('id, name, address, timezone').eq('org_id', currentOrgId).order('name'),
         supabase.from('item_master').select('id, name, unit, purchase_unit, conversion_factor, category, is_inventory, default_coa_id').eq('org_id', currentOrgId).order('name'),
         supabase.from('vendors').select('id, name, email, phone').eq('org_id', currentOrgId).order('name'),

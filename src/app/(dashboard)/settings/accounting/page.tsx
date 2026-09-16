@@ -13,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { CoaCombobox } from '@/components/ui/coa-combobox'
+import { CoaCombobox, type CoaType } from '@/components/ui/coa-combobox'
 import {
   Table,
   TableBody,
@@ -30,6 +30,8 @@ interface CoaAccount {
   id: string
   code: string
   name: string
+  type: string
+  is_header: boolean
 }
 
 interface CoaMapping {
@@ -46,20 +48,20 @@ interface PphRule {
   coa_role: string
 }
 
-const SYSTEM_ROLES = [
-  { value: 'accounts_payable', label: 'Accounts Payable' },
-  { value: 'accounts_receivable', label: 'Accounts Receivable' },
-  { value: 'ppn_masukan', label: 'PPN Masukan (Input Tax)' },
-  { value: 'ppn_keluaran', label: 'PPN Keluaran (Output Tax)' },
-  { value: 'freight_expense', label: 'Freight/Transport Expense' },
-  { value: 'gr_ir_clearing', label: 'GR/IR Clearing (Goods Received Not Invoiced)' },
-  { value: 'pph23_payable', label: 'PPH 23 Payable' },
-  { value: 'pph4ayat2_payable', label: 'PPH 4(2) Payable' },
-  { value: 'pos_inventory', label: 'POS Inventory Deduction' },
-  { value: 'opname_inventory', label: 'Opname Inventory Adjustment' },
-  { value: 'opname_variance_expense', label: 'Opname Cost of Variance' },
-  { value: 'opname_waste_expense', label: 'Opname Cost of Food Spoilage/Waste' },
-  { value: 'shift_cash_variance', label: 'Cash Over/Short (Shift Variance)' }
+const SYSTEM_ROLES: { value: string; label: string; typeFilter: CoaType | CoaType[] }[] = [
+  { value: 'accounts_payable', label: 'Accounts Payable', typeFilter: 'liability' },
+  { value: 'accounts_receivable', label: 'Accounts Receivable', typeFilter: 'asset' },
+  { value: 'ppn_masukan', label: 'PPN Masukan (Input Tax)', typeFilter: 'asset' },
+  { value: 'ppn_keluaran', label: 'PPN Keluaran (Output Tax)', typeFilter: 'liability' },
+  { value: 'freight_expense', label: 'Freight/Transport Expense', typeFilter: 'expense' },
+  { value: 'gr_ir_clearing', label: 'GR/IR Clearing (Goods Received Not Invoiced)', typeFilter: 'liability' },
+  { value: 'pph23_payable', label: 'PPH 23 Payable', typeFilter: 'liability' },
+  { value: 'pph4ayat2_payable', label: 'PPH 4(2) Payable', typeFilter: 'liability' },
+  { value: 'pos_inventory', label: 'POS Inventory Deduction', typeFilter: 'asset' },
+  { value: 'opname_inventory', label: 'Opname Inventory Adjustment', typeFilter: 'asset' },
+  { value: 'opname_variance_expense', label: 'Opname Cost of Variance', typeFilter: 'expense' },
+  { value: 'opname_waste_expense', label: 'Opname Cost of Food Spoilage/Waste', typeFilter: 'expense' },
+  { value: 'shift_cash_variance', label: 'Cash Over/Short (Shift Variance)', typeFilter: 'expense' }
 ]
 
 export default function AccountingSettingsPage() {
@@ -112,7 +114,7 @@ export default function AccountingSettingsPage() {
         // Fetch COA
         const { data: coaData } = await supabase
           .from('chart_of_accounts')
-          .select('id, code, name')
+          .select('id, code, name, type, is_header')
           .eq('org_id', currentOrgId)
           .order('code')
         setAccounts(coaData || [])
@@ -378,6 +380,7 @@ export default function AccountingSettingsPage() {
                     value={currentVal || ""}
                     onChange={(val) => updateMapping(role.value, val)}
                     placeholder="Select Account..."
+                    typeFilter={role.typeFilter}
                   />
                 </div>
               )

@@ -144,7 +144,7 @@ export function RecipeQuickAdd({ orgId, category, emptyLabel, accounts, items, o
             {STANDARD_UOMS.map(u => <option key={u} value={u}>{u}</option>)}
           </select>
         </div>
-        <CoaCombobox coas={accounts} value={newCoaId} onChange={setNewCoaId} placeholder="Default account (optional)" />
+        <CoaCombobox coas={accounts} value={newCoaId} onChange={setNewCoaId} placeholder="Default account (optional)" typeFilter={['asset', 'expense']} />
         <Button onClick={handleCreate} disabled={creating || !newName.trim()} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white">
           {creating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
           Create

@@ -57,7 +57,7 @@ export default function MatchInvoicePage({ params }: { params: Promise<{ id: str
           }))
       )
 
-      const { data: coaData } = await supabase.from('chart_of_accounts').select('id, code, name, is_header').eq('org_id', profile.org_id).order('code')
+      const { data: coaData } = await supabase.from('chart_of_accounts').select('id, code, name, is_header, type').eq('org_id', profile.org_id).order('code')
       setAccounts(coaData || [])
 
       setLoading(false)
@@ -186,7 +186,7 @@ export default function MatchInvoicePage({ params }: { params: Promise<{ id: str
             {taxAmount > 0 && (
               <div>
                 <label className="block text-xs font-medium text-zinc-300 mb-1.5">{t('purchasing.po.matchInvoice.ppnAccountLabel')}</label>
-                <CoaCombobox coas={accounts} value={taxCoaId} onChange={setTaxCoaId} placeholder={t('purchasing.po.matchInvoice.selectAccount')} />
+                <CoaCombobox coas={accounts} value={taxCoaId} onChange={setTaxCoaId} placeholder={t('purchasing.po.matchInvoice.selectAccount')} typeFilter="asset" />
               </div>
             )}
           </div>

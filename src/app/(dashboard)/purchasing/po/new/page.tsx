@@ -67,7 +67,7 @@ function NewPurchaseOrderPageInner() {
 
       const [{ data: vendorData }, { data: coaData }, { data: itemData }] = await Promise.all([
         supabase.from('vendors').select('id, name').eq('org_id', profile.org_id).order('name'),
-        supabase.from('chart_of_accounts').select('id, code, name, is_header').eq('org_id', profile.org_id).order('code'),
+        supabase.from('chart_of_accounts').select('id, code, name, is_header, type').eq('org_id', profile.org_id).order('code'),
         supabase.from('item_master').select('id, name, unit, purchase_unit, default_coa_id, is_inventory').eq('org_id', profile.org_id).eq('category', 'raw').order('name'),
       ])
       setVendors(vendorData || [])
@@ -336,7 +336,7 @@ function NewPurchaseOrderPageInner() {
                     )}
                   </div>
                   <div className="col-span-4">
-                    <CoaCombobox coas={accounts} value={line.coa_id} onChange={(val) => updateLine(idx, 'coa_id', val)} placeholder={t('purchasing.po.new.accountPlaceholder')} />
+                    <CoaCombobox coas={accounts} value={line.coa_id} onChange={(val) => updateLine(idx, 'coa_id', val)} placeholder={t('purchasing.po.new.accountPlaceholder')} typeFilter={['asset', 'expense']} />
                   </div>
                   <span className="col-span-1 text-xs text-zinc-300 font-mono text-right">{formatRp(line.qty * line.unit_price)}</span>
                   <Button type="button" variant="ghost" size="icon" onClick={() => removeLine(idx)} className="col-span-0 h-9 w-9 text-zinc-500 hover:text-red-400 justify-self-end">

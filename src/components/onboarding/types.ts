@@ -3,6 +3,7 @@ export interface CoaOption {
   code: string
   name: string
   is_header?: boolean
+  type?: string
 }
 
 export interface OutletOption {
