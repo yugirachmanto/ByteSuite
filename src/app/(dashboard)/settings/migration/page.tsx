@@ -5,10 +5,13 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { Tag, Layers, ShoppingBag, PackagePlus, ArrowRight, Loader2 } from 'lucide-react'
+import { Tag, Landmark, Layers, ShoppingBag, PackagePlus, ArrowRight, Loader2 } from 'lucide-react'
+
+const TOTAL_COA_ROLES = 13
 
 interface StepCounts {
   rawItems: number
+  mappedRoles: number
   bomRecipes: number
   products: number
   stockedItems: number
@@ -17,13 +20,14 @@ interface StepCounts {
 export default function MigrationHubPage() {
   const supabase = createClient()
   const [loading, setLoading] = useState(true)
-  const [counts, setCounts] = useState<StepCounts>({ rawItems: 0, bomRecipes: 0, products: 0, stockedItems: 0 })
+  const [counts, setCounts] = useState<StepCounts>({ rawItems: 0, mappedRoles: 0, bomRecipes: 0, products: 0, stockedItems: 0 })
 
   useEffect(() => {
     async function fetchCounts() {
       setLoading(true)
-      const [rawRes, bomRes, productRes, balanceRes] = await Promise.all([
+      const [rawRes, mappingRes, bomRes, productRes, balanceRes] = await Promise.all([
         supabase.from('item_master').select('*', { count: 'exact', head: true }).in('category', ['raw', 'packaging']),
+        supabase.from('default_coa_mappings').select('*', { count: 'exact', head: true }).not('coa_id', 'is', null),
         supabase.from('bom').select('output_item_id'),
         supabase.from('item_master').select('*', { count: 'exact', head: true }).eq('category', 'finished'),
         supabase.from('inventory_balance').select('item_id').gt('qty_on_hand', 0),
@@ -34,6 +38,7 @@ export default function MigrationHubPage() {
 
       setCounts({
         rawItems: rawRes.count || 0,
+        mappedRoles: mappingRes.count || 0,
         bomRecipes: uniqueBomOutputs,
         products: productRes.count || 0,
         stockedItems: uniqueStockedItems,
@@ -56,6 +61,16 @@ export default function MigrationHubPage() {
     },
     {
       step: 2,
+      title: 'Pemetaan Akun (COA)',
+      description: 'Petakan akun default sistem (AP, PPN, HPP POS, dll) sebelum transaksi mulai berjalan.',
+      icon: Landmark,
+      count: counts.mappedRoles,
+      countLabel: `dari ${TOTAL_COA_ROLES} akun terpetakan`,
+      href: '/settings/accounting',
+      cta: 'Buka Accounting Rules',
+    },
+    {
+      step: 3,
       title: 'Resep / BOM',
       description: 'Definisikan resep untuk item WIP (Bahan Setengah Jadi) maupun Produk — item output yang belum ada akan otomatis dibuat.',
       icon: Layers,
@@ -65,7 +80,7 @@ export default function MigrationHubPage() {
       cta: 'Bulk Upload Resep',
     },
     {
-      step: 3,
+      step: 4,
       title: 'Produk',
       description: 'Upload menu/produk jadi lengkap dengan kategori POS dan harga jual per outlet.',
       icon: ShoppingBag,
@@ -75,7 +90,7 @@ export default function MigrationHubPage() {
       cta: 'Bulk Upload Produk',
     },
     {
-      step: 4,
+      step: 5,
       title: 'Saldo Awal Inventori',
       description: 'Setelah item dan resep siap, masukkan saldo awal stok (qty + nilai) per outlet.',
       icon: PackagePlus,
@@ -88,7 +103,7 @@ export default function MigrationHubPage() {
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {steps.map((s) => (
           <Card key={s.step} className="border-zinc-800 bg-zinc-900/50 backdrop-blur-sm flex flex-col">
             <CardHeader className="pb-3">
