@@ -13,6 +13,7 @@ import {
   Users,
   Upload,
   RotateCcw,
+  Rocket,
 } from 'lucide-react'
 
 const settingsGroups = [
@@ -42,6 +43,7 @@ const settingsGroups = [
   {
     label: 'Data',
     tabs: [
+      { value: 'migration', label: 'Migrasi Data', href: '/settings/migration', icon: Rocket },
       { value: 'import', label: 'Data Import', href: '/settings/import', icon: Upload },
       { value: 'system', label: 'System Reset', href: '/settings/system', icon: RotateCcw },
     ],

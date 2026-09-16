@@ -15,7 +15,7 @@ import {
   TableRow,
   TableFooter
 } from '@/components/ui/table'
-import { Plus, Trash2, Save, ArrowLeft, Loader2, Info, ChevronRight, Search } from 'lucide-react'
+import { Plus, Trash2, Save, ArrowLeft, Loader2, Info, ChevronRight, Search, Upload } from 'lucide-react'
 import { toast } from 'sonner'
 import Link from 'next/link'
 
@@ -370,14 +370,22 @@ export default function BOMPage() {
             <p className="text-zinc-400 text-sm">Define recipe ingredients for your WIP items.</p>
           </div>
         </div>
-        <Button 
-            className="bg-zinc-100 text-zinc-900 hover:bg-zinc-200"
-            disabled={!selectedWipId || saving}
-            onClick={handleSave}
-          >
-            {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-            Save BOM
-          </Button>
+        <div className="flex items-center gap-2">
+          <Link href="/settings/bom/bulk-upload">
+            <Button variant="outline" className="border-zinc-800 text-zinc-300 hover:bg-zinc-800">
+              <Upload className="mr-2 h-4 w-4" />
+              Bulk Upload
+            </Button>
+          </Link>
+          <Button
+              className="bg-zinc-100 text-zinc-900 hover:bg-zinc-200"
+              disabled={!selectedWipId || saving}
+              onClick={handleSave}
+            >
+              {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+              Save BOM
+            </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
