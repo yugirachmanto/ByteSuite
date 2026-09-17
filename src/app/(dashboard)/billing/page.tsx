@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { CheckCircle2, CreditCard, Loader2, Zap, FileText, Download, UploadCloud } from 'lucide-react'
+import { CheckCircle2, CreditCard, Loader2, FileText, Download, UploadCloud } from 'lucide-react'
 import { toast } from 'sonner'
 import Link from 'next/link'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -29,32 +29,10 @@ import { format } from 'date-fns'
 import { CoaCombobox } from '@/components/ui/coa-combobox'
 import { Input } from '@/components/ui/input'
 
-const plans = [
-  {
-    name: 'Free',
-    price: 'Rp 0',
-    description: 'Perfect for small operations getting started.',
-    features: ['1 Outlet', 'Up to 3 Users', 'Basic Reporting', 'Community Support'],
-  },
-  {
-    name: 'Pro',
-    price: 'Rp 750.000',
-    description: 'Everything you need for a growing business.',
-    features: ['Up to 5 Outlets', 'Unlimited Users', 'Advanced Accounting', 'Priority Support'],
-  },
-  {
-    name: 'Enterprise',
-    price: 'Custom',
-    description: 'For large scale operations and custom needs.',
-    features: ['Unlimited Outlets', 'Custom Integrations', 'Dedicated Account Manager', '24/7 Phone Support'],
-  }
-]
-
 export default function BillingPage() {
   const [org, setOrg] = useState<any>(null)
   const [loading, setLoading] = useState(true)
-  const [upgradeLoading, setUpgradeLoading] = useState<string | null>(null)
-  
+
   // Payment Modal State
   const [isPayModalOpen, setIsPayModalOpen] = useState(false)
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null)
@@ -79,7 +57,7 @@ export default function BillingPage() {
       // Fetch Org & Invoices
       const { data: orgData, error: orgError } = await supabase
         .from('organizations')
-        .select('*, tenant_invoices(*)')
+        .select('*, tenant_invoices(*), subscription_plans(name, price, max_outlets, max_users, features, description)')
         .single()
       
       if (orgError) throw orgError
@@ -101,16 +79,6 @@ export default function BillingPage() {
     } finally {
       setLoading(false)
     }
-  }
-
-  async function handleUpgradeRequest(planName: string) {
-    setUpgradeLoading(planName)
-    setTimeout(() => {
-      setUpgradeLoading(null)
-      toast.success(`Upgrade requested!`, {
-        description: `Our team will contact you shortly to set up your ${planName} plan.`
-      })
-    }, 1500)
   }
 
   function openPayModal(invoice: any) {
@@ -238,7 +206,7 @@ export default function BillingPage() {
             </div>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-6">
           <div className="grid gap-6 md:grid-cols-2">
             <div className="space-y-2">
               <p className="text-sm font-medium text-zinc-500">Organization</p>
@@ -249,6 +217,31 @@ export default function BillingPage() {
               <p className="font-medium text-zinc-200">{nextBillingDateStr}</p>
             </div>
           </div>
+          {org.subscription_plans && (
+            <div className="pt-4 border-t border-zinc-800 space-y-3">
+              <div className="flex items-baseline justify-between">
+                <p className="text-sm font-medium text-zinc-500">Plan Price</p>
+                <p className="font-mono text-lg font-bold text-zinc-100">
+                  {org.subscription_plans.price === null
+                    ? 'Custom'
+                    : `${new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(org.subscription_plans.price)}/mo`}
+                </p>
+              </div>
+              {org.subscription_plans.description && (
+                <p className="text-sm text-zinc-400">{org.subscription_plans.description}</p>
+              )}
+              {(org.subscription_plans.features || []).length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {org.subscription_plans.features.map((f: string, i: number) => (
+                    <Badge key={i} variant="outline" className="border-zinc-700 text-zinc-300 text-xs">
+                      <CheckCircle2 className="h-3 w-3 mr-1 text-emerald-400" />
+                      {f}
+                    </Badge>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
 
