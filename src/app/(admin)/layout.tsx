@@ -16,6 +16,7 @@ import {
   ChevronRight,
   ShieldAlert,
   CreditCard,
+  Layers,
 } from 'lucide-react'
 
 const adminSidebarGroups = [
@@ -31,6 +32,7 @@ const adminSidebarGroups = [
       { name: 'Organizations', href: '/admin/organizations', icon: Building2 },
       { name: 'Global Users', href: '/admin/users', icon: Users },
       { name: 'Billing', href: '/admin/billing', icon: CreditCard },
+      { name: 'Plans', href: '/admin/plans', icon: Layers },
     ]
   }
 ]
@@ -107,7 +109,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 )}
                 <div className="space-y-1">
                   {group.items.map((item) => {
-                    const isActive = pathname === item.href
+                    const isActive = pathname === item.href || (item.href !== '/admin' && pathname?.startsWith(item.href + '/'))
                     return (
                       <Link
                         key={item.name}
