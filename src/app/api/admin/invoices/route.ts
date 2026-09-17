@@ -1,42 +1,23 @@
-import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
-import { createClient as createServerClient } from '@/lib/supabase/server'
+import { requireSuperadmin } from '@/lib/auth/requireSuperadmin'
 
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
     const org_id = searchParams.get('org_id')
 
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-    if (!serviceRoleKey) return NextResponse.json({ error: 'Missing service role key' }, { status: 500 })
-
-    const authSupabase = await createServerClient()
-    const { data: { user } } = await authSupabase.auth.getUser()
-    
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-    const { data: profile } = await authSupabase
-      .from('user_profiles')
-      .select('is_superadmin')
-      .eq('id', user.id)
-      .single()
-
-    if (!profile || !profile.is_superadmin) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
-
-    const adminClient = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceRoleKey, {
-      auth: { autoRefreshToken: false, persistSession: false }
-    })
+    const { context, error } = await requireSuperadmin()
+    if (error) return error
+    const { adminClient } = context
 
     let query = adminClient.from('tenant_invoices').select('*, organizations(name)').order('created_at', { ascending: false })
     if (org_id) {
       query = query.eq('org_id', org_id)
     }
 
-    const { data: invoices, error } = await query
+    const { data: invoices, error: fetchError } = await query
 
-    if (error) throw error
+    if (fetchError) throw fetchError
 
     return NextResponse.json({ invoices })
 
@@ -48,27 +29,9 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-    if (!serviceRoleKey) return NextResponse.json({ error: 'Missing service role key' }, { status: 500 })
-
-    const authSupabase = await createServerClient()
-    const { data: { user } } = await authSupabase.auth.getUser()
-    
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-    const { data: profile } = await authSupabase
-      .from('user_profiles')
-      .select('is_superadmin')
-      .eq('id', user.id)
-      .single()
-
-    if (!profile || !profile.is_superadmin) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
-
-    const adminClient = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceRoleKey, {
-      auth: { autoRefreshToken: false, persistSession: false }
-    })
+    const { context, error } = await requireSuperadmin()
+    if (error) return error
+    const { adminClient } = context
 
     const body = await request.json()
     const { org_id, payment_outlet_id, description, amount, due_date } = body
@@ -77,7 +40,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
-    const { data: invoice, error } = await adminClient
+    const { data: invoice, error: insertError } = await adminClient
       .from('tenant_invoices')
       .insert({
         org_id,
@@ -90,7 +53,7 @@ export async function POST(request: Request) {
       .select()
       .single()
 
-    if (error) throw error
+    if (insertError) throw insertError
 
     // Also immediately insert a pending AP invoice for the tenant's outlet
     const today = new Date().toISOString().split('T')[0]
@@ -115,27 +78,9 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-    if (!serviceRoleKey) return NextResponse.json({ error: 'Missing service role key' }, { status: 500 })
-
-    const authSupabase = await createServerClient()
-    const { data: { user } } = await authSupabase.auth.getUser()
-    
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-    const { data: profile } = await authSupabase
-      .from('user_profiles')
-      .select('is_superadmin')
-      .eq('id', user.id)
-      .single()
-
-    if (!profile || !profile.is_superadmin) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
-
-    const adminClient = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceRoleKey, {
-      auth: { autoRefreshToken: false, persistSession: false }
-    })
+    const { context, error } = await requireSuperadmin()
+    if (error) return error
+    const { adminClient } = context
 
     const body = await request.json()
     const { id, status } = body
@@ -222,14 +167,14 @@ export async function PATCH(request: Request) {
       }
     }
 
-    const { data: updated, error } = await adminClient
+    const { data: updated, error: updateError } = await adminClient
       .from('tenant_invoices')
       .update({ status })
       .eq('id', id)
       .select()
       .single()
 
-    if (error) throw error
+    if (updateError) throw updateError
 
     return NextResponse.json({ success: true, invoice: updated })
 
@@ -241,27 +186,9 @@ export async function PATCH(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-    if (!serviceRoleKey) return NextResponse.json({ error: 'Missing service role key' }, { status: 500 })
-
-    const authSupabase = await createServerClient()
-    const { data: { user } } = await authSupabase.auth.getUser()
-    
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-    const { data: profile } = await authSupabase
-      .from('user_profiles')
-      .select('is_superadmin')
-      .eq('id', user.id)
-      .single()
-
-    if (!profile || !profile.is_superadmin) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
-
-    const adminClient = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceRoleKey, {
-      auth: { autoRefreshToken: false, persistSession: false }
-    })
+    const { context, error } = await requireSuperadmin()
+    if (error) return error
+    const { adminClient } = context
 
     const { searchParams } = new URL(request.url)
     const id = searchParams.get('id')
@@ -281,8 +208,8 @@ export async function DELETE(request: Request) {
     await adminClient.from('invoices').delete().eq('invoice_no', invoiceNo).eq('vendor', 'ByteSuite')
 
     // Delete tenant invoice
-    const { error } = await adminClient.from('tenant_invoices').delete().eq('id', id)
-    if (error) throw error
+    const { error: deleteError } = await adminClient.from('tenant_invoices').delete().eq('id', id)
+    if (deleteError) throw deleteError
 
     return NextResponse.json({ success: true })
 

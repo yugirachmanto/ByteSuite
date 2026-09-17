@@ -33,7 +33,8 @@ import {
   Trash2,
   Workflow,
   History,
-  TrendingUp
+  TrendingUp,
+  ShieldAlert
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button, buttonVariants } from '@/components/ui/button'
@@ -164,10 +165,41 @@ function getAllowedRoles(pathname: string): string[] | null {
   return prefixMatch ? prefixMatch.roles : null
 }
 
+// A suspended org can still reach these — otherwise an owner locked out by
+// their own unpaid bill would have no way to see or pay it and get
+// reactivated. /profile stays open too (logout, account info).
+const SUSPENSION_EXEMPT_PREFIXES = ['/billing', '/profile']
+
+function isSuspensionExempt(pathname: string): boolean {
+  return SUSPENSION_EXEMPT_PREFIXES.some(p => pathname === p || pathname.startsWith(p + '/'))
+}
+
+function SuspendedBlock() {
+  return (
+    <div className="rounded-xl border border-red-900/30 bg-red-950/10 backdrop-blur-sm p-8 text-center max-w-2xl mx-auto my-12">
+      <div className="mx-auto h-14 w-14 rounded-full bg-red-950/40 border border-red-900/50 flex items-center justify-center text-red-500 mb-4">
+        <ShieldAlert className="h-7 w-7" />
+      </div>
+      <h3 className="text-xl font-bold tracking-tight text-red-400 mb-2">Access Suspended</h3>
+      <p className="text-zinc-400 text-sm mb-6 leading-relaxed">
+        This organization's access to ByteSuite has been suspended, usually due to an outstanding bill.
+        Visit Billing to review and settle any outstanding invoices, or contact support if you believe this is a mistake.
+      </p>
+      <div className="flex justify-center gap-3">
+        <Link href="/billing">
+          <Button className="bg-zinc-100 text-zinc-900 hover:bg-zinc-200">
+            Go to Billing
+          </Button>
+        </Link>
+      </div>
+    </div>
+  )
+}
+
 // ── Inner shell (consumes OutletProvider context) ────────────────────────────
 function DashboardShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
-  const { selectedOutletId, setSelectedOutletId, userRole, outlets, posEnabled, loading: outletLoading } = useOutlet()
+  const { selectedOutletId, setSelectedOutletId, userRole, outlets, posEnabled, orgSuspended, loading: outletLoading } = useOutlet()
   const { t } = useLanguage()
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
   const [mounted, setMounted] = useState(false)
@@ -195,6 +227,11 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   // rendering at all, so a disallowed role never sees a flash of the page
   // before the redirect below kicks in.
   const isAuthorized = !routeAllowedRoles || (roleResolved && routeAllowedRoles.includes(userRole!))
+
+  // Org suspension (set via /admin) — previously a cosmetic badge only; this
+  // is what actually cuts off access. Checked after role resolution so it
+  // doesn't flash the real dashboard before blocking.
+  const isSuspendedAndBlocked = !outletLoading && orgSuspended && !!pathname && !isSuspensionExempt(pathname)
 
   useEffect(() => {
     if (!roleResolved || !routeAllowedRoles) return
@@ -419,7 +456,9 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
         <div className="flex-1 overflow-auto bg-zinc-950 p-4 md:p-8 print:bg-white print:p-0 print:overflow-visible">
-          <div className="mx-auto max-w-7xl print:max-w-none">{isAuthorized ? children : null}</div>
+          <div className="mx-auto max-w-7xl print:max-w-none">
+            {isSuspendedAndBlocked ? <SuspendedBlock /> : (isAuthorized ? children : null)}
+          </div>
         </div>
       </main>
     </div>

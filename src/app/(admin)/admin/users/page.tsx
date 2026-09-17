@@ -11,11 +11,13 @@ import {
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Users, Loader2, Ban, CheckCircle2 } from 'lucide-react'
+import { Input } from '@/components/ui/input'
+import { Users, Loader2, Ban, CheckCircle2, Search } from 'lucide-react'
 
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
 
   useEffect(() => {
     fetchUsers()
@@ -59,11 +61,33 @@ export default function AdminUsersPage() {
     viewer: 'bg-zinc-800 text-zinc-400 border-zinc-700',
   }
 
+  const filteredUsers = users.filter((u) => {
+    if (!search.trim()) return true
+    const q = search.toLowerCase()
+    return (
+      (u.full_name || '').toLowerCase().includes(q) ||
+      (u.organizations?.name || '').toLowerCase().includes(q) ||
+      (u.role || '').toLowerCase().includes(q) ||
+      (u.id || '').toLowerCase().includes(q)
+    )
+  })
+
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight text-zinc-100">Global Users</h2>
-        <p className="text-zinc-400">Manage all users across all organizations.</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight text-zinc-100">Global Users</h2>
+          <p className="text-zinc-400">Manage all users across all organizations.</p>
+        </div>
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+          <Input
+            className="w-72 bg-zinc-950 border-zinc-800 pl-10"
+            placeholder="Search name, org, or role..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
       </div>
 
       <div className="rounded-md border border-zinc-800 bg-zinc-900/50 backdrop-blur-sm">
@@ -85,15 +109,15 @@ export default function AdminUsersPage() {
                   Loading...
                 </TableCell>
               </TableRow>
-            ) : users.length === 0 ? (
+            ) : filteredUsers.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={5} className="h-24 text-center text-zinc-500">
                   <Users className="mx-auto h-8 w-8 mb-2 opacity-20" />
-                  No users found.
+                  {search ? 'No users match your search.' : 'No users found.'}
                 </TableCell>
               </TableRow>
             ) : (
-              users.map((u) => (
+              filteredUsers.map((u) => (
                 <TableRow key={u.id} className="border-zinc-800 hover:bg-zinc-800/30">
                   <TableCell>
                     <div className="flex flex-col">
