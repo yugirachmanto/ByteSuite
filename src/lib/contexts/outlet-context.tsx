@@ -13,6 +13,7 @@ interface OutletContextType {
   setSelectedOutletId: (id: string) => void
   userRole: string | null
   posEnabled: boolean
+  orgSuspended: boolean
   outlets: Outlet[]
   loading: boolean
   reloadOutlets: () => void
@@ -24,6 +25,7 @@ export function OutletProvider({ children }: { children: React.ReactNode }) {
   const [selectedOutletId, setSelectedOutletId] = useState<string | null>(null)
   const [userRole, setUserRole] = useState<string | null>(null)
   const [posEnabled, setPosEnabled] = useState<boolean>(true)
+  const [orgSuspended, setOrgSuspended] = useState<boolean>(false)
   const [outlets, setOutlets] = useState<Outlet[]>([])
   const [loading, setLoading] = useState(true)
   const supabase = createClient()
@@ -39,7 +41,7 @@ export function OutletProvider({ children }: { children: React.ReactNode }) {
 
     const { data: profile, error: profileError } = await supabase
       .from('user_profiles')
-      .select('org_id, outlet_ids, role, organizations(pos_enabled)')
+      .select('org_id, outlet_ids, role, organizations(pos_enabled, is_active)')
       .eq('id', user.id)
       .single()
 
@@ -52,6 +54,10 @@ export function OutletProvider({ children }: { children: React.ReactNode }) {
     setUserRole(profile?.role || 'viewer')
     const orgData = profile?.organizations as any
     setPosEnabled(orgData?.pos_enabled ?? true)
+    // is_active defaults to true at the DB level, but treat a missing/null
+    // organizations join defensively as "not suspended" rather than locking
+    // someone out on a data hiccup.
+    setOrgSuspended(orgData?.is_active === false)
 
     // Owners and Admins see ALL outlets in the org; other roles see only their assigned outlets
     let query = supabase.from('outlets').select('id, name').order('name')
@@ -104,6 +110,7 @@ export function OutletProvider({ children }: { children: React.ReactNode }) {
       setSelectedOutletId: handleSetSelectedOutletId,
       userRole,
       posEnabled,
+      orgSuspended,
       outlets,
       loading,
       reloadOutlets: fetchOutlets,

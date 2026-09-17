@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Building2, Loader2, CreditCard, Ban, CheckCircle2, Settings, ChevronRight, ChevronDown, User, PlusCircle, FileText, Trash2 } from 'lucide-react'
+import { Building2, Loader2, CreditCard, Ban, CheckCircle2, Settings, ChevronRight, ChevronDown, User, PlusCircle, FileText, Trash2, Search } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -39,6 +39,7 @@ export default function AdminOrganizationsPage() {
   const [expandedOwners, setExpandedOwners] = useState<Record<string, boolean>>({})
   const [expandedOrgs, setExpandedOrgs] = useState<Record<string, boolean>>({}) // For expanding invoices
   const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
 
   // Billing Modal State
   const [isBillingOpen, setIsBillingOpen] = useState(false)
@@ -185,11 +186,37 @@ export default function AdminOrganizationsPage() {
     }
   }
 
+  const filteredGroups = groupedOrgs
+    .map((g) => ({
+      ...g,
+      orgs: g.orgs.filter((org) => {
+        if (!search.trim()) return true
+        const q = search.toLowerCase()
+        return (
+          org.name.toLowerCase().includes(q) ||
+          g.ownerName.toLowerCase().includes(q) ||
+          (org.subscription_plan || '').toLowerCase().includes(q)
+        )
+      })
+    }))
+    .filter((g) => g.orgs.length > 0)
+
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight text-zinc-100">Organizations</h2>
-        <p className="text-zinc-400">Manage tenants grouped by Owner.</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight text-zinc-100">Organizations</h2>
+          <p className="text-zinc-400">Manage tenants grouped by Owner.</p>
+        </div>
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+          <Input
+            className="w-72 bg-zinc-950 border-zinc-800 pl-10"
+            placeholder="Search org, owner, or plan..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
       </div>
 
       <div className="rounded-md border border-zinc-800 bg-zinc-900/50 backdrop-blur-sm overflow-hidden">
@@ -211,15 +238,15 @@ export default function AdminOrganizationsPage() {
                   Loading...
                 </TableCell>
               </TableRow>
-            ) : groupedOrgs.length === 0 ? (
+            ) : filteredGroups.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={5} className="h-24 text-center text-zinc-500">
                   <Building2 className="mx-auto h-8 w-8 mb-2 opacity-20" />
-                  No organizations found.
+                  {search ? 'No organizations match your search.' : 'No organizations found.'}
                 </TableCell>
               </TableRow>
             ) : (
-              groupedOrgs.map((group) => (
+              filteredGroups.map((group) => (
                 <React.Fragment key={group.ownerName}>
                   {/* Owner Header Row */}
                   <TableRow 
@@ -243,7 +270,7 @@ export default function AdminOrganizationsPage() {
                   </TableRow>
 
                   {/* Organization Rows */}
-                  {expandedOwners[group.ownerName] && group.orgs.map((org) => (
+                  {(expandedOwners[group.ownerName] || !!search.trim()) && group.orgs.map((org) => (
                     <React.Fragment key={org.id}>
                       <TableRow className="border-zinc-800 hover:bg-zinc-800/30">
                         <TableCell className="pl-12">

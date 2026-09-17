@@ -1,33 +1,14 @@
-import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
-import { createClient as createServerClient } from '@/lib/supabase/server'
+import { requireSuperadmin } from '@/lib/auth/requireSuperadmin'
 
 // Get all users (Service Role required)
 export async function GET() {
   try {
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-    if (!serviceRoleKey) return NextResponse.json({ error: 'Missing service role key' }, { status: 500 })
+    const { context, error } = await requireSuperadmin()
+    if (error) return error
+    const { adminClient } = context
 
-    const authSupabase = await createServerClient()
-    const { data: { user } } = await authSupabase.auth.getUser()
-    
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-    const { data: profile } = await authSupabase
-      .from('user_profiles')
-      .select('is_superadmin')
-      .eq('id', user.id)
-      .single()
-
-    if (!profile || !profile.is_superadmin) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
-
-    const adminClient = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceRoleKey, {
-      auth: { autoRefreshToken: false, persistSession: false }
-    })
-
-    const { data: users, error } = await adminClient
+    const { data: users, error: fetchError } = await adminClient
       .from('user_profiles')
       .select(`
         *,
@@ -35,7 +16,7 @@ export async function GET() {
       `)
       .order('full_name', { ascending: true })
 
-    if (error) throw error
+    if (fetchError) throw fetchError
 
     return NextResponse.json({ users })
 
@@ -48,27 +29,9 @@ export async function GET() {
 // Update user (suspend, etc.)
 export async function PATCH(request: Request) {
   try {
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-    if (!serviceRoleKey) return NextResponse.json({ error: 'Missing service role key' }, { status: 500 })
-
-    const authSupabase = await createServerClient()
-    const { data: { user } } = await authSupabase.auth.getUser()
-    
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-    const { data: profile } = await authSupabase
-      .from('user_profiles')
-      .select('is_superadmin')
-      .eq('id', user.id)
-      .single()
-
-    if (!profile || !profile.is_superadmin) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
-
-    const adminClient = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceRoleKey, {
-      auth: { autoRefreshToken: false, persistSession: false }
-    })
+    const { context, error } = await requireSuperadmin()
+    if (error) return error
+    const { adminClient } = context
 
     const body = await request.json()
     const { id, is_active } = body
@@ -78,14 +41,14 @@ export async function PATCH(request: Request) {
     const updatePayload: any = {}
     if (is_active !== undefined) updatePayload.is_active = is_active
 
-    const { data: updated, error } = await adminClient
+    const { data: updated, error: updateError } = await adminClient
       .from('user_profiles')
       .update(updatePayload)
       .eq('id', id)
       .select()
       .single()
 
-    if (error) throw error
+    if (updateError) throw updateError
 
     return NextResponse.json({ success: true, user: updated })
 
