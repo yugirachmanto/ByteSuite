@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireSuperadmin } from '@/lib/auth/requireSuperadmin'
+import { createTenantInvoice } from '@/lib/admin/billing'
 
 export async function GET(request: Request) {
   try {
@@ -40,33 +41,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
-    const { data: invoice, error: insertError } = await adminClient
-      .from('tenant_invoices')
-      .insert({
-        org_id,
-        payment_outlet_id,
-        description,
-        amount,
-        due_date: due_date || null,
-        status: 'pending'
-      })
-      .select()
-      .single()
-
-    if (insertError) throw insertError
-
-    // Also immediately insert a pending AP invoice for the tenant's outlet
-    const today = new Date().toISOString().split('T')[0]
-    await adminClient.from('invoices').insert({
-      outlet_id: payment_outlet_id,
-      vendor: 'ByteSuite',
-      invoice_no: `SUB-${invoice.id.split('-')[0].toUpperCase()}`,
-      invoice_date: today,
-      grand_total: amount,
-      paid_amount: 0,
-      status: 'pending',
-      payment_status: 'unpaid',
-    })
+    const invoice = await createTenantInvoice(adminClient, { org_id, payment_outlet_id, description, amount, due_date })
 
     return NextResponse.json({ success: true, invoice })
 

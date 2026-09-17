@@ -432,6 +432,7 @@ export default function AdminOrganizationDetailPage() {
                     <TableCell>
                       <Badge variant="outline" className={
                         inv.status === 'paid' ? 'border-emerald-500/30 text-emerald-400 bg-emerald-950/20' :
+                        inv.status === 'overdue' ? 'border-orange-500/40 text-orange-400 bg-orange-950/30 font-semibold' :
                         inv.status === 'under_review' ? 'border-amber-500/30 text-amber-400 bg-amber-950/20' :
                         inv.status === 'pending' ? 'border-red-500/30 text-red-400 bg-red-950/20' :
                         'border-zinc-500/30 text-zinc-400 bg-zinc-950/20'
@@ -441,7 +442,7 @@ export default function AdminOrganizationDetailPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
-                        {inv.status === 'pending' && (
+                        {(inv.status === 'pending' || inv.status === 'overdue') && (
                           <Button variant="ghost" size="sm" className="h-7 text-xs text-emerald-400 hover:text-emerald-300 hover:bg-emerald-950/30" onClick={() => updateInvoiceStatus(inv.id, 'paid')}>
                             Mark Paid
                           </Button>
