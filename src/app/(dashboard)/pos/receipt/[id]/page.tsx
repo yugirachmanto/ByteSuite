@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, use } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
@@ -11,11 +12,12 @@ import {
   AlertDialog, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { ArrowLeft, Printer, Loader2, Ban } from 'lucide-react'
+import { ArrowLeft, Printer, Loader2, Ban, Mail, MessageCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { ReceiptLayout, type ReceiptOrderData, type ReceiptLine, type ReceiptPayment, type ReceiptOrg, type ReceiptOutlet } from '@/components/pos/ReceiptLayout'
 import { getCurrentUserRole, canAccess } from '@/lib/auth/canAccess'
+import { formatRp } from '@/lib/format'
 
 const VOID_ROLES = ['owner', 'admin', 'cashier']
 
@@ -43,6 +45,9 @@ export default function POSReceiptPage({ params }: { params: Promise<{ id: strin
   const [voidDialogOpen, setVoidDialogOpen] = useState(false)
   const [voidReason, setVoidReason] = useState('')
   const [voiding, setVoiding] = useState(false)
+  const [sendEmailTo, setSendEmailTo] = useState('')
+  const [sendingEmail, setSendingEmail] = useState(false)
+  const [sendWaPhone, setSendWaPhone] = useState('')
   const hasAutoPrinted = useRef(false)
 
   useEffect(() => {
@@ -151,6 +156,57 @@ export default function POSReceiptPage({ params }: { params: Promise<{ id: strin
     }
   }
 
+  const handleSendEmail = async () => {
+    const email = sendEmailTo.trim()
+    if (!email) {
+      toast.error('Enter a customer email address')
+      return
+    }
+    setSendingEmail(true)
+    try {
+      const res = await fetch('/api/pos/receipt/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order_id: orderId, to_email: email }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to send receipt')
+      toast.success(`Receipt sent to ${email}`)
+      setSendEmailTo('')
+    } catch (error: any) {
+      toast.error(error.message)
+    } finally {
+      setSendingEmail(false)
+    }
+  }
+
+  const handleSendWhatsApp = () => {
+    const phone = sendWaPhone.trim().replace(/[^\d+]/g, '')
+    if (!phone) {
+      toast.error('Enter a customer WhatsApp number')
+      return
+    }
+    if (!order || !org) return
+    // wa.me needs digits only, country code first, no leading +/0.
+    const normalizedPhone = phone.startsWith('+') ? phone.slice(1) : phone.startsWith('0') ? `62${phone.slice(1)}` : phone
+
+    const itemLines = lines.map((l) => `${l.qty}x ${l.name} - ${formatRp(l.subtotal)}`).join('\n')
+    const message = [
+      `*${org.name}*`,
+      outlet?.name || '',
+      `Order #${order.id.slice(0, 8).toUpperCase()} - ${format(new Date(order.created_at), 'dd/MM/yyyy HH:mm')}`,
+      '',
+      itemLines,
+      '',
+      `*TOTAL: ${formatRp(order.total_amount)}*`,
+      `Dibayar via ${order.payment_method}`,
+      '',
+      'Terima kasih atas kunjungan Anda!',
+    ].filter(Boolean).join('\n')
+
+    window.open(`https://wa.me/${normalizedPhone}?text=${encodeURIComponent(message)}`, '_blank')
+  }
+
   if (loading) {
     return <div className="py-20 text-center text-zinc-500 text-sm">Loading receipt...</div>
   }
@@ -211,6 +267,43 @@ export default function POSReceiptPage({ params }: { params: Promise<{ id: strin
           >
             <Ban className="mr-2 h-4 w-4" /> Void Order
           </Button>
+        )}
+
+        {!isVoided && (
+          <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-3 space-y-2">
+            <p className="text-xs text-zinc-500 font-medium uppercase">Kirim Struk</p>
+            <div className="flex gap-2">
+              <Input
+                type="email"
+                placeholder="Email pelanggan"
+                value={sendEmailTo}
+                onChange={(e) => setSendEmailTo(e.target.value)}
+                className="bg-zinc-950 border-zinc-800 text-zinc-100 h-9"
+              />
+              <Button
+                onClick={handleSendEmail}
+                disabled={sendingEmail}
+                className="bg-indigo-600 text-white hover:bg-indigo-700 shrink-0"
+              >
+                {sendingEmail ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
+              </Button>
+            </div>
+            <div className="flex gap-2">
+              <Input
+                type="tel"
+                placeholder="No. WhatsApp (08xx / 62xx)"
+                value={sendWaPhone}
+                onChange={(e) => setSendWaPhone(e.target.value)}
+                className="bg-zinc-950 border-zinc-800 text-zinc-100 h-9"
+              />
+              <Button
+                onClick={handleSendWhatsApp}
+                className="bg-emerald-600 text-white hover:bg-emerald-700 shrink-0"
+              >
+                <MessageCircle className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
         )}
       </div>
 
