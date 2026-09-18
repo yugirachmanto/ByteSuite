@@ -11,7 +11,8 @@ import {
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Loader2, FileText, CheckCircle2, Trash2 } from 'lucide-react'
+import { Loader2, FileText, CheckCircle2, Trash2, RefreshCw, ArrowUpCircle, X } from 'lucide-react'
+import { toast } from 'sonner'
 import {
   Dialog,
   DialogContent,
@@ -29,6 +30,9 @@ export default function AdminBillingPage() {
   const supabase = createClient()
   const [invoices, setInvoices] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [generating, setGenerating] = useState(false)
+  const [requests, setRequests] = useState<any[]>([])
+  const [requestsLoading, setRequestsLoading] = useState(true)
 
   // Receipt Modal State
   const [viewingReceipt, setViewingReceipt] = useState<any>(null)
@@ -44,6 +48,7 @@ export default function AdminBillingPage() {
 
   useEffect(() => {
     fetchInvoices()
+    fetchRequests()
   }, [])
 
   async function fetchInvoices() {
@@ -58,6 +63,52 @@ export default function AdminBillingPage() {
       console.error(err)
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function fetchRequests() {
+    setRequestsLoading(true)
+    try {
+      const res = await fetch('/api/admin/upgrade-requests')
+      const data = await res.json()
+      if (data.requests) setRequests(data.requests)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setRequestsLoading(false)
+    }
+  }
+
+  async function handleGenerateNow() {
+    setGenerating(true)
+    try {
+      const res = await fetch('/api/admin/billing/generate-invoices', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to generate invoices')
+      toast.success(`Generated ${data.invoices_created} invoice(s), flagged ${data.flagged_overdue} as overdue`, {
+        description: data.skipped?.length > 0 ? `Skipped: ${data.skipped.map((s: any) => `${s.org} (${s.reason})`).join(', ')}` : undefined,
+      })
+      fetchInvoices()
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to generate invoices')
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  async function resolveRequest(id: string, status: string, applyPlan: boolean) {
+    try {
+      const res = await fetch('/api/admin/upgrade-requests', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, status, apply_plan: applyPlan }),
+      })
+      if (res.ok) {
+        toast.success(status === 'completed' ? 'Marked completed and plan applied' : `Marked ${status.replace('_', ' ')}`)
+        fetchRequests()
+      }
+    } catch (err) {
+      console.error(err)
     }
   }
 
@@ -87,15 +138,92 @@ export default function AdminBillingPage() {
   }
 
 
-  const outstandingInvoices = invoices.filter((inv: any) => ['pending', 'under_review', 'past_due'].includes(inv.status))
-  const historyInvoices = invoices.filter((inv: any) => !['pending', 'under_review', 'past_due'].includes(inv.status))
+  const outstandingInvoices = invoices.filter((inv: any) => ['pending', 'under_review', 'past_due', 'overdue'].includes(inv.status))
+  const historyInvoices = invoices.filter((inv: any) => !['pending', 'under_review', 'past_due', 'overdue'].includes(inv.status))
+  const pendingRequests = requests.filter((r: any) => r.status === 'pending')
 
   return (
     <div className="space-y-8">
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight text-zinc-100">Billing Management</h2>
-        <p className="text-zinc-400">Review all tenant invoices and approve payments.</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight text-zinc-100">Billing Management</h2>
+          <p className="text-zinc-400">Review all tenant invoices and approve payments.</p>
+        </div>
+        <Button
+          variant="outline"
+          onClick={handleGenerateNow}
+          disabled={generating}
+          className="border-zinc-800 text-zinc-300 hover:bg-zinc-800"
+        >
+          {generating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+          Generate Now
+        </Button>
       </div>
+
+      {/* Upgrade Requests */}
+      {!requestsLoading && pendingRequests.length > 0 && (
+        <div className="space-y-4">
+          <h3 className="text-lg font-medium text-zinc-100 flex items-center gap-2">
+            <ArrowUpCircle className="h-5 w-5 text-indigo-400" />
+            Upgrade Requests
+            <Badge variant="outline" className="border-indigo-500/30 text-indigo-300 bg-indigo-950/20">{pendingRequests.length} pending</Badge>
+          </h3>
+          <div className="rounded-md border border-zinc-800 bg-zinc-900/50 overflow-hidden">
+            <Table>
+              <TableHeader className="bg-zinc-900">
+                <TableRow className="border-zinc-800 hover:bg-transparent">
+                  <TableHead className="text-zinc-400">Date</TableHead>
+                  <TableHead className="text-zinc-400">Organization</TableHead>
+                  <TableHead className="text-zinc-400">Current Plan</TableHead>
+                  <TableHead className="text-zinc-400">Requested Plan</TableHead>
+                  <TableHead className="text-zinc-400">Requested By</TableHead>
+                  <TableHead className="text-right text-zinc-400">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {pendingRequests.map((r: any) => (
+                  <TableRow key={r.id} className="border-zinc-800 hover:bg-zinc-800/30 text-sm">
+                    <TableCell className="text-zinc-300">{format(new Date(r.created_at), 'dd/MM/yyyy')}</TableCell>
+                    <TableCell className="text-zinc-200 font-medium">{r.organizations?.name || 'Unknown'}</TableCell>
+                    <TableCell className="text-zinc-400">{r.organizations?.subscription_plan || 'Free'}</TableCell>
+                    <TableCell className="text-indigo-300 font-medium">
+                      {r.subscription_plans?.name}
+                      {r.subscription_plans?.price !== null && (
+                        <span className="text-zinc-500 ml-1">
+                          ({new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(r.subscription_plans.price)}/mo)
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-zinc-400">{r.requested_by?.full_name || 'Unknown'}</TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 text-xs text-emerald-400 hover:text-emerald-300 hover:bg-emerald-950/30"
+                          onClick={() => resolveRequest(r.id, 'completed', true)}
+                        >
+                          <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+                          Complete &amp; Apply
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 text-xs text-zinc-500 hover:text-red-400 hover:bg-red-950/30"
+                          onClick={() => resolveRequest(r.id, 'dismissed', false)}
+                        >
+                          <X className="h-3.5 w-3.5 mr-1" />
+                          Dismiss
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      )}
 
       {/* Outstanding Billings */}
       <div className="space-y-4">
@@ -145,7 +273,8 @@ export default function AdminBillingPage() {
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline" className={
-                        inv.status === 'pending' ? 'border-red-500/30 text-red-400 bg-red-950/20' : 
+                        inv.status === 'overdue' ? 'border-orange-500/40 text-orange-400 bg-orange-950/30 font-semibold' :
+                        inv.status === 'pending' ? 'border-red-500/30 text-red-400 bg-red-950/20' :
                         inv.status === 'under_review' ? 'border-amber-500/30 text-amber-400 bg-amber-950/20' :
                         'border-zinc-500/30 text-zinc-400 bg-zinc-950/20'
                       }>

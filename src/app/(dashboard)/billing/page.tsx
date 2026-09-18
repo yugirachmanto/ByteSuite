@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { CheckCircle2, CreditCard, Loader2, FileText, Download, UploadCloud } from 'lucide-react'
+import { CheckCircle2, CreditCard, Loader2, FileText, Download, UploadCloud, ArrowUpCircle, Clock } from 'lucide-react'
 import { toast } from 'sonner'
 import Link from 'next/link'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -32,6 +32,9 @@ import { Input } from '@/components/ui/input'
 export default function BillingPage() {
   const [org, setOrg] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [allPlans, setAllPlans] = useState<any[]>([])
+  const [myRequests, setMyRequests] = useState<any[]>([])
+  const [requestingPlanId, setRequestingPlanId] = useState<string | null>(null)
 
   // Payment Modal State
   const [isPayModalOpen, setIsPayModalOpen] = useState(false)
@@ -74,10 +77,38 @@ export default function BillingPage() {
       const { data: coaData } = await supabase.from('chart_of_accounts').select('*').eq('org_id', orgData.id)
       if (coaData) setCoas(coaData)
 
+      // Fetch the full plan catalog (for the "Available Plans" section) and
+      // this org's own upgrade requests (to show "Requested" instead of a
+      // dead button for a plan already asked for).
+      const { data: plansData } = await supabase.from('subscription_plans').select('*').eq('is_active', true).order('sort_order')
+      if (plansData) setAllPlans(plansData)
+
+      const { data: requestsData } = await supabase.from('plan_upgrade_requests').select('*').eq('org_id', orgData.id).order('created_at', { ascending: false })
+      if (requestsData) setMyRequests(requestsData)
+
     } catch (error) {
       console.error('Error fetching billing data:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function handleRequestUpgrade(planId: string) {
+    setRequestingPlanId(planId)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      const { error } = await supabase.from('plan_upgrade_requests').insert({
+        org_id: org.id,
+        requested_plan_id: planId,
+        requested_by: user?.id || null,
+      })
+      if (error) throw error
+      toast.success('Upgrade requested! Our team will follow up shortly.')
+      fetchOrgAndData()
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to submit upgrade request')
+    } finally {
+      setRequestingPlanId(null)
     }
   }
 
@@ -169,8 +200,8 @@ export default function BillingPage() {
     })
   }
 
-  const outstandingInvoices = (org.tenant_invoices || []).filter((inv: any) => ['pending', 'under_review', 'past_due'].includes(inv.status))
-  const historyInvoices = (org.tenant_invoices || []).filter((inv: any) => !['pending', 'under_review', 'past_due'].includes(inv.status))
+  const outstandingInvoices = (org.tenant_invoices || []).filter((inv: any) => ['pending', 'under_review', 'past_due', 'overdue'].includes(inv.status))
+  const historyInvoices = (org.tenant_invoices || []).filter((inv: any) => !['pending', 'under_review', 'past_due', 'overdue'].includes(inv.status))
 
   return (
     <div className="space-y-8 pb-8">
@@ -245,6 +276,65 @@ export default function BillingPage() {
         </CardContent>
       </Card>
 
+      {/* Available Plans */}
+      {allPlans.length > 0 && (
+        <div className="space-y-4">
+          <h3 className="text-lg font-medium text-zinc-100 flex items-center gap-2">
+            <ArrowUpCircle className="h-5 w-5 text-indigo-400" />
+            Available Plans
+          </h3>
+          <div className="grid gap-4 md:grid-cols-3">
+            {allPlans.map((plan) => {
+              const isCurrent = plan.id === org.subscription_plan_id
+              const pendingRequest = myRequests.find((r) => r.requested_plan_id === plan.id && r.status === 'pending')
+              return (
+                <Card key={plan.id} className={`bg-zinc-900 flex flex-col ${isCurrent ? 'border-indigo-500/50' : 'border-zinc-800'}`}>
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-zinc-100 text-base">{plan.name}</CardTitle>
+                      {isCurrent && <Badge className="bg-indigo-500/10 text-indigo-300">Current</Badge>}
+                    </div>
+                    <p className="text-xl font-bold font-mono text-zinc-100">
+                      {plan.price === null ? 'Custom' : `${new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(plan.price)}/mo`}
+                    </p>
+                    <CardDescription className="text-zinc-500 text-xs">{plan.description}</CardDescription>
+                  </CardHeader>
+                  <CardContent className="flex-1 flex flex-col justify-between gap-4">
+                    <ul className="space-y-1.5">
+                      {(plan.features || []).map((f: string, i: number) => (
+                        <li key={i} className="flex items-start gap-2 text-xs text-zinc-400">
+                          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                          {f}
+                        </li>
+                      ))}
+                    </ul>
+                    {isCurrent ? (
+                      <Button disabled variant="outline" className="w-full border-zinc-800 text-zinc-500">
+                        Current Plan
+                      </Button>
+                    ) : pendingRequest ? (
+                      <Button disabled variant="outline" className="w-full border-amber-900/50 text-amber-400">
+                        <Clock className="h-4 w-4 mr-2" />
+                        Requested
+                      </Button>
+                    ) : (
+                      <Button
+                        onClick={() => handleRequestUpgrade(plan.id)}
+                        disabled={requestingPlanId === plan.id}
+                        className="w-full bg-indigo-600 text-white hover:bg-indigo-700"
+                      >
+                        {requestingPlanId === plan.id ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <ArrowUpCircle className="h-4 w-4 mr-2" />}
+                        Request This Plan
+                      </Button>
+                    )}
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Outstanding Billings */}
       <div className="space-y-4">
         <h3 className="text-lg font-medium text-zinc-100 flex items-center gap-2">
@@ -282,7 +372,8 @@ export default function BillingPage() {
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline" className={
-                        inv.status === 'pending' ? 'border-red-500/30 text-red-400 bg-red-950/20' : 
+                        inv.status === 'overdue' ? 'border-orange-500/40 text-orange-400 bg-orange-950/30 font-semibold' :
+                        inv.status === 'pending' ? 'border-red-500/30 text-red-400 bg-red-950/20' :
                         inv.status === 'under_review' ? 'border-amber-500/30 text-amber-400 bg-amber-950/20' :
                         'border-zinc-500/30 text-zinc-400 bg-zinc-950/20'
                       }>
@@ -291,7 +382,7 @@ export default function BillingPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
-                        {inv.status === 'pending' && (
+                        {(inv.status === 'pending' || inv.status === 'overdue') && (
                           <Button size="sm" onClick={() => openPayModal(inv)} className="bg-indigo-600 text-white hover:bg-indigo-700 h-8">
                             Pay Now
                           </Button>
