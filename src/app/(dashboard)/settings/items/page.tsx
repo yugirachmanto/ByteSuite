@@ -52,6 +52,7 @@ interface Item {
   name: string
   unit: string
   category: string
+  sub_category: string | null
   is_inventory: boolean
   reorder_level: number
   default_coa_id: string | null
@@ -64,6 +65,7 @@ interface ImportPreviewRow {
   code: string
   name: string
   category: string
+  sub_category: string
   unit: string
   purchase_unit: string
   conversion_factor: number
@@ -77,11 +79,19 @@ const emptyItem: Omit<Item, 'id'> = {
   name: '',
   unit: 'KG',
   category: 'raw',
+  sub_category: '',
   is_inventory: true,
   reorder_level: 0,
   default_coa_id: null,
   purchase_unit: '',
   conversion_factor: 1,
+}
+
+const VALID_TIERS = ['raw', 'wip', 'packaging', 'finished', 'recipe']
+
+/** Digit-segment key for a COA/item code, independent of separator (dash, space, dot) or zero-padding — "1-3-10-030" and "1 3 10 030" both key as "1-3-10-30". */
+function normalizeCodeKey(code: string): string {
+  return (code.match(/\d+/g) || []).map((s) => parseInt(s, 10)).join('-')
 }
 
 // Category still drives is_inventory's INITIAL suggestion when picking a
@@ -123,6 +133,15 @@ export default function ItemsSettingsPage() {
   // — used to warn when Track as Inventory is switched off for one of them, since
   // existing stock/opname records are NOT cleared automatically by that toggle.
   const [namesWithStock, setNamesWithStock] = useState<Set<string>>(new Set())
+  // Existing sub_category values already used in this org, offered as suggestions
+  // (via a native <datalist>) so entries stay consistent without being restricted.
+  const [subCategoryOptions, setSubCategoryOptions] = useState<string[]>([])
+  // Cached at page load (when the session is guaranteed fresh) so a long CSV
+  // review — 150+ rows takes a while to check — doesn't hit a stale/expired
+  // auth.getUser() call right at confirm time, which surfaced as a generic
+  // "Could not identify organization" error with no indication it was really
+  // a session problem.
+  const [orgId, setOrgId] = useState<string | null>(null)
   const fileInputRef = useRef<any>(null)
   
   const [activeItemForDisassembly, setActiveItemForDisassembly] = useState<any>(null)
@@ -136,7 +155,8 @@ export default function ItemsSettingsPage() {
 
   async function fetchData() {
     setLoading(true)
-    const [{ data: itemsData }, { data: coaData }, { data: balanceData }] = await Promise.all([
+    const [{ data: { user } }, { data: itemsData }, { data: coaData }, { data: balanceData }] = await Promise.all([
+      supabase.auth.getUser(),
       supabase.from('item_master').select('*').order('name'),
       supabase.from('chart_of_accounts').select('id, code, name, type, is_header'),
       supabase.from('inventory_balance').select('qty_on_hand, item_master(name)').gt('qty_on_hand', 0),
@@ -144,6 +164,11 @@ export default function ItemsSettingsPage() {
     setItems(itemsData || [])
     setCoa(coaData || [])
     setNamesWithStock(new Set((balanceData || []).map((b: any) => b.item_master?.name).filter(Boolean)))
+    setSubCategoryOptions(Array.from(new Set((itemsData || []).map((i: any) => i.sub_category).filter(Boolean))).sort())
+    if (user) {
+      const { data: profile } = await supabase.from('user_profiles').select('org_id').eq('id', user.id).single()
+      if (profile?.org_id) setOrgId(profile.org_id)
+    }
     setLoading(false)
   }
 
@@ -153,6 +178,28 @@ export default function ItemsSettingsPage() {
     }
   }
 
+  // Prefers the org_id cached at page load; only falls back to a fresh
+  // auth+profile lookup if that's somehow still unset, and surfaces the
+  // real reason (expired session vs. missing profile) instead of a bare
+  // "Could not identify organization".
+  async function resolveOrgId(): Promise<string> {
+    if (orgId) return orgId
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    if (userError || !user) {
+      throw new Error('Sesi login sudah berakhir — silakan refresh halaman dan login ulang.')
+    }
+    const { data: profile, error: profileError } = await supabase
+      .from('user_profiles')
+      .select('org_id')
+      .eq('id', user.id)
+      .single()
+    if (profileError || !profile?.org_id) {
+      throw new Error(profileError?.message || 'Tidak dapat menemukan organisasi — coba refresh halaman.')
+    }
+    setOrgId(profile.org_id)
+    return profile.org_id
+  }
+
   async function handleSave() {
     if (!editItem.name.trim()) {
       toast.error('Item name is required')
@@ -160,17 +207,9 @@ export default function ItemsSettingsPage() {
     }
     setSaving(true)
     try {
-      // Get org_id
-      const { data: { user } } = await supabase.auth.getUser()
-      const { data: profile } = await supabase
-        .from('user_profiles')
-        .select('org_id')
-        .eq('id', user?.id)
-        .single()
-
       const payload = {
         ...editItem,
-        org_id: profile?.org_id,
+        org_id: await resolveOrgId(),
       }
 
       if (editItem.id) {
@@ -320,25 +359,47 @@ export default function ItemsSettingsPage() {
 
       if (rawData.length === 0) throw new Error('CSV is empty or invalid')
 
-      const coaByCode = new Map(coa.map((c) => [c.code, c.id]))
+      // Matched by normalized digit-segments, not exact string — a CSV's
+      // "1 3 10 030" and the org's stored "1-3-10-030" are the same account,
+      // just formatted differently. An exact match here was the reason COA
+      // codes silently failed to resolve on import.
+      const coaByCode = new Map(coa.map((c) => [normalizeCodeKey(c.code), c.id]))
 
-      const preview: ImportPreviewRow[] = rawData.map((r) => ({
-        code: r.code || '',
-        name: r.name || '',
-        category: r.category || 'raw',
-        unit: r.unit || 'pcs',
-        purchase_unit: r.purchase_unit || r.unit || 'pcs',
-        conversion_factor: parseFloat(r.conversion_factor) || 1,
-        reorder_level: parseFloat(r.reorder_level) || 0,
-        coa_id: r.coa_code ? coaByCode.get(r.coa_code) || null : null,
-        // Honor an explicit is_inventory column if the CSV has one (e.g.
-        // "false"/"0" for direct-expense perishables/supplies); otherwise
-        // fall back to the old category-based default so existing import
-        // templates keep working unchanged.
-        is_inventory: r.is_inventory !== undefined && r.is_inventory !== ''
-          ? !['false', '0', 'no'].includes(String(r.is_inventory).toLowerCase().trim())
-          : r.category !== 'finished'
-      }))
+      const preview: ImportPreviewRow[] = rawData.map((r) => {
+        // The CSV's "category" column may hold a real tier value (raw/wip/
+        // packaging/finished/recipe, for older templates) or an org's own
+        // free-text grouping ("Dry Store", "Perishable", ...). Only the
+        // former can go into item_master.category — anything else becomes
+        // sub_category instead, with the tier defaulting to raw (editable
+        // per row in the preview below) rather than failing the whole batch
+        // on an invalid enum value.
+        const rawCategory = (r.category || '').trim()
+        const isValidTier = VALID_TIERS.includes(rawCategory.toLowerCase())
+
+        return {
+          code: r.code || '',
+          name: r.name || '',
+          category: isValidTier ? rawCategory.toLowerCase() : 'raw',
+          sub_category: isValidTier ? '' : rawCategory,
+          unit: r.unit || 'pcs',
+          purchase_unit: r.purchase_unit || r.unit || 'pcs',
+          conversion_factor: parseFloat(r.conversion_factor) || 1,
+          reorder_level: parseFloat(r.reorder_level) || 0,
+          coa_id: r.coa_code ? coaByCode.get(normalizeCodeKey(r.coa_code)) || null : null,
+          // Honor an explicit is_inventory column if the CSV has one (e.g.
+          // "false"/"0" for direct-expense perishables/supplies); otherwise
+          // fall back to the old category-based default so existing import
+          // templates keep working unchanged.
+          is_inventory: r.is_inventory !== undefined && r.is_inventory !== ''
+            ? !['false', '0', 'no'].includes(String(r.is_inventory).toLowerCase().trim())
+            : rawCategory.toLowerCase() !== 'finished'
+        }
+      })
+
+      const unmatchedCoa = preview.filter((_, i) => rawData[i].coa_code && !preview[i].coa_id)
+      if (unmatchedCoa.length > 0) {
+        toast.warning(`${unmatchedCoa.length} row(s) had a coa_code that didn't match any Chart of Accounts entry — check them in the preview below.`)
+      }
 
       const flaggedRows = preview.filter((r) => !r.is_inventory && namesWithStock.has(r.name))
       if (flaggedRows.length > 0) {
@@ -374,15 +435,7 @@ export default function ItemsSettingsPage() {
 
     setImportSubmitting(true)
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      const { data: profile } = await supabase
-        .from('user_profiles')
-        .select('org_id')
-        .eq('id', user?.id)
-        .single()
-
-      const orgId = profile?.org_id
-      if (!orgId) throw new Error('Could not identify organization')
+      const orgId = await resolveOrgId()
 
       // item_master has no unique constraint on (org_id, name) — some orgs
       // already have legitimate duplicate names, so we can't add one without
@@ -410,6 +463,7 @@ export default function ItemsSettingsPage() {
         code: r.code || null,
         name: r.name,
         category: r.category,
+        sub_category: r.sub_category || null,
         unit: r.unit,
         purchase_unit: r.purchase_unit,
         conversion_factor: r.conversion_factor,
@@ -659,6 +713,19 @@ export default function ItemsSettingsPage() {
                 </select>
               </div>
             </div>
+            <div className="space-y-2">
+              <Label>Sub-Category <span className="text-zinc-500 font-normal">(optional, your own grouping)</span></Label>
+              <Input
+                className="bg-zinc-950 border-zinc-800"
+                placeholder="e.g. Dry Store, Perishable, Frozen"
+                list="sub-category-list"
+                value={editItem.sub_category || ''}
+                onChange={(e) => setEditItem({ ...editItem, sub_category: e.target.value })}
+              />
+              <datalist id="sub-category-list">
+                {subCategoryOptions.map((s) => <option key={s} value={s} />)}
+              </datalist>
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Reorder Level</Label>
@@ -781,7 +848,8 @@ export default function ItemsSettingsPage() {
                 <TableRow className="hover:bg-transparent border-zinc-800">
                   <TableHead className="text-zinc-400">Code</TableHead>
                   <TableHead className="text-zinc-400">Name</TableHead>
-                  <TableHead className="text-zinc-400">Category</TableHead>
+                  <TableHead className="text-zinc-400">Tier</TableHead>
+                  <TableHead className="text-zinc-400">Sub-Category</TableHead>
                   <TableHead className="text-zinc-400">Unit</TableHead>
                   <TableHead className="text-zinc-400">Purchase Unit</TableHead>
                   <TableHead className="text-zinc-400 text-right">Conv. Factor</TableHead>
@@ -821,6 +889,15 @@ export default function ItemsSettingsPage() {
                         <option value="finished">Finished</option>
                         <option value="recipe">Recipe</option>
                       </select>
+                    </TableCell>
+                    <TableCell className="p-1.5">
+                      <Input
+                        className="h-8 w-32 bg-zinc-950 border-zinc-800 text-xs"
+                        placeholder="e.g. Dry Store"
+                        list="sub-category-list"
+                        value={row.sub_category}
+                        onChange={(e) => updatePreviewRow(i, { sub_category: e.target.value })}
+                      />
                     </TableCell>
                     <TableCell className="p-1.5">
                       <Input

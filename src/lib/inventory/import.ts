@@ -1,30 +1,22 @@
+import Papa from 'papaparse'
 
 /**
- * Simple CSV parser that handles quotes and commas
+ * CSV parser — delegates to PapaParse for correct quoted-comma handling
+ * (a hand-rolled regex here previously broke on any row combining an
+ * unquoted multi-word field with a properly-quoted field containing a
+ * comma, e.g. `Kecap Ikan,"Sauce, Syrup & Condiment"`). Header names are
+ * lowercased/trimmed to match this file's existing lookup convention
+ * (`r.category`, `r.coa_code`, etc.).
  */
 export function parseCSV(text: string) {
-  const lines = text.split(/\r?\n/).filter(line => line.trim() !== '')
-  if (lines.length === 0) return []
-
-  const headers = lines[0].split(',').map(h => h.trim().toLowerCase())
-  const result = []
-
-  for (let i = 1; i < lines.length; i++) {
-    const obj: any = {}
-    // Basic regex to handle commas inside quotes
-    const currentLine = lines[i].match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || []
-    
-    // Fallback to simple split if regex fails or mismatch
-    const values = currentLine.length === headers.length 
-      ? currentLine.map(v => v.replace(/^"|"$/g, '').trim())
-      : lines[i].split(',').map(v => v.trim())
-
-    headers.forEach((header, index) => {
-      obj[header] = values[index] || ''
-    })
-    result.push(obj)
-  }
-  return result
+  const result = Papa.parse(text, { header: true, skipEmptyLines: true })
+  return (result.data as Record<string, string>[]).map((row) => {
+    const obj: Record<string, string> = {}
+    for (const [key, value] of Object.entries(row)) {
+      obj[key.trim().toLowerCase()] = typeof value === 'string' ? value.trim() : value
+    }
+    return obj
+  })
 }
 
 export function generateItemTemplate() {
