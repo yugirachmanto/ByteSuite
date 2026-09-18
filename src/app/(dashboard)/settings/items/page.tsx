@@ -136,6 +136,12 @@ export default function ItemsSettingsPage() {
   // Existing sub_category values already used in this org, offered as suggestions
   // (via a native <datalist>) so entries stay consistent without being restricted.
   const [subCategoryOptions, setSubCategoryOptions] = useState<string[]>([])
+  // Cached at page load (when the session is guaranteed fresh) so a long CSV
+  // review — 150+ rows takes a while to check — doesn't hit a stale/expired
+  // auth.getUser() call right at confirm time, which surfaced as a generic
+  // "Could not identify organization" error with no indication it was really
+  // a session problem.
+  const [orgId, setOrgId] = useState<string | null>(null)
   const fileInputRef = useRef<any>(null)
   
   const [activeItemForDisassembly, setActiveItemForDisassembly] = useState<any>(null)
@@ -149,7 +155,8 @@ export default function ItemsSettingsPage() {
 
   async function fetchData() {
     setLoading(true)
-    const [{ data: itemsData }, { data: coaData }, { data: balanceData }] = await Promise.all([
+    const [{ data: { user } }, { data: itemsData }, { data: coaData }, { data: balanceData }] = await Promise.all([
+      supabase.auth.getUser(),
       supabase.from('item_master').select('*').order('name'),
       supabase.from('chart_of_accounts').select('id, code, name, type, is_header'),
       supabase.from('inventory_balance').select('qty_on_hand, item_master(name)').gt('qty_on_hand', 0),
@@ -158,6 +165,10 @@ export default function ItemsSettingsPage() {
     setCoa(coaData || [])
     setNamesWithStock(new Set((balanceData || []).map((b: any) => b.item_master?.name).filter(Boolean)))
     setSubCategoryOptions(Array.from(new Set((itemsData || []).map((i: any) => i.sub_category).filter(Boolean))).sort())
+    if (user) {
+      const { data: profile } = await supabase.from('user_profiles').select('org_id').eq('id', user.id).single()
+      if (profile?.org_id) setOrgId(profile.org_id)
+    }
     setLoading(false)
   }
 
@@ -167,6 +178,28 @@ export default function ItemsSettingsPage() {
     }
   }
 
+  // Prefers the org_id cached at page load; only falls back to a fresh
+  // auth+profile lookup if that's somehow still unset, and surfaces the
+  // real reason (expired session vs. missing profile) instead of a bare
+  // "Could not identify organization".
+  async function resolveOrgId(): Promise<string> {
+    if (orgId) return orgId
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    if (userError || !user) {
+      throw new Error('Sesi login sudah berakhir — silakan refresh halaman dan login ulang.')
+    }
+    const { data: profile, error: profileError } = await supabase
+      .from('user_profiles')
+      .select('org_id')
+      .eq('id', user.id)
+      .single()
+    if (profileError || !profile?.org_id) {
+      throw new Error(profileError?.message || 'Tidak dapat menemukan organisasi — coba refresh halaman.')
+    }
+    setOrgId(profile.org_id)
+    return profile.org_id
+  }
+
   async function handleSave() {
     if (!editItem.name.trim()) {
       toast.error('Item name is required')
@@ -174,17 +207,9 @@ export default function ItemsSettingsPage() {
     }
     setSaving(true)
     try {
-      // Get org_id
-      const { data: { user } } = await supabase.auth.getUser()
-      const { data: profile } = await supabase
-        .from('user_profiles')
-        .select('org_id')
-        .eq('id', user?.id)
-        .single()
-
       const payload = {
         ...editItem,
-        org_id: profile?.org_id,
+        org_id: await resolveOrgId(),
       }
 
       if (editItem.id) {
@@ -410,15 +435,7 @@ export default function ItemsSettingsPage() {
 
     setImportSubmitting(true)
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      const { data: profile } = await supabase
-        .from('user_profiles')
-        .select('org_id')
-        .eq('id', user?.id)
-        .single()
-
-      const orgId = profile?.org_id
-      if (!orgId) throw new Error('Could not identify organization')
+      const orgId = await resolveOrgId()
 
       // item_master has no unique constraint on (org_id, name) — some orgs
       // already have legitimate duplicate names, so we can't add one without
