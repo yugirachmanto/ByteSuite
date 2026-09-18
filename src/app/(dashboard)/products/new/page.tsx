@@ -6,13 +6,14 @@ import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { 
-  Loader2, 
-  ArrowLeft, 
-  Save, 
+import {
+  Loader2,
+  ArrowLeft,
+  Save,
   Tag,
   Info,
-  Layers
+  Layers,
+  Package
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { CoaCombobox } from '@/components/ui/coa-combobox'
@@ -32,7 +33,8 @@ export default function NewProductPage() {
     code: '',
     unit: 'PCS',
     pos_category: '',
-    default_coa_id: ''
+    default_coa_id: '',
+    is_inventory: false
   })
 
   useEffect(() => {
@@ -104,7 +106,7 @@ export default function NewProductPage() {
           category: 'finished',
           pos_category: formData.pos_category || null,
           default_coa_id: formData.default_coa_id || null,
-          is_inventory: true,
+          is_inventory: formData.is_inventory,
           image_url: imageUrl || null
         })
         .select()
@@ -246,6 +248,26 @@ export default function NewProductPage() {
                 className="bg-zinc-950 border-zinc-800"
               />
               <p className="text-[10px] text-zinc-500">Mapping to an income account helps with automated sales journalization.</p>
+            </div>
+
+            <div className="space-y-2 rounded-lg border border-zinc-800 bg-zinc-950 p-4">
+              <label className="flex items-center gap-3 cursor-pointer">
+                <div className="relative inline-flex items-center">
+                  <input
+                    type="checkbox"
+                    className="sr-only peer"
+                    checked={formData.is_inventory}
+                    onChange={e => setFormData({...formData, is_inventory: e.target.checked})}
+                  />
+                  <div className="w-9 h-5 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
+                </div>
+                <span className="text-xs font-medium text-zinc-300 flex items-center gap-1.5"><Package className="h-3 w-3" /> Lacak Stock</span>
+              </label>
+              <p className="text-[10px] text-zinc-500 pl-12">
+                {formData.is_inventory
+                  ? 'Stock produk ini akan dicek saat checkout POS — pastikan stok/resep sudah disiapkan di Inventory atau BOM.'
+                  : 'Default: produk bisa langsung dijual di POS tanpa perlu setup stock (cocok untuk jasa, menu custom, atau titipan). Aktifkan jika produk ini perlu dicek stoknya.'}
+              </p>
             </div>
 
             <div className="pt-4 flex gap-3">
