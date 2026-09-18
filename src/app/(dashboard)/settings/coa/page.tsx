@@ -87,6 +87,17 @@ function codeSegments(code: string): number[] {
   return (code.match(/\d+/g) || []).map((s) => parseInt(s, 10))
 }
 
+/**
+ * Canonical form of a code for matching "is this the same account" across
+ * imports that may format codes differently (dashes vs spaces, leading
+ * zeros) — e.g. "1-0-00-000" and "1 0 00 000" both normalize to "1-0-0-0".
+ * Re-importing the same CSV (or a re-export of it) should update existing
+ * rows in place instead of creating duplicates.
+ */
+function normalizeCodeKey(code: string): string {
+  return codeSegments(code).join('-')
+}
+
 interface CoaImportRow {
   code: string
   name: string
@@ -210,21 +221,49 @@ export default function CoaSettingsPage() {
       const { data: { user } } = await supabase.auth.getUser()
       const { data: profile } = await supabase.from('user_profiles').select('org_id').eq('id', user?.id).single()
 
-      const toInsert = resolved.map((r) => ({
-        org_id: profile?.org_id,
-        code: r.code,
-        name: r.name,
-        type: r.type,
-        is_active: true,
-      }))
+      // Dedupe rows within the CSV itself (last occurrence wins) before
+      // diffing against what's already in the DB — otherwise two rows that
+      // normalize to the same code would both try to insert/update separately.
+      const dedupedByCode = new Map<string, ResolvedCoaRow>()
+      for (const r of resolved) dedupedByCode.set(normalizeCodeKey(r.code), r)
 
-      const { error } = await supabase.from('chart_of_accounts').insert(toInsert)
-      if (error) throw error
+      const { data: existingAccounts } = await supabase
+        .from('chart_of_accounts')
+        .select('id, code, name, type')
+        .eq('org_id', profile?.org_id)
+
+      const existingByCode = new Map((existingAccounts || []).map((a) => [normalizeCodeKey(a.code), a]))
+
+      const toInsert: { org_id: string | undefined; code: string; name: string; type: CoaType; is_active: boolean }[] = []
+      const toUpdate: { id: string; name: string; type: CoaType }[] = []
+      let unchanged = 0
+
+      for (const [key, r] of dedupedByCode) {
+        const existing = existingByCode.get(key)
+        if (!existing) {
+          toInsert.push({ org_id: profile?.org_id, code: r.code, name: r.name, type: r.type, is_active: true })
+        } else if (existing.name !== r.name || existing.type !== r.type) {
+          toUpdate.push({ id: existing.id, name: r.name, type: r.type })
+        } else {
+          unchanged++
+        }
+      }
+
+      if (toInsert.length > 0) {
+        const { error } = await supabase.from('chart_of_accounts').insert(toInsert)
+        if (error) throw error
+      }
+
+      if (toUpdate.length > 0) {
+        // Plain PK-based upsert (no onConflict target needed — `id` is already the primary key).
+        const { error } = await supabase.from('chart_of_accounts').upsert(toUpdate)
+        if (error) throw error
+      }
 
       // Re-calculate the hierarchy parents, is_header flags, and levels recursively
       await supabase.rpc('repair_coa_hierarchy', { p_org_id: profile?.org_id })
 
-      toast.success(`Imported ${toInsert.length} accounts`)
+      toast.success(`${toInsert.length} baru, ${toUpdate.length} diupdate, ${unchanged} tidak berubah`)
       fetchAccounts()
     } catch (err: any) {
       toast.error(err.message || 'Failed to import CSV')
@@ -392,7 +431,7 @@ export default function CoaSettingsPage() {
     <>
       <div className="flex justify-end items-center gap-2">
         <p className="text-[11px] text-zinc-500 mr-auto max-w-md">
-          "type" column is optional — if omitted, it's auto-detected from each class's top-level header row (e.g. "1-0-000,ASSETS").
+          "type" column is optional (auto-detected from each class's header row if omitted). Re-importing merges by code — matching accounts are updated, new ones are added, nothing is duplicated or deleted.
         </p>
         <Button variant="outline" className="border-zinc-800 text-zinc-300 hover:bg-zinc-800" onClick={handleDownloadTemplate}>
           <Download className="mr-2 h-4 w-4" />
