@@ -39,6 +39,7 @@ import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
 import { Plus, Loader2, Download, Upload, Pencil, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
+import Papa from 'papaparse'
 
 interface CoaAccount {
   id: string
@@ -54,6 +55,92 @@ const typeColors: Record<string, string> = {
   equity: 'bg-purple-950/20 text-purple-400 border-purple-900/50',
   income: 'bg-emerald-950/20 text-emerald-400 border-emerald-900/50',
   expense: 'bg-red-950/20 text-red-400 border-red-900/50',
+}
+
+const VALID_TYPES = ['asset', 'liability', 'equity', 'income', 'expense'] as const
+type CoaType = typeof VALID_TYPES[number]
+
+// Ordered so more specific keywords (e.g. "cost of goods") are checked before
+// generic ones — first match wins. Covers common English/Indonesian COA
+// template wording (ESB-style templates, local accounting terms, etc).
+const TYPE_KEYWORDS: [RegExp, CoaType][] = [
+  [/capital|equity|modal/i, 'equity'],
+  [/liabilit|hutang|payable/i, 'liability'],
+  [/cost of goods|\bcogs\b|cost of sales/i, 'expense'],
+  [/revenue|income|pendapatan|penjualan|sales(?!\s*tax)/i, 'income'],
+  [/expense|charge|cost|beban|biaya/i, 'expense'],
+  [/asset|aktiva|aset/i, 'asset'],
+]
+
+/** Normalizes a free-text "type" value (from a CSV column) to a valid coa_type, or null if unrecognized. */
+function normalizeTypeValue(raw: string): CoaType | null {
+  const v = raw.trim().toLowerCase()
+  if ((VALID_TYPES as readonly string[]).includes(v)) return v as CoaType
+  for (const [pattern, type] of TYPE_KEYWORDS) {
+    if (pattern.test(v)) return type
+  }
+  return null
+}
+
+/** Extracts numeric segments from a COA code, regardless of separator (dash, space, dot). e.g. "1 0 00 000" -> [1,0,0,0] */
+function codeSegments(code: string): number[] {
+  return (code.match(/\d+/g) || []).map((s) => parseInt(s, 10))
+}
+
+interface CoaImportRow {
+  code: string
+  name: string
+  explicitType: string | null // raw value from a "type" column, if present
+}
+
+interface ResolvedCoaRow {
+  code: string
+  name: string
+  type: CoaType
+}
+
+/**
+ * Resolves a `type` for every row. A row's own "type" column value wins when
+ * it's recognizable; otherwise the type is inherited from its top-level class
+ * header — the row whose code has only its first numeric segment non-zero
+ * (e.g. "1 0 00 000" = class 1's header) — matched by keyword against that
+ * header's name. Rows that can't be resolved either way are returned
+ * separately so the caller can block the import with a clear message instead
+ * of guessing at a financial account's type.
+ */
+function resolveCoaTypes(rows: CoaImportRow[]): { resolved: ResolvedCoaRow[]; unresolved: CoaImportRow[] } {
+  const classHeaderType = new Map<number, CoaType>()
+
+  for (const row of rows) {
+    const segments = codeSegments(row.code)
+    if (segments.length < 2) continue
+    const isClassHeader = segments.slice(1).every((s) => s === 0)
+    if (!isClassHeader) continue
+    const detected = normalizeTypeValue(row.name)
+    if (detected && !classHeaderType.has(segments[0])) {
+      classHeaderType.set(segments[0], detected)
+    }
+  }
+
+  const resolved: ResolvedCoaRow[] = []
+  const unresolved: CoaImportRow[] = []
+
+  for (const row of rows) {
+    const override = row.explicitType ? normalizeTypeValue(row.explicitType) : null
+    if (override) {
+      resolved.push({ code: row.code, name: row.name, type: override })
+      continue
+    }
+    const segments = codeSegments(row.code)
+    const inherited = segments.length > 0 ? classHeaderType.get(segments[0]) : undefined
+    if (inherited) {
+      resolved.push({ code: row.code, name: row.name, type: inherited })
+    } else {
+      unresolved.push(row)
+    }
+  }
+
+  return { resolved, unresolved }
 }
 
 export default function CoaSettingsPage() {
@@ -73,7 +160,7 @@ export default function CoaSettingsPage() {
   const [deleting, setDeleting] = useState(false)
 
   const handleDownloadTemplate = () => {
-    const csvContent = "data:text/csv;charset=utf-8,code,name,type\n1-1-001,Kas Kecil,asset\n2-1-001,Hutang Dagang,liability\n3-1-001,Modal,equity\n4-1-001,Pendapatan,income\n5-1-001,Beban Operasional,expense"
+    const csvContent = "data:text/csv;charset=utf-8,code,name\n1-0-000,ASSETS,\n1-1-001,Kas Kecil,\n2-0-000,LIABILITIES,\n2-1-001,Hutang Dagang,\n3-0-000,EQUITY,\n3-1-001,Modal,\n4-0-000,REVENUE,\n4-1-001,Pendapatan,\n5-0-000,EXPENSES,\n5-1-001,Beban Operasional,"
     const encodedUri = encodeURI(csvContent)
     const link = document.createElement("a")
     link.setAttribute("href", encodedUri)
@@ -88,55 +175,63 @@ export default function CoaSettingsPage() {
     if (!file) return
     setLoading(true)
 
-    const reader = new FileReader()
-    reader.onload = async (event) => {
-      try {
-        const csv = event.target?.result as string
-        const lines = csv.split('\n')
-        if (lines.length < 2) throw new Error('Empty CSV')
+    try {
+      const parseResult = await new Promise<Papa.ParseResult<any>>((resolve, reject) => {
+        Papa.parse(file, {
+          header: true,
+          skipEmptyLines: true,
+          complete: resolve,
+          error: reject,
+        })
+      })
 
-        const { data: { user } } = await supabase.auth.getUser()
-        const { data: profile } = await supabase.from('user_profiles').select('org_id').eq('id', user?.id).single()
+      const rows: CoaImportRow[] = parseResult.data
+        .map((row: any) => {
+          const code = (row['code'] || row['Code'] || '').toString().trim()
+          const name = (row['name'] || row['Name'] || '').toString().trim()
+          const explicitTypeRaw = (row['type'] || row['Type'] || '').toString().trim()
+          return { code, name, explicitType: explicitTypeRaw || null }
+        })
+        .filter((r) => r.code && r.name)
 
-        const toInsert = []
-        for (let i = 1; i < lines.length; i++) {
-          const line = lines[i].trim()
-          if (!line) continue
-          const parts = line.split(',')
-          const code = parts[0]
-          const type = parts.pop()
-          const name = parts.slice(1).join(',')
-          if (code && name && type) {
-            toInsert.push({
-              org_id: profile?.org_id,
-              code: code.trim(),
-              name: name.trim().replace(/^"|"$/g, ''),
-              type: type.trim().toLowerCase(),
-              is_active: true
-            })
-          }
-        }
+      if (rows.length === 0) throw new Error('No valid rows found in CSV (need at least "code" and "name" columns)')
 
-        if (toInsert.length > 0) {
-          const { error } = await supabase.from('chart_of_accounts').insert(toInsert)
-          if (error) throw error
-          
-          // Re-calculate the hierarchy parents, is_header flags, and levels recursively
-          await supabase.rpc('repair_coa_hierarchy', { p_org_id: profile?.org_id })
+      const { resolved, unresolved } = resolveCoaTypes(rows)
 
-          toast.success(`Imported ${toInsert.length} accounts`)
-          fetchAccounts()
-        } else {
-          toast.error('No valid data found in CSV')
-        }
-      } catch (err: any) {
-        toast.error(err.message || 'Failed to import CSV')
-      } finally {
-        setLoading(false)
-        if (fileInputRef.current) fileInputRef.current.value = ''
+      if (unresolved.length > 0) {
+        const sample = unresolved.slice(0, 5).map((r) => `${r.code} — ${r.name}`).join(', ')
+        throw new Error(
+          `Could not determine an account type for ${unresolved.length} row(s): ${sample}${unresolved.length > 5 ? ', ...' : ''}. ` +
+          `Either add a top-level header row for that class (e.g. "1-0-000,ASSETS") with a name containing asset/liability/equity/income/expense, ` +
+          `or add an explicit "type" column for these rows.`
+        )
       }
+
+      const { data: { user } } = await supabase.auth.getUser()
+      const { data: profile } = await supabase.from('user_profiles').select('org_id').eq('id', user?.id).single()
+
+      const toInsert = resolved.map((r) => ({
+        org_id: profile?.org_id,
+        code: r.code,
+        name: r.name,
+        type: r.type,
+        is_active: true,
+      }))
+
+      const { error } = await supabase.from('chart_of_accounts').insert(toInsert)
+      if (error) throw error
+
+      // Re-calculate the hierarchy parents, is_header flags, and levels recursively
+      await supabase.rpc('repair_coa_hierarchy', { p_org_id: profile?.org_id })
+
+      toast.success(`Imported ${toInsert.length} accounts`)
+      fetchAccounts()
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to import CSV')
+    } finally {
+      setLoading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
     }
-    reader.readAsText(file)
   }
 
   useEffect(() => {
@@ -295,7 +390,10 @@ export default function CoaSettingsPage() {
 
   return (
     <>
-      <div className="flex justify-end gap-2">
+      <div className="flex justify-end items-center gap-2">
+        <p className="text-[11px] text-zinc-500 mr-auto max-w-md">
+          "type" column is optional — if omitted, it's auto-detected from each class's top-level header row (e.g. "1-0-000,ASSETS").
+        </p>
         <Button variant="outline" className="border-zinc-800 text-zinc-300 hover:bg-zinc-800" onClick={handleDownloadTemplate}>
           <Download className="mr-2 h-4 w-4" />
           Template
@@ -304,12 +402,12 @@ export default function CoaSettingsPage() {
           <Upload className="mr-2 h-4 w-4" />
           Import CSV
         </Button>
-        <input 
-          type="file" 
-          ref={fileInputRef} 
-          className="hidden" 
-          accept=".csv" 
-          onChange={handleImportCSV} 
+        <input
+          type="file"
+          ref={fileInputRef}
+          className="hidden"
+          accept=".csv"
+          onChange={handleImportCSV}
         />
         <Button
           className="bg-zinc-100 text-zinc-900 hover:bg-zinc-200"
