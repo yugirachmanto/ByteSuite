@@ -7,7 +7,7 @@ import { useOutlet } from '@/lib/contexts/outlet-context'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Plus, Minus, Search, Trash2, CreditCard, Loader2, ShoppingCart, Ban, CheckCircle2, Printer, Monitor, Clock, LogOut, Wallet, ChevronUp, RefreshCw, FileText } from 'lucide-react'
+import { Plus, Minus, Search, Trash2, CreditCard, Loader2, ShoppingCart, Ban, CheckCircle2, Printer, Monitor, Clock, LogOut, Wallet, ChevronUp, RefreshCw, FileText, Mail, MessageCircle } from 'lucide-react'
 import { formatRp } from '@/lib/format'
 import { toast } from 'sonner'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
@@ -17,6 +17,7 @@ import { format } from 'date-fns'
 import { enqueue } from '@/lib/pos/offlineQueue'
 import { useOfflineCheckoutSync } from '@/lib/pos/useOfflineCheckoutSync'
 import { getCurrentUserRole, canAccess } from '@/lib/auth/canAccess'
+import { ReceiptLayout, type ReceiptOrderData, type ReceiptLine, type ReceiptPayment, type ReceiptOrg, type ReceiptOutlet } from '@/components/pos/ReceiptLayout'
 
 const DISCOUNT_ROLES = ['owner', 'admin']
 
@@ -96,6 +97,19 @@ export default function POSPage() {
   const [canDiscount, setCanDiscount] = useState(false)
   const [orderDiscountType, setOrderDiscountType] = useState<DiscountType>(null)
   const [orderDiscountValue, setOrderDiscountValue] = useState(0)
+
+  // Receipt preview + send-via-email/WhatsApp, shown inline on the payment
+  // success screen so the cashier never has to leave the POS page for it.
+  const [receiptOrder, setReceiptOrder] = useState<ReceiptOrderData | null>(null)
+  const [receiptLines, setReceiptLines] = useState<ReceiptLine[]>([])
+  const [receiptPayments, setReceiptPayments] = useState<ReceiptPayment[]>([])
+  const [receiptOrg, setReceiptOrg] = useState<ReceiptOrg | null>(null)
+  const [receiptOutlet, setReceiptOutlet] = useState<ReceiptOutlet | null>(null)
+  const [receiptPaperWidth, setReceiptPaperWidth] = useState<'58mm' | '80mm'>('58mm')
+  const [receiptLoading, setReceiptLoading] = useState(false)
+  const [sendEmailTo, setSendEmailTo] = useState('')
+  const [sendingEmail, setSendingEmail] = useState(false)
+  const [sendWaPhone, setSendWaPhone] = useState('')
 
   useEffect(() => {
     getCurrentUserRole(supabase).then((role) => setCanDiscount(canAccess(role, DISCOUNT_ROLES)))
@@ -497,6 +511,7 @@ export default function POSPage() {
       setOrderDiscountValue(0)
       setLastOrderId(data.order_id)
       setCheckoutStep('success')
+      fetchReceiptForOrder(data.order_id)
     } catch (error: any) {
       toast.error(error.message)
     } finally {
@@ -508,6 +523,118 @@ export default function POSPage() {
     if (lastOrderId) window.open(`/pos/receipt/${lastOrderId}`, '_blank')
   }
 
+  // Same query shape as the standalone receipt page — kept here too so the
+  // payment-success screen can show a live preview and send it via email/
+  // WhatsApp without navigating away from the POS terminal.
+  const fetchReceiptForOrder = async (orderId: string) => {
+    setReceiptLoading(true)
+    try {
+      const { data: orderData } = await supabase
+        .from('pos_orders')
+        .select('id, created_at, payment_method, subtotal, tax_amount, total_amount, discount_amount, org_id, outlet_id, cashier_id')
+        .eq('id', orderId)
+        .single()
+
+      if (!orderData) return
+
+      const [lineRes, paymentRes, orgRes, outletRes, cashierRes] = await Promise.all([
+        supabase.from('pos_order_lines').select('id, qty, unit_price, subtotal, discount_amount, item_master(name)').eq('order_id', orderId),
+        supabase.from('pos_order_payments').select('id, payment_method, amount, cash_received, change_due, notes').eq('order_id', orderId),
+        supabase.from('organizations').select('name, address, npwp, receipt_paper_width, qris_image_url, bank_name, bank_account_number, bank_account_holder').eq('id', orderData.org_id).single(),
+        supabase.from('outlets').select('name, address').eq('id', orderData.outlet_id).single(),
+        orderData.cashier_id
+          ? supabase.from('user_profiles').select('full_name').eq('id', orderData.cashier_id).single()
+          : Promise.resolve({ data: null }),
+      ])
+
+      setReceiptOrder({
+        id: orderData.id,
+        created_at: orderData.created_at,
+        payment_method: orderData.payment_method,
+        subtotal: orderData.subtotal,
+        tax_amount: orderData.tax_amount,
+        total_amount: orderData.total_amount,
+        discount_amount: orderData.discount_amount || 0,
+        cashier_name: cashierRes.data?.full_name || null,
+      })
+      setReceiptLines((lineRes.data || []).map((l: any) => ({
+        id: l.id,
+        name: l.item_master?.name || 'Unknown Item',
+        qty: l.qty,
+        unit_price: l.unit_price,
+        subtotal: l.subtotal,
+        discount_amount: l.discount_amount || 0,
+      })))
+      setReceiptPayments((paymentRes.data || []).map((p: any) => ({
+        id: p.id,
+        payment_method: p.payment_method,
+        amount: p.amount,
+        cash_received: p.cash_received,
+        change_due: p.change_due,
+        notes: p.notes,
+      })))
+      if (orgRes.data) {
+        setReceiptOrg(orgRes.data)
+        setReceiptPaperWidth((orgRes.data.receipt_paper_width as '58mm' | '80mm') || '58mm')
+      }
+      setReceiptOutlet(outletRes.data)
+    } finally {
+      setReceiptLoading(false)
+    }
+  }
+
+  const handleSendEmail = async () => {
+    const email = sendEmailTo.trim()
+    if (!email) {
+      toast.error('Enter a customer email address')
+      return
+    }
+    if (!lastOrderId) return
+    setSendingEmail(true)
+    try {
+      const res = await fetch('/api/pos/receipt/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order_id: lastOrderId, to_email: email }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to send receipt')
+      toast.success(`Receipt sent to ${email}`)
+      setSendEmailTo('')
+    } catch (error: any) {
+      toast.error(error.message)
+    } finally {
+      setSendingEmail(false)
+    }
+  }
+
+  const handleSendWhatsApp = () => {
+    const phone = sendWaPhone.trim().replace(/[^\d+]/g, '')
+    if (!phone) {
+      toast.error('Enter a customer WhatsApp number')
+      return
+    }
+    if (!receiptOrder || !receiptOrg) return
+    // wa.me needs digits only, country code first, no leading +/0.
+    const normalizedPhone = phone.startsWith('+') ? phone.slice(1) : phone.startsWith('0') ? `62${phone.slice(1)}` : phone
+
+    const itemLines = receiptLines.map((l) => `${l.qty}x ${l.name} - ${formatRp(l.subtotal)}`).join('\n')
+    const message = [
+      `*${receiptOrg.name}*`,
+      receiptOutlet?.name || '',
+      `Order #${receiptOrder.id.slice(0, 8).toUpperCase()} - ${format(new Date(receiptOrder.created_at), 'dd/MM/yyyy HH:mm')}`,
+      '',
+      itemLines,
+      '',
+      `*TOTAL: ${formatRp(receiptOrder.total_amount)}*`,
+      `Dibayar via ${receiptOrder.payment_method}`,
+      '',
+      'Terima kasih atas kunjungan Anda!',
+    ].filter(Boolean).join('\n')
+
+    window.open(`https://wa.me/${normalizedPhone}?text=${encodeURIComponent(message)}`, '_blank')
+  }
+
   const startNewSale = () => {
     setIsCheckoutOpen(false)
     setCheckoutStep('payment')
@@ -515,6 +642,13 @@ export default function POSPage() {
     setLastOrderId(null)
     setLastOrderTotal(null)
     setLastOrderChange(0)
+    setReceiptOrder(null)
+    setReceiptLines([])
+    setReceiptPayments([])
+    setReceiptOrg(null)
+    setReceiptOutlet(null)
+    setSendEmailTo('')
+    setSendWaPhone('')
   }
 
   // Shared cart items + totals + Charge button, rendered both in the
@@ -873,14 +1007,14 @@ export default function POSPage() {
       </Dialog>
 
       <Dialog open={isCheckoutOpen} onOpenChange={(open) => { if (!open) startNewSale(); else setIsCheckoutOpen(true) }}>
-        <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 sm:max-w-md">
+        <DialogContent className={`bg-zinc-900 border-zinc-800 text-zinc-100 ${checkoutStep === 'success' ? 'sm:max-w-lg max-h-[85vh] flex flex-col' : 'sm:max-w-md'}`}>
           {checkoutStep === 'success' ? (
             <>
               <DialogHeader>
                 <DialogTitle className="text-xl">Payment Successful</DialogTitle>
               </DialogHeader>
 
-              <div className="py-6 space-y-6">
+              <div className="flex-1 overflow-y-auto space-y-4 py-2 pr-1">
                 <div className="text-center p-6 bg-zinc-950 rounded-xl border border-zinc-800 flex flex-col items-center gap-2">
                   <CheckCircle2 className="h-12 w-12 text-emerald-500" />
                   <p className="text-sm text-zinc-400">Total Charged</p>
@@ -888,6 +1022,61 @@ export default function POSPage() {
                   {lastOrderChange > 0 && (
                     <p className="text-sm text-amber-400 pt-1">Kembalian: {formatRp(lastOrderChange)}</p>
                   )}
+                </div>
+
+                <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-3 space-y-2">
+                  <p className="text-xs text-zinc-500 font-medium uppercase">Kirim Struk</p>
+                  <div className="flex gap-2">
+                    <Input
+                      type="email"
+                      placeholder="Email pelanggan"
+                      value={sendEmailTo}
+                      onChange={(e) => setSendEmailTo(e.target.value)}
+                      className="bg-zinc-950 border-zinc-800 text-zinc-100 h-9"
+                    />
+                    <Button
+                      onClick={handleSendEmail}
+                      disabled={sendingEmail}
+                      className="bg-indigo-600 text-white hover:bg-indigo-700 shrink-0"
+                    >
+                      {sendingEmail ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                  <div className="flex gap-2">
+                    <Input
+                      type="tel"
+                      placeholder="No. WhatsApp (08xx / 62xx)"
+                      value={sendWaPhone}
+                      onChange={(e) => setSendWaPhone(e.target.value)}
+                      className="bg-zinc-950 border-zinc-800 text-zinc-100 h-9"
+                    />
+                    <Button
+                      onClick={handleSendWhatsApp}
+                      className="bg-emerald-600 text-white hover:bg-emerald-700 shrink-0"
+                    >
+                      <MessageCircle className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-xs text-zinc-500 font-medium uppercase mb-2">Preview Struk</p>
+                  {receiptLoading ? (
+                    <div className="flex items-center justify-center py-10 text-zinc-500">
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                    </div>
+                  ) : receiptOrder && receiptOrg && receiptOutlet ? (
+                    <div className="bg-zinc-950 border border-zinc-800 rounded-lg p-3 overflow-hidden flex justify-center">
+                      <ReceiptLayout
+                        order={receiptOrder}
+                        lines={receiptLines}
+                        payments={receiptPayments}
+                        org={receiptOrg}
+                        outlet={receiptOutlet}
+                        paperWidth={receiptPaperWidth}
+                      />
+                    </div>
+                  ) : null}
                 </div>
               </div>
 
