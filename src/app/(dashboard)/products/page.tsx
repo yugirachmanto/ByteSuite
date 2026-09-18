@@ -45,7 +45,7 @@ export default function ProductsPage() {
         // Fetch items with category 'finished'
         const { data: items, error: itemsError } = await supabase
           .from('item_master')
-          .select('*, show_on_pos')
+          .select('*, show_on_pos, is_inventory')
           .eq('category', 'finished')
           .order('name')
         
@@ -89,18 +89,38 @@ export default function ProductsPage() {
       const newVal = !currentVal
       // Optimistic update
       setProducts(prev => prev.map(p => p.id === id ? { ...p, show_on_pos: newVal } : p))
-      
+
       const { error } = await supabase
         .from('item_master')
         .update({ show_on_pos: newVal })
         .eq('id', id)
-        
+
       if (error) throw error
       toast.success(`POS visibility ${newVal ? 'enabled' : 'disabled'}`)
     } catch (error: any) {
       // Revert on error
       setProducts(prev => prev.map(p => p.id === id ? { ...p, show_on_pos: currentVal } : p))
       toast.error('Failed to update POS visibility')
+    }
+  }
+
+  const handleToggleStock = async (id: string, currentVal: boolean) => {
+    try {
+      const newVal = !currentVal
+      // Optimistic update
+      setProducts(prev => prev.map(p => p.id === id ? { ...p, is_inventory: newVal } : p))
+
+      const { error } = await supabase
+        .from('item_master')
+        .update({ is_inventory: newVal })
+        .eq('id', id)
+
+      if (error) throw error
+      toast.success(`Lacak Stock ${newVal ? 'diaktifkan' : 'dinonaktifkan'}`)
+    } catch (error: any) {
+      // Revert on error
+      setProducts(prev => prev.map(p => p.id === id ? { ...p, is_inventory: currentVal } : p))
+      toast.error('Failed to update Lacak Stock')
     }
   }
 
@@ -168,6 +188,7 @@ export default function ProductsPage() {
               <TableHead className="text-zinc-400">Category</TableHead>
               <TableHead className="text-zinc-400">Unit</TableHead>
               <TableHead className="text-zinc-400 text-center">POS</TableHead>
+              <TableHead className="text-zinc-400 text-center">Stock</TableHead>
               <TableHead className="text-zinc-400 text-right">Selling Price</TableHead>
               <TableHead className="w-[100px]"></TableHead>
             </TableRow>
@@ -175,7 +196,7 @@ export default function ProductsPage() {
           <TableBody>
             {filteredProducts.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="h-32 text-center text-zinc-500 italic">
+                <TableCell colSpan={6} className="h-32 text-center text-zinc-500 italic">
                   No products found.
                 </TableCell>
               </TableRow>
@@ -206,6 +227,17 @@ export default function ProductsPage() {
                         className="sr-only peer"
                         checked={p.show_on_pos ?? true}
                         onChange={() => handleTogglePos(p.id, p.show_on_pos ?? true)}
+                      />
+                      <div className="w-8 h-4 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-emerald-500"></div>
+                    </label>
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <label className="relative inline-flex items-center cursor-pointer" title="Lacak Stock">
+                      <input
+                        type="checkbox"
+                        className="sr-only peer"
+                        checked={p.is_inventory ?? false}
+                        onChange={() => handleToggleStock(p.id, p.is_inventory ?? false)}
                       />
                       <div className="w-8 h-4 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-emerald-500"></div>
                     </label>
