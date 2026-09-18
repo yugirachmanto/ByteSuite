@@ -168,6 +168,7 @@ export default function ProductDetailPage() {
           purchase_unit: product.purchase_unit || product.unit,
           conversion_factor: product.conversion_factor || 1,
           show_on_pos: product.show_on_pos ?? true,
+          is_inventory: product.is_inventory ?? false,
           pos_category: product.pos_category || 'Uncategorized'
         })
         .eq('id', product.id)
@@ -377,11 +378,11 @@ export default function ProductDetailPage() {
                     </div>
                   </div>
 
-                  <div className="pt-2">
+                  <div className="pt-2 space-y-2">
                     <label className="flex items-center gap-3 cursor-pointer">
                       <div className="relative inline-flex items-center">
-                        <input 
-                          type="checkbox" 
+                        <input
+                          type="checkbox"
                           className="sr-only peer"
                           checked={product.show_on_pos ?? true}
                           onChange={e => setProduct({...product, show_on_pos: e.target.checked})}
@@ -390,6 +391,21 @@ export default function ProductDetailPage() {
                       </div>
                       <span className="text-xs font-medium text-zinc-300">Show on POS</span>
                     </label>
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <div className="relative inline-flex items-center">
+                        <input
+                          type="checkbox"
+                          className="sr-only peer"
+                          checked={product.is_inventory ?? false}
+                          onChange={e => setProduct({...product, is_inventory: e.target.checked})}
+                        />
+                        <div className="w-9 h-5 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
+                      </div>
+                      <span className="text-xs font-medium text-zinc-300">Lacak Stock</span>
+                    </label>
+                    {!(product.is_inventory ?? false) && (
+                      <p className="text-[10px] text-zinc-500 pl-12">Produk ini bisa dijual tanpa perlu setup stock (mis. jasa, menu custom, atau titipan).</p>
+                    )}
                   </div>
                 </div>
               </div>

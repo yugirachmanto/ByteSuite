@@ -338,6 +338,7 @@ export default function POSPage() {
           .from('item_master')
           .select('id, name, category, pos_category, image_url')
           .eq('category', 'finished')
+          .eq('show_on_pos', true)
         
         if (itemsError) throw itemsError
 
