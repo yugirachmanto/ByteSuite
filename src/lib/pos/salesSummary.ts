@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { format, eachDayOfInterval } from 'date-fns'
 
 function isComplimentaryMethod(method: string): boolean {
   return /komplimen|complimentary|compliment/i.test(method)
@@ -8,6 +9,7 @@ export interface PosSalesSummary {
   grossSales: number
   discountTotal: number
   taxTotal: number
+  roundingTotal: number
   netSales: number
   orderCount: number
   averageTransaction: number
@@ -32,6 +34,7 @@ const EMPTY_SUMMARY: PosSalesSummary = {
   grossSales: 0,
   discountTotal: 0,
   taxTotal: 0,
+  roundingTotal: 0,
   netSales: 0,
   orderCount: 0,
   averageTransaction: 0,
@@ -49,7 +52,7 @@ export async function fetchPosSalesSummary(supabase: SupabaseClient, scope: Sale
 
   let query = supabase
     .from('pos_orders')
-    .select('id, status, subtotal, tax_amount, total_amount, discount_amount')
+    .select('id, status, subtotal, tax_amount, rounding_amount, total_amount, discount_amount')
     .eq('outlet_id', outletId)
 
   if (cashierId) query = query.eq('cashier_id', cashierId)
@@ -70,6 +73,7 @@ export async function fetchPosSalesSummary(supabase: SupabaseClient, scope: Sale
   const grossSales = completed.reduce((sum, o) => sum + (o.subtotal || 0) + (o.discount_amount || 0), 0)
   const discountTotal = completed.reduce((sum, o) => sum + (o.discount_amount || 0), 0)
   const taxTotal = completed.reduce((sum, o) => sum + (o.tax_amount || 0), 0)
+  const roundingTotal = completed.reduce((sum, o) => sum + (o.rounding_amount || 0), 0)
   const netSales = completed.reduce((sum, o) => sum + (o.total_amount || 0), 0)
   const voidedAmount = voided.reduce((sum, o) => sum + (o.total_amount || 0), 0)
 
@@ -131,6 +135,7 @@ export async function fetchPosSalesSummary(supabase: SupabaseClient, scope: Sale
     grossSales,
     discountTotal,
     taxTotal,
+    roundingTotal,
     netSales,
     orderCount: completed.length,
     averageTransaction: completed.length > 0 ? netSales / completed.length : 0,
@@ -144,13 +149,25 @@ export async function fetchPosSalesSummary(supabase: SupabaseClient, scope: Sale
   }
 }
 
-export interface HourlySales {
-  hour: number
+export interface SalesTrendPoint {
+  key: string
+  label: string
   sales: number
   orders: number
 }
 
-export async function fetchHourlySales(supabase: SupabaseClient, scope: { outletId: string; startIso: string; endIso: string; cashierId?: string }): Promise<HourlySales[]> {
+export interface SalesTrend {
+  granularity: 'hour' | 'day'
+  points: SalesTrendPoint[]
+}
+
+/**
+ * Sales over time as a single series. A one-day period is broken down by
+ * hour (00-23); a longer period is broken down by day (every day in the
+ * range, zero-filled). Bucketing uses the browser's local time, matching
+ * how the date window itself is built.
+ */
+export async function fetchSalesTrend(supabase: SupabaseClient, scope: { outletId: string; startIso: string; endIso: string; cashierId?: string }): Promise<SalesTrend> {
   let query = supabase
     .from('pos_orders')
     .select('created_at, total_amount')
@@ -163,13 +180,32 @@ export async function fetchHourlySales(supabase: SupabaseClient, scope: { outlet
 
   const { data: orders } = await query
 
-  const buckets: HourlySales[] = Array.from({ length: 24 }, (_, hour) => ({ hour, sales: 0, orders: 0 }))
-  for (const o of orders || []) {
-    const hour = new Date(o.created_at).getHours()
-    buckets[hour].sales += o.total_amount || 0
-    buckets[hour].orders += 1
+  const start = new Date(scope.startIso)
+  const end = new Date(scope.endIso)
+  const oneDay = format(start, 'yyyy-MM-dd') === format(end, 'yyyy-MM-dd')
+
+  if (oneDay) {
+    const points: SalesTrendPoint[] = Array.from({ length: 24 }, (_, h) => ({
+      key: String(h), label: `${String(h).padStart(2, '0')}:00`, sales: 0, orders: 0,
+    }))
+    for (const o of orders || []) {
+      const h = new Date(o.created_at).getHours()
+      points[h].sales += o.total_amount || 0
+      points[h].orders += 1
+    }
+    return { granularity: 'hour', points }
   }
-  return buckets
+
+  const days = eachDayOfInterval({ start, end }).slice(0, 400)
+  const map = new Map<string, SalesTrendPoint>(days.map(d => [format(d, 'yyyy-MM-dd'), { key: format(d, 'yyyy-MM-dd'), label: format(d, 'd MMM'), sales: 0, orders: 0 }]))
+  for (const o of orders || []) {
+    const pt = map.get(format(new Date(o.created_at), 'yyyy-MM-dd'))
+    if (pt) {
+      pt.sales += o.total_amount || 0
+      pt.orders += 1
+    }
+  }
+  return { granularity: 'day', points: Array.from(map.values()) }
 }
 
 export interface PosSaleDetailRow {
@@ -181,6 +217,7 @@ export interface PosSaleDetailRow {
   subtotal: number
   discount_amount: number
   tax_amount: number
+  rounding_amount: number
   total_amount: number
   status: string
 }
@@ -195,7 +232,7 @@ export async function fetchPosSalesDetail(supabase: SupabaseClient, scope: Sales
 
   let query = supabase
     .from('pos_orders')
-    .select('id, created_at, status, subtotal, tax_amount, total_amount, discount_amount, cashier_id')
+    .select('id, created_at, status, subtotal, tax_amount, rounding_amount, total_amount, discount_amount, cashier_id')
     .eq('outlet_id', outletId)
     .order('created_at', { ascending: false })
 
@@ -245,7 +282,59 @@ export async function fetchPosSalesDetail(supabase: SupabaseClient, scope: Sales
     subtotal: o.subtotal || 0,
     discount_amount: o.discount_amount || 0,
     tax_amount: o.tax_amount || 0,
+    rounding_amount: o.rounding_amount || 0,
     total_amount: o.total_amount || 0,
     status: o.status,
   }))
+}
+
+export interface PosSaleItemRow {
+  order_id: string
+  created_at: string
+  cashier_name: string
+  payment_methods: string
+  status: string
+  item_name: string
+  category: string
+  qty: number
+  unit_price: number
+  discount_amount: number
+  subtotal: number
+}
+
+/**
+ * Item-level rows: one row per order line (what was sold in each
+ * transaction), for the detailed transaction report and its CSV export.
+ * Voided orders are included but flagged by status so they can be filtered.
+ */
+export async function fetchPosSalesItemDetail(supabase: SupabaseClient, scope: SalesSummaryScope): Promise<PosSaleItemRow[]> {
+  const orders = await fetchPosSalesDetail(supabase, scope)
+  if (orders.length === 0) return []
+
+  const orderMap = new Map(orders.map(o => [o.id, o]))
+  const { data: lines } = await supabase
+    .from('pos_order_lines')
+    .select('order_id, qty, unit_price, subtotal, discount_amount, item_master(name, pos_category)')
+    .in('order_id', orders.map(o => o.id))
+
+  const rows: PosSaleItemRow[] = []
+  for (const l of (lines || []) as any[]) {
+    const o = orderMap.get(l.order_id)
+    if (!o) continue
+    rows.push({
+      order_id: o.id,
+      created_at: o.created_at,
+      cashier_name: o.cashier_name,
+      payment_methods: o.payment_methods,
+      status: o.status,
+      item_name: l.item_master?.name || 'Unknown Item',
+      category: l.item_master?.pos_category || 'Uncategorized',
+      qty: l.qty || 0,
+      unit_price: l.unit_price || 0,
+      discount_amount: l.discount_amount || 0,
+      subtotal: l.subtotal || 0,
+    })
+  }
+  // Newest order first, items in a stable order within it.
+  return rows.sort((x, y) => y.created_at.localeCompare(x.created_at) || x.order_id.localeCompare(y.order_id) || x.item_name.localeCompare(y.item_name))
 }

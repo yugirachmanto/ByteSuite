@@ -13,7 +13,7 @@ import { formatRp } from '@/lib/format'
 import { format } from 'date-fns'
 import { id as localeId } from 'date-fns/locale'
 import { toast } from 'sonner'
-import { fetchPosSalesSummary, fetchHourlySales, fetchPosSalesDetail, type PosSalesSummary, type HourlySales, type PosSaleDetailRow } from '@/lib/pos/salesSummary'
+import { fetchPosSalesSummary, fetchSalesTrend, fetchPosSalesDetail, fetchPosSalesItemDetail, type PosSalesSummary, type SalesTrend, type PosSaleDetailRow, type PosSaleItemRow } from '@/lib/pos/salesSummary'
 import { canAccess } from '@/lib/auth/canAccess'
 
 const EXPORT_ROLES = ['owner', 'admin']
@@ -25,8 +25,9 @@ export default function PosSalesReportPage() {
 
   const [posSalesSummary, setPosSalesSummary] = useState<PosSalesSummary | null>(null)
   const [posSalesLoading, setPosSalesLoading] = useState(true)
-  const [hourlySales, setHourlySales] = useState<HourlySales[]>([])
+  const [trend, setTrend] = useState<SalesTrend>({ granularity: 'hour', points: [] })
   const [saleDetails, setSaleDetails] = useState<PosSaleDetailRow[]>([])
+  const [itemRows, setItemRows] = useState<PosSaleItemRow[]>([])
   const [cashierScope, setCashierScope] = useState<string | undefined>(undefined)
   const [scopeResolved, setScopeResolved] = useState(false)
   const [canExport, setCanExport] = useState(false)
@@ -61,16 +62,16 @@ export default function PosSalesReportPage() {
     }
     fetchPosSales()
 
-    async function fetchHourly() {
-      const hourly = await fetchHourlySales(supabase, {
+    async function fetchTrend() {
+      const result = await fetchSalesTrend(supabase, {
         outletId: selectedOutletId!,
         startIso: startDate.toISOString(),
         endIso: endDate.toISOString(),
         cashierId: cashierScope
       })
-      setHourlySales(hourly)
+      setTrend(result)
     }
-    fetchHourly()
+    fetchTrend()
 
     async function fetchDetails() {
       const details = await fetchPosSalesDetail(supabase, {
@@ -82,35 +83,52 @@ export default function PosSalesReportPage() {
       setSaleDetails(details)
     }
     fetchDetails()
+
+    async function fetchItems() {
+      const items = await fetchPosSalesItemDetail(supabase, {
+        outletId: selectedOutletId!,
+        startIso: startDate.toISOString(),
+        endIso: endDate.toISOString(),
+        cashierId: cashierScope
+      })
+      setItemRows(items)
+    }
+    fetchItems()
   }, [selectedOutletId, supabase, startDate, endDate, scopeResolved, cashierScope])
+
+  const downloadCsv = (headers: string[], rows: (string | number)[][], filePrefix: string) => {
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))].join('\n')
+    const link = document.createElement('a')
+    link.setAttribute('href', encodeURI(csvContent))
+    link.setAttribute('download', `${filePrefix}-${selectedOutlet?.name || 'outlet'}-${format(startDate, 'yyyyMMdd')}-${format(endDate, 'yyyyMMdd')}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    toast.success('Data penjualan berhasil diekspor')
+  }
+
+  const handleExportItemsCsv = () => {
+    if (itemRows.length === 0) {
+      toast.error('Tidak ada data item untuk diekspor pada periode ini.')
+      return
+    }
+    downloadCsv(
+      ['Tanggal', 'Order ID', 'Kasir', 'Metode Bayar', 'Status', 'Item', 'Kategori', 'Qty', 'Harga Satuan', 'Diskon', 'Subtotal'],
+      itemRows.map(r => [format(new Date(r.created_at), 'yyyy-MM-dd HH:mm'), r.order_id, r.cashier_name, r.payment_methods, r.status, r.item_name, r.category, r.qty, r.unit_price, r.discount_amount, r.subtotal]),
+      'penjualan-pos-item'
+    )
+  }
 
   const handleExportCsv = () => {
     if (saleDetails.length === 0) {
       toast.error('Tidak ada data transaksi untuk diekspor pada periode ini.')
       return
     }
-    const headers = ['Tanggal', 'Order ID', 'Kasir', 'Jumlah Item', 'Metode Bayar', 'Subtotal', 'Diskon', 'Pajak', 'Total', 'Status']
-    const rows = saleDetails.map(d => [
-      format(new Date(d.created_at), 'yyyy-MM-dd HH:mm'),
-      d.id,
-      d.cashier_name,
-      d.item_count,
-      d.payment_methods,
-      d.subtotal,
-      d.discount_amount,
-      d.tax_amount,
-      d.total_amount,
-      d.status,
-    ])
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))].join('\n')
-    const encodedUri = encodeURI(csvContent)
-    const link = document.createElement('a')
-    link.setAttribute('href', encodedUri)
-    link.setAttribute('download', `penjualan-pos-${selectedOutlet?.name || 'outlet'}-${format(startDate, 'yyyyMMdd')}-${format(endDate, 'yyyyMMdd')}.csv`)
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    toast.success('Data penjualan berhasil diekspor')
+    downloadCsv(
+      ['Tanggal', 'Order ID', 'Kasir', 'Jumlah Item', 'Metode Bayar', 'Subtotal', 'Diskon', 'Pajak', 'Pembulatan', 'Total', 'Status'],
+      saleDetails.map(d => [format(new Date(d.created_at), 'yyyy-MM-dd HH:mm'), d.id, d.cashier_name, d.item_count, d.payment_methods, d.subtotal, d.discount_amount, d.tax_amount, d.rounding_amount, d.total_amount, d.status]),
+      'penjualan-pos'
+    )
   }
 
   return (
@@ -139,11 +157,12 @@ export default function PosSalesReportPage() {
         </div>
       ) : (
         <div className="space-y-5">
-          <div className="grid gap-3 grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+          <div className="grid gap-3 grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
             {[
               { label: 'Penjualan Kotor', value: formatRp(posSalesSummary?.grossSales || 0), icon: ShoppingCart, color: 'text-indigo-400', bg: 'bg-indigo-500/10', border: 'border-indigo-500/20' },
               { label: 'Diskon', value: formatRp(posSalesSummary?.discountTotal || 0), icon: Percent, color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20' },
               { label: 'Pajak', value: formatRp(posSalesSummary?.taxTotal || 0), icon: TrendingUp, color: 'text-orange-400', bg: 'bg-orange-500/10', border: 'border-orange-500/20' },
+              { label: 'Pembulatan', value: formatRp(posSalesSummary?.roundingTotal || 0), icon: TrendingUp, color: 'text-violet-400', bg: 'bg-violet-500/10', border: 'border-violet-500/20' },
               { label: 'Total Penjualan', value: formatRp(posSalesSummary?.netSales || 0), icon: DollarSign, color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
               { label: 'Transaksi', value: String(posSalesSummary?.orderCount || 0), icon: Activity, color: 'text-zinc-100', bg: 'bg-zinc-500/10', border: 'border-zinc-500/20' },
               { label: 'Rata-rata Transaksi', value: formatRp(posSalesSummary?.averageTransaction || 0), icon: DollarSign, color: 'text-cyan-400', bg: 'bg-cyan-500/10', border: 'border-cyan-500/20' },
@@ -247,18 +266,18 @@ export default function PosSalesReportPage() {
 
           <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 overflow-hidden">
             <div className="px-6 py-4 border-b border-zinc-800/60">
-              <p className="text-sm font-bold text-zinc-100">Penjualan per Jam</p>
+              <p className="text-sm font-bold text-zinc-100">{trend.granularity === 'hour' ? 'Penjualan per Jam' : 'Penjualan per Hari'}</p>
               <p className="text-[11px] text-zinc-500">{periodLabel}</p>
             </div>
             <div className="p-4" style={{ height: 280 }}>
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={hourlySales} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+                <LineChart data={trend.points} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                  <XAxis dataKey="hour" tickFormatter={(h) => `${h}:00`} stroke="#71717a" fontSize={11} />
+                  <XAxis dataKey="label" stroke="#71717a" fontSize={11} interval="preserveStartEnd" minTickGap={24} />
                   <YAxis stroke="#71717a" fontSize={11} tickFormatter={(v) => formatRp(v)} width={80} />
                   <RechartsTooltip
                     contentStyle={{ backgroundColor: '#18181b', border: '1px solid #3f3f46', borderRadius: 8 }}
-                    labelFormatter={(h) => `Jam ${h}:00`}
+                    labelFormatter={(l) => (trend.granularity === 'hour' ? `Jam ${l}` : String(l))}
                     formatter={(value: any, name: any) => [name === 'sales' ? formatRp(value) : value, name === 'sales' ? 'Penjualan' : 'Transaksi']}
                   />
                   <Line type="monotone" dataKey="sales" stroke="#6366f1" strokeWidth={2} dot={false} />
@@ -286,13 +305,14 @@ export default function PosSalesReportPage() {
                     <th className="px-4 py-2 font-medium text-right">Subtotal</th>
                     <th className="px-4 py-2 font-medium text-right">Diskon</th>
                     <th className="px-4 py-2 font-medium text-right">Pajak</th>
+                    <th className="px-4 py-2 font-medium text-right">Pembulatan</th>
                     <th className="px-4 py-2 font-medium text-right">Total</th>
                     <th className="px-4 py-2 font-medium">Status</th>
                   </tr>
                 </thead>
                 <tbody>
                   {saleDetails.length === 0 ? (
-                    <tr><td colSpan={10} className="py-8 text-center text-zinc-600 text-sm">Tidak ada transaksi pada periode ini.</td></tr>
+                    <tr><td colSpan={11} className="py-8 text-center text-zinc-600 text-sm">Tidak ada transaksi pada periode ini.</td></tr>
                   ) : saleDetails.map((d) => (
                     <tr key={d.id} className="border-b border-zinc-800/30 last:border-0 hover:bg-zinc-800/20">
                       <td className="px-4 py-2.5 text-zinc-400 text-xs whitespace-nowrap">{format(new Date(d.created_at), 'dd/MM/yy HH:mm')}</td>
@@ -303,10 +323,68 @@ export default function PosSalesReportPage() {
                       <td className="px-4 py-2.5 text-right font-mono text-zinc-300">{formatRp(d.subtotal)}</td>
                       <td className="px-4 py-2.5 text-right font-mono text-amber-400/80">{d.discount_amount > 0 ? `-${formatRp(d.discount_amount)}` : '—'}</td>
                       <td className="px-4 py-2.5 text-right font-mono text-zinc-400">{formatRp(d.tax_amount)}</td>
+                      <td className="px-4 py-2.5 text-right font-mono text-violet-400/80">{d.rounding_amount > 0 ? formatRp(d.rounding_amount) : '—'}</td>
                       <td className="px-4 py-2.5 text-right font-mono font-bold text-zinc-100">{formatRp(d.total_amount)}</td>
                       <td className="px-4 py-2.5">
                         <span className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded ${d.status === 'voided' ? 'bg-red-950/30 text-red-400 border border-red-900/40' : 'bg-emerald-950/30 text-emerald-400 border border-emerald-900/40'}`}>
                           {d.status === 'voided' ? 'Voided' : 'Selesai'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 overflow-hidden">
+            <div className="flex items-center justify-between gap-4 px-6 py-4 border-b border-zinc-800/60">
+              <div>
+                <p className="text-sm font-bold text-zinc-100">Detail Item per Transaksi</p>
+                <p className="text-[11px] text-zinc-500">Setiap item yang terjual · {periodLabel} · {itemRows.length} baris</p>
+              </div>
+              {canExport && (
+                <button
+                  onClick={handleExportItemsCsv}
+                  className="flex items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:bg-zinc-800 transition-colors shrink-0"
+                >
+                  <Download className="h-3.5 w-3.5" /> Download CSV
+                </button>
+              )}
+            </div>
+            <div className="overflow-x-auto max-h-[480px] overflow-y-auto">
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 bg-zinc-900">
+                  <tr className="border-b border-zinc-800/60 text-left text-[10px] uppercase tracking-wider text-zinc-500">
+                    <th className="px-4 py-2 font-medium">Tanggal</th>
+                    <th className="px-4 py-2 font-medium">Order #</th>
+                    <th className="px-4 py-2 font-medium">Item</th>
+                    <th className="px-4 py-2 font-medium">Kategori</th>
+                    <th className="px-4 py-2 font-medium text-right">Qty</th>
+                    <th className="px-4 py-2 font-medium text-right">Harga</th>
+                    <th className="px-4 py-2 font-medium text-right">Diskon</th>
+                    <th className="px-4 py-2 font-medium text-right">Subtotal</th>
+                    <th className="px-4 py-2 font-medium">Kasir</th>
+                    <th className="px-4 py-2 font-medium">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {itemRows.length === 0 ? (
+                    <tr><td colSpan={10} className="py-8 text-center text-zinc-600 text-sm">Tidak ada transaksi pada periode ini.</td></tr>
+                  ) : itemRows.map((r, i) => (
+                    <tr key={`${r.order_id}-${i}`} className="border-b border-zinc-800/30 last:border-0 hover:bg-zinc-800/20">
+                      <td className="px-4 py-2.5 text-zinc-400 text-xs whitespace-nowrap">{format(new Date(r.created_at), 'dd/MM/yy HH:mm')}</td>
+                      <td className="px-4 py-2.5 text-zinc-500 font-mono text-xs">{r.order_id.slice(0, 8).toUpperCase()}</td>
+                      <td className="px-4 py-2.5 font-medium text-zinc-100">{r.item_name}</td>
+                      <td className="px-4 py-2.5 text-zinc-400 text-xs">{r.category}</td>
+                      <td className="px-4 py-2.5 text-zinc-300 text-right">{r.qty}</td>
+                      <td className="px-4 py-2.5 text-right font-mono text-zinc-400">{formatRp(r.unit_price)}</td>
+                      <td className="px-4 py-2.5 text-right font-mono text-amber-400/80">{r.discount_amount > 0 ? `-${formatRp(r.discount_amount)}` : '—'}</td>
+                      <td className="px-4 py-2.5 text-right font-mono font-bold text-zinc-100">{formatRp(r.subtotal)}</td>
+                      <td className="px-4 py-2.5 text-zinc-300">{r.cashier_name}</td>
+                      <td className="px-4 py-2.5">
+                        <span className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded ${r.status === 'voided' ? 'bg-red-950/30 text-red-400 border border-red-900/40' : 'bg-emerald-950/30 text-emerald-400 border border-emerald-900/40'}`}>
+                          {r.status === 'voided' ? 'Voided' : 'Selesai'}
                         </span>
                       </td>
                     </tr>
