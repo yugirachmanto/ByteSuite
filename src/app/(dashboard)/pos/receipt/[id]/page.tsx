@@ -206,19 +206,15 @@ export default function POSReceiptPage({ params }: { params: Promise<{ id: strin
     // wa.me needs digits only, country code first, no leading +/0.
     const normalizedPhone = phone.startsWith('+') ? phone.slice(1) : phone.startsWith('0') ? `62${phone.slice(1)}` : phone
 
-    const itemLines = lines.map((l) => `${l.qty}x ${l.name} - ${formatRp(l.subtotal)}`).join('\n')
     const message = [
-      `*${org.name}*`,
-      outlet?.name || '',
-      `Order #${order.id.slice(0, 8).toUpperCase()} - ${format(new Date(order.created_at), 'dd/MM/yyyy HH:mm')}`,
+      'Halo kak 👋',
+      `Terima kasih sudah berkunjung ke *${outlet?.name || org.name}* ☕`,
+      `Berikut struk pembelian kakak (Order #${order.id.slice(0, 8).toUpperCase()}).`,
       '',
-      itemLines,
+      `Total: *${formatRp(order.total_amount)}*`,
       '',
-      `*TOTAL: ${formatRp(order.total_amount)}*`,
-      `Dibayar via ${order.payment_method}`,
-      '',
-      'Terima kasih atas kunjungan Anda!',
-    ].filter(Boolean).join('\n')
+      'Ditunggu kedatangannya kembali! 🙏',
+    ].join('\n')
 
     const copied = await navigator.clipboard?.writeText(`+${normalizedPhone}`).then(() => true, () => false)
     if (copied) toast.info(`Nomor +${normalizedPhone} disalin — paste di WhatsApp`)

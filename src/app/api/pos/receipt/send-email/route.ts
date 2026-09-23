@@ -4,6 +4,10 @@ import { formatRp } from '@/lib/format'
 import { sendEmail } from '@/lib/email/openmail'
 import { format } from 'date-fns'
 
+const esc = (v: string) =>
+  String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+
+// Table-based, inline-styled markup: email clients ignore flex/grid.
 function buildReceiptHtml(params: {
   orgName: string
   outletName: string
@@ -17,32 +21,53 @@ function buildReceiptHtml(params: {
   logoUrl?: string | null
 }) {
   const { orgName, outletName, orderId, createdAt, lines, totalAmount, taxAmount, paymentMethod, logoUrl, roundingAmount } = params
-  const rows = lines.map((l) => `
-    <tr>
-      <td style="padding:4px 0;">${l.name}<br><span style="color:#71717a;font-size:12px;">${l.qty} x ${formatRp(l.unit_price)}</span></td>
-      <td style="padding:4px 0;text-align:right;">${formatRp(l.subtotal)}</td>
-    </tr>
-  `).join('')
+  const place = esc(outletName || orgName)
+  const rounding = roundingAmount && roundingAmount > 0 ? roundingAmount : 0
+  const subtotal = totalAmount - taxAmount - rounding
+  const orderNo = orderId.slice(0, 8).toUpperCase()
+
+  const itemRows = lines.map((l) => `
+        <tr>
+          <td style="padding:8px 0;border-bottom:1px solid #f4f4f5;font-size:14px;color:#18181b;">${esc(l.name)}<br><span style="color:#71717a;font-size:12px;">${l.qty} x ${formatRp(l.unit_price)}</span></td>
+          <td style="padding:8px 0;border-bottom:1px solid #f4f4f5;font-size:14px;color:#18181b;text-align:right;vertical-align:top;white-space:nowrap;">${formatRp(l.subtotal)}</td>
+        </tr>`).join('')
+
+  const sumRow = (label: string, value: string) => `
+        <tr>
+          <td style="padding:3px 0;font-size:14px;color:#52525b;">${label}</td>
+          <td style="padding:3px 0;font-size:14px;color:#52525b;text-align:right;">${value}</td>
+        </tr>`
 
   return `
-  <div style="font-family:monospace;max-width:380px;margin:0 auto;color:#18181b;">
-    <div style="text-align:center;margin-bottom:12px;">
-      ${logoUrl ? `<img src="${logoUrl}" alt="${orgName}" style="max-height:48px;max-width:70%;object-fit:contain;margin-bottom:6px;" />` : ''}
-      <p style="font-weight:bold;font-size:16px;margin:0;">${orgName}</p>
-      <p style="margin:2px 0 0;color:#52525b;">${outletName}</p>
+  <div style="background:#f4f4f5;padding:24px 12px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+    <div style="max-width:420px;margin:0 auto;">
+      <p style="font-size:16px;line-height:1.6;color:#18181b;margin:0 0 4px;">Halo kak 👋</p>
+      <p style="font-size:15px;line-height:1.6;color:#3f3f46;margin:0 0 4px;">Terima kasih sudah berkunjung ke <strong>${place}</strong> ☕</p>
+      <p style="font-size:15px;line-height:1.6;color:#3f3f46;margin:0 0 16px;">Berikut struk pembelian kakak (Order #${orderNo}).</p>
+
+      <div style="background:#ffffff;border-radius:12px;padding:20px;border:1px solid #e4e4e7;">
+        <div style="text-align:center;margin-bottom:12px;">
+          ${logoUrl ? `<img src="${esc(logoUrl)}" alt="${place}" style="max-height:56px;max-width:70%;margin-bottom:8px;" />` : ''}
+          <div style="font-size:17px;font-weight:700;color:#18181b;">${place}</div>
+          <div style="font-size:12px;color:#71717a;margin-top:2px;">Order #${orderNo} · ${format(new Date(createdAt), 'dd/MM/yyyy HH:mm')}</div>
+        </div>
+
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;border-top:1px solid #e4e4e7;">${itemRows}
+        </table>
+
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin-top:10px;">${sumRow('Subtotal', formatRp(subtotal))}${taxAmount > 0 ? sumRow('Pajak', formatRp(taxAmount)) : ''}${rounding > 0 ? sumRow('Pembulatan', formatRp(rounding)) : ''}
+          <tr>
+            <td style="padding:10px 0 2px;font-size:16px;font-weight:700;color:#18181b;border-top:1px solid #e4e4e7;">Total</td>
+            <td style="padding:10px 0 2px;font-size:16px;font-weight:700;color:#18181b;text-align:right;border-top:1px solid #e4e4e7;">${formatRp(totalAmount)}</td>
+          </tr>
+          <tr>
+            <td colspan="2" style="padding:2px 0;font-size:12px;color:#71717a;">Dibayar via ${esc(paymentMethod)}</td>
+          </tr>
+        </table>
+      </div>
+
+      <p style="font-size:15px;line-height:1.6;color:#3f3f46;text-align:center;margin:16px 0 0;">Ditunggu kedatangannya kembali! 🙏</p>
     </div>
-    <hr style="border:none;border-top:1px dashed #a1a1aa;margin:8px 0;" />
-    <p style="margin:2px 0;">Order #${orderId.slice(0, 8).toUpperCase()}</p>
-    <p style="margin:2px 0;">${format(new Date(createdAt), 'dd/MM/yyyy HH:mm')}</p>
-    <hr style="border:none;border-top:1px dashed #a1a1aa;margin:8px 0;" />
-    <table style="width:100%;border-collapse:collapse;">${rows}</table>
-    <hr style="border:none;border-top:1px dashed #a1a1aa;margin:8px 0;" />
-    ${taxAmount > 0 ? `<p style="display:flex;justify-content:space-between;margin:2px 0;">Pajak: ${formatRp(taxAmount)}</p>` : ''}
-    ${roundingAmount && roundingAmount > 0 ? `<p style="display:flex;justify-content:space-between;margin:2px 0;">Pembulatan: ${formatRp(roundingAmount)}</p>` : ''}
-    <p style="font-weight:bold;font-size:16px;margin:6px 0;">TOTAL: ${formatRp(totalAmount)}</p>
-    <p style="margin:2px 0;color:#52525b;">Dibayar via ${paymentMethod}</p>
-    <hr style="border:none;border-top:1px dashed #a1a1aa;margin:8px 0;" />
-    <p style="text-align:center;color:#71717a;">Terima kasih atas kunjungan Anda!</p>
   </div>
   `
 }
@@ -126,7 +151,7 @@ export async function POST(request: Request) {
 
     const result = await sendEmail({
       to: to_email.trim(),
-      subject: `Struk Pembelian ${orgRes.data?.name || ''} — #${order.id.slice(0, 8).toUpperCase()}`,
+      subject: `Struk pembelian kakak di ${outletRes.data?.name || orgRes.data?.name || 'kami'} — #${order.id.slice(0, 8).toUpperCase()}`,
       body: html,
       idempotencyKey: `receipt-${order.id}`,
       attachment,
