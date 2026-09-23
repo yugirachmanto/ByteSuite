@@ -61,7 +61,7 @@ export default function POSReceiptPage({ params }: { params: Promise<{ id: strin
     setLoading(true)
     const { data: orderData } = await supabase
       .from('pos_orders')
-      .select('id, created_at, payment_method, subtotal, tax_amount, total_amount, discount_amount, org_id, outlet_id, cashier_id, status, voided_by, voided_at, void_reason')
+      .select('id, created_at, payment_method, subtotal, tax_amount, rounding_amount, total_amount, discount_amount, org_id, outlet_id, cashier_id, status, voided_by, voided_at, void_reason')
       .eq('id', orderId)
       .single()
 
@@ -86,6 +86,7 @@ export default function POSReceiptPage({ params }: { params: Promise<{ id: strin
       payment_method: orderData.payment_method,
       subtotal: orderData.subtotal,
       tax_amount: orderData.tax_amount,
+      rounding_amount: orderData.rounding_amount || 0,
       total_amount: orderData.total_amount,
       discount_amount: orderData.discount_amount || 0,
       cashier_name: cashierRes.data?.full_name || null,

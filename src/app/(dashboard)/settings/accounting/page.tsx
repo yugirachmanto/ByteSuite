@@ -57,6 +57,7 @@ const SYSTEM_ROLES: { value: string; label: string; typeFilter: CoaType | CoaTyp
   { value: 'gr_ir_clearing', label: 'GR/IR Clearing (Goods Received Not Invoiced)', typeFilter: 'liability' },
   { value: 'pph23_payable', label: 'PPH 23 Payable', typeFilter: 'liability' },
   { value: 'pph4ayat2_payable', label: 'PPH 4(2) Payable', typeFilter: 'liability' },
+  { value: 'pos_rounding', label: 'POS Rounding (Pembulatan)', typeFilter: ['income', 'expense'] },
   { value: 'pos_inventory', label: 'POS Inventory Deduction', typeFilter: 'asset' },
   { value: 'opname_inventory', label: 'Opname Inventory Adjustment', typeFilter: 'asset' },
   { value: 'opname_variance_expense', label: 'Opname Cost of Variance', typeFilter: 'expense' },
@@ -74,6 +75,7 @@ export default function AccountingSettingsPage() {
   const [mappings, setMappings] = useState<CoaMapping[]>([])
   const [pphRules, setPphRules] = useState<PphRule[]>([])
   const [posTaxRate, setPosTaxRate] = useState<number>(0)
+  const [posRoundingStep, setPosRoundingStep] = useState<number>(0)
   const [qrisImageUrl, setQrisImageUrl] = useState('')
   const [uploadingQris, setUploadingQris] = useState(false)
   const [receiptLogoUrl, setReceiptLogoUrl] = useState('')
@@ -101,12 +103,13 @@ export default function AccountingSettingsPage() {
         // Fetch org settings (POS tax rate)
         const { data: orgData } = await supabase
           .from('organizations')
-          .select('pos_tax_rate, qris_image_url, bank_name, bank_account_number, bank_account_holder, receipt_logo_url')
+          .select('pos_tax_rate, pos_rounding_step, qris_image_url, bank_name, bank_account_number, bank_account_holder, receipt_logo_url')
           .eq('id', currentOrgId)
           .single()
 
         if (orgData) {
           setPosTaxRate(orgData.pos_tax_rate || 0)
+          setPosRoundingStep(orgData.pos_rounding_step || 0)
           setQrisImageUrl(orgData.qris_image_url || '')
           setBankName(orgData.bank_name || '')
           setBankAccountNumber(orgData.bank_account_number || '')
@@ -172,6 +175,7 @@ export default function AccountingSettingsPage() {
         .from('organizations')
         .update({
           pos_tax_rate: posTaxRate,
+          pos_rounding_step: posRoundingStep,
           qris_image_url: qrisImageUrl || null,
           bank_name: bankName || null,
           bank_account_number: bankAccountNumber || null,
@@ -273,6 +277,23 @@ export default function AccountingSettingsPage() {
               value={posTaxRate}
               onChange={(e) => setPosTaxRate(parseFloat(e.target.value) || 0)}
             />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start border-b border-zinc-800/50 pb-4">
+            <div>
+              <Label className="text-zinc-200">POS Total Rounding (Pembulatan)</Label>
+              <p className="text-xs text-zinc-500 mt-1">Total transaksi selalu dibulatkan ke atas ke kelipatan ini. Selisihnya tampil di struk dan dijurnal ke akun mapping &quot;POS Rounding&quot;.</p>
+            </div>
+            <select
+              className="h-10 rounded-md border border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-100"
+              value={posRoundingStep}
+              onChange={(e) => setPosRoundingStep(parseInt(e.target.value) || 0)}
+            >
+              <option value={0}>Tidak ada</option>
+              <option value={100}>Rp 100</option>
+              <option value={500}>Rp 500</option>
+              <option value={1000}>Rp 1.000</option>
+            </select>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start border-b border-zinc-800/50 pb-4">
