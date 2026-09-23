@@ -56,6 +56,7 @@ interface PosPaymentMapping {
   coa_id: string
   is_settlement_lag: boolean
   settlement_days: number
+  is_pos_visible: boolean
 }
 
 export default function PosMappingSettingsPage() {
@@ -142,7 +143,7 @@ export default function PosMappingSettingsPage() {
           // Fetch POS Payment Mappings
           const { data: payMapData } = await supabase
             .from('pos_payment_method_mapping')
-            .select('id, outlet_id, payment_method, coa_id, is_settlement_lag, settlement_days')
+            .select('id, outlet_id, payment_method, coa_id, is_settlement_lag, settlement_days, is_pos_visible')
             .eq('org_id', currentOrgId)
             .order('payment_method')
           setPaymentMappings(payMapData || [])
@@ -249,7 +250,8 @@ export default function PosMappingSettingsPage() {
             payment_method: m.payment_method.trim(),
             coa_id: m.coa_id,
             is_settlement_lag: m.is_settlement_lag,
-            settlement_days: m.is_settlement_lag ? m.settlement_days : 0
+            settlement_days: m.is_settlement_lag ? m.settlement_days : 0,
+            is_pos_visible: m.is_pos_visible
           }))
         )
         if (error) throw error
@@ -260,7 +262,7 @@ export default function PosMappingSettingsPage() {
       // Refresh
       const { data: payMapData } = await supabase
         .from('pos_payment_method_mapping')
-        .select('id, outlet_id, payment_method, coa_id, is_settlement_lag, settlement_days')
+        .select('id, outlet_id, payment_method, coa_id, is_settlement_lag, settlement_days, is_pos_visible')
         .eq('org_id', orgId)
         .order('payment_method')
       setPaymentMappings(payMapData || [])
@@ -288,7 +290,7 @@ export default function PosMappingSettingsPage() {
 
   // --- Payment Handlers ---
   const addPaymentMapping = () => {
-    setPaymentMappings([...paymentMappings, { outlet_id: null, payment_method: '', coa_id: '', is_settlement_lag: false, settlement_days: 1 }])
+    setPaymentMappings([...paymentMappings, { outlet_id: null, payment_method: '', coa_id: '', is_settlement_lag: false, settlement_days: 1, is_pos_visible: true }])
   }
 
   const removePaymentMapping = (idx: number) => {
@@ -472,7 +474,7 @@ export default function PosMappingSettingsPage() {
               <div>
                 <CardTitle className="text-zinc-100">POS Payment Method to COA Mappings</CardTitle>
                 <CardDescription className="text-zinc-400">
-                  Map POS payment methods (e.g. Cash, Card, GoPay, OVO) to Kas/Bank or Receivables accounts. Define clearing delay rules if applicable.
+                  Map POS payment methods (e.g. Cash, Card, GoPay, OVO) to Kas/Bank or Receivables accounts. Define clearing delay rules if applicable, and toggle which methods actually appear as tender buttons at the POS terminal.
                 </CardDescription>
               </div>
               <div className="flex gap-2">
@@ -494,6 +496,7 @@ export default function PosMappingSettingsPage() {
                     <TableHead className="text-zinc-400">Clearing/Target Account (Debit)</TableHead>
                     <TableHead className="text-zinc-400 w-[130px]">Settlement Delay</TableHead>
                     <TableHead className="text-zinc-400 w-[140px]">Delay (Days)</TableHead>
+                    <TableHead className="text-zinc-400 w-[130px]">Tampil di POS</TableHead>
                     <TableHead className="w-[50px]"></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -570,12 +573,26 @@ export default function PosMappingSettingsPage() {
                         />
                       </TableCell>
 
+                      {/* POS Visibility Toggle */}
+                      <TableCell>
+                        <div className="flex items-center space-x-2">
+                          <Switch
+                            checked={mapping.is_pos_visible}
+                            onCheckedChange={(val) => updatePaymentMapping(idx, 'is_pos_visible', val)}
+                            className="data-[state=checked]:bg-indigo-500"
+                          />
+                          <Badge variant="outline" className={mapping.is_pos_visible ? "border-indigo-500/30 text-indigo-400 bg-indigo-500/5 text-[10px]" : "border-zinc-800 text-zinc-500 text-[10px]"}>
+                            {mapping.is_pos_visible ? 'Tampil' : 'Sembunyi'}
+                          </Badge>
+                        </div>
+                      </TableCell>
+
                       {/* Remove Row */}
                       <TableCell>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="text-zinc-500 hover:text-red-400 hover:bg-zinc-800/50" 
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-zinc-500 hover:text-red-400 hover:bg-zinc-800/50"
                           onClick={() => removePaymentMapping(idx)}
                         >
                           <Trash2 className="h-4 w-4" />
@@ -585,7 +602,7 @@ export default function PosMappingSettingsPage() {
                   ))}
                   {paymentMappings.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center text-zinc-500 py-10">
+                      <TableCell colSpan={7} className="text-center text-zinc-500 py-10">
                         <CreditCard className="h-8 w-8 mx-auto mb-2 opacity-20" />
                         No payment method mappings configured. Add a row to get started.
                       </TableCell>
