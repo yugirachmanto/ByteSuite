@@ -7,7 +7,7 @@ import { useOutlet } from '@/lib/contexts/outlet-context'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Plus, Minus, Search, Trash2, CreditCard, Loader2, ShoppingCart, Ban, CheckCircle2, Printer, Monitor, Clock, LogOut, Wallet, ChevronUp, RefreshCw, FileText, Mail, MessageCircle } from 'lucide-react'
+import { Plus, Minus, Search, Trash2, CreditCard, Loader2, ShoppingCart, Ban, CheckCircle2, Printer, Monitor, Clock, LogOut, Wallet, ChevronUp, RefreshCw, FileText, Mail, MessageCircle, Maximize, Minimize } from 'lucide-react'
 import { formatRp } from '@/lib/format'
 import { toast } from 'sonner'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
@@ -112,6 +112,17 @@ export default function POSPage() {
   const [sendWaPhone, setSendWaPhone] = useState('')
   const [sendingWa, setSendingWa] = useState(false)
   const receiptImageRef = useRef<HTMLDivElement>(null)
+
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  useEffect(() => {
+    const onChange = () => setIsFullscreen(!!document.fullscreenElement)
+    document.addEventListener('fullscreenchange', onChange)
+    return () => document.removeEventListener('fullscreenchange', onChange)
+  }, [])
+  const toggleFullscreen = () => {
+    if (document.fullscreenElement) document.exitFullscreen()
+    else document.documentElement.requestFullscreen().catch(() => toast.error('Layar penuh tidak didukung di browser ini'))
+  }
 
   useEffect(() => {
     getCurrentUserRole(supabase).then((role) => setCanDiscount(canAccess(role, DISCOUNT_ROLES)))
@@ -887,59 +898,76 @@ export default function POSPage() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-8rem)] -mt-2">
-      <div className="flex flex-col gap-3 mb-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-zinc-100">Point of Sale</h2>
-          <p className="text-sm text-zinc-400 hidden sm:block">Process retail transactions</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {offlineQueueSync.pendingCount > 0 && (
-            <div className="flex items-center gap-1.5 text-xs text-amber-400 bg-zinc-900 border border-zinc-800 rounded-md px-3 h-9">
-              <RefreshCw className={`h-3.5 w-3.5 shrink-0 ${offlineQueueSync.isSyncing ? 'animate-spin' : ''}`} />
-              <span className="whitespace-nowrap">{offlineQueueSync.pendingCount} pending sync</span>
-            </div>
-          )}
+    <div className="flex flex-col h-[calc(100dvh-4rem)]">
+      <div className="flex items-center gap-1.5 mb-2">
+        {offlineQueueSync.pendingCount > 0 && (
+          <div className="flex items-center gap-1.5 text-xs text-amber-400 bg-zinc-900 border border-zinc-800 rounded-md px-2 h-9">
+            <RefreshCw className={`h-3.5 w-3.5 shrink-0 ${offlineQueueSync.isSyncing ? 'animate-spin' : ''}`} />
+            <span className="whitespace-nowrap">{offlineQueueSync.pendingCount} pending</span>
+          </div>
+        )}
+        {shift && (
+          <div
+            className="flex items-center gap-1.5 text-xs text-zinc-400 bg-zinc-900 border border-zinc-800 rounded-md px-2 h-9 mr-auto"
+            title={`Modal awal ${formatRp(shift.opening_float)}`}
+          >
+            <Clock className="h-3.5 w-3.5 text-indigo-400 shrink-0" />
+            <span className="whitespace-nowrap">Shift {format(new Date(shift.opened_at), 'HH:mm')}</span>
+          </div>
+        )}
+        <div className="flex items-center gap-1.5 ml-auto">
           {shift && (
             <>
-              <div className="flex items-center gap-1.5 text-xs text-zinc-400 bg-zinc-900 border border-zinc-800 rounded-md px-3 h-9">
-                <Clock className="h-3.5 w-3.5 text-indigo-400 shrink-0" />
-                <span className="whitespace-nowrap">Shift since {format(new Date(shift.opened_at), 'HH:mm')} · {formatRp(shift.opening_float)}</span>
-              </div>
               <Button
                 variant="outline"
-                size="sm"
-                className="border-zinc-800 bg-zinc-900 text-zinc-300 hover:bg-zinc-800"
+                size="icon"
+                title="Preview Laporan"
+                aria-label="Preview Laporan"
+                className="h-9 w-9 border-zinc-800 bg-zinc-900 text-zinc-300 hover:bg-zinc-800"
                 onClick={() => window.open(`/pos/shift-report/${shift.id}`, '_blank')}
               >
-                <FileText className="mr-2 h-4 w-4" /> Preview Laporan
+                <FileText className="h-4 w-4" />
               </Button>
               <Button
                 variant="outline"
-                size="sm"
-                className="border-zinc-800 bg-zinc-900 text-zinc-300 hover:bg-zinc-800"
+                size="icon"
+                title="Close Shift"
+                aria-label="Close Shift"
+                className="h-9 w-9 border-zinc-800 bg-zinc-900 text-zinc-300 hover:bg-zinc-800"
                 onClick={openCloseShiftDialog}
               >
-                <LogOut className="mr-2 h-4 w-4" /> Close Shift
+                <LogOut className="h-4 w-4" />
               </Button>
             </>
           )}
           <Button
             variant="outline"
-            size="sm"
-            className="border-zinc-800 bg-zinc-900 text-zinc-300 hover:bg-zinc-800"
+            size="icon"
+            title="Customer Display"
+            aria-label="Customer Display"
+            className="h-9 w-9 border-zinc-800 bg-zinc-900 text-zinc-300 hover:bg-zinc-800"
             onClick={openCustomerDisplay}
             disabled={!selectedOutletId}
           >
-            <Monitor className="mr-2 h-4 w-4" /> <span className="hidden sm:inline">Open </span>Customer Display
+            <Monitor className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            title={isFullscreen ? 'Keluar Layar Penuh' : 'Layar Penuh'}
+            aria-label="Layar Penuh"
+            className="h-9 w-9 border-zinc-800 bg-zinc-900 text-zinc-300 hover:bg-zinc-800"
+            onClick={toggleFullscreen}
+          >
+            {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
           </Button>
         </div>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-6 h-full flex-1 min-h-0">
+      <div className="flex flex-col lg:flex-row gap-3 h-full flex-1 min-h-0">
         {/* Product Grid */}
         <div className="flex-1 flex flex-col min-h-0 bg-zinc-900/50 border border-zinc-800 rounded-xl overflow-hidden">
-          <div className="p-4 border-b border-zinc-800 space-y-4">
+          <div className="p-3 border-b border-zinc-800 space-y-2">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
               <Input 
