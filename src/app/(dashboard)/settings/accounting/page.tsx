@@ -23,7 +23,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
-import { Loader2, Plus, Trash2, Save, Upload, QrCode, X, Building2 } from 'lucide-react'
+import { Loader2, Plus, Trash2, Save, Upload, QrCode, X, Building2, ImageIcon } from 'lucide-react'
 import { toast } from 'sonner'
 
 interface CoaAccount {
@@ -76,6 +76,8 @@ export default function AccountingSettingsPage() {
   const [posTaxRate, setPosTaxRate] = useState<number>(0)
   const [qrisImageUrl, setQrisImageUrl] = useState('')
   const [uploadingQris, setUploadingQris] = useState(false)
+  const [receiptLogoUrl, setReceiptLogoUrl] = useState('')
+  const [uploadingLogo, setUploadingLogo] = useState(false)
   const [bankName, setBankName] = useState('')
   const [bankAccountNumber, setBankAccountNumber] = useState('')
   const [bankAccountHolder, setBankAccountHolder] = useState('')
@@ -99,16 +101,17 @@ export default function AccountingSettingsPage() {
         // Fetch org settings (POS tax rate)
         const { data: orgData } = await supabase
           .from('organizations')
-          .select('pos_tax_rate, qris_image_url, bank_name, bank_account_number, bank_account_holder')
+          .select('pos_tax_rate, qris_image_url, bank_name, bank_account_number, bank_account_holder, receipt_logo_url')
           .eq('id', currentOrgId)
           .single()
-        
+
         if (orgData) {
           setPosTaxRate(orgData.pos_tax_rate || 0)
           setQrisImageUrl(orgData.qris_image_url || '')
           setBankName(orgData.bank_name || '')
           setBankAccountNumber(orgData.bank_account_number || '')
           setBankAccountHolder(orgData.bank_account_holder || '')
+          setReceiptLogoUrl(orgData.receipt_logo_url || '')
         }
 
         // Fetch COA
@@ -172,7 +175,8 @@ export default function AccountingSettingsPage() {
           qris_image_url: qrisImageUrl || null,
           bank_name: bankName || null,
           bank_account_number: bankAccountNumber || null,
-          bank_account_holder: bankAccountHolder || null
+          bank_account_holder: bankAccountHolder || null,
+          receipt_logo_url: receiptLogoUrl || null
         })
         .eq('id', orgId)
       if (orgError) throw new Error(`Organization settings: ${orgError.message}`)
@@ -269,6 +273,62 @@ export default function AccountingSettingsPage() {
               value={posTaxRate}
               onChange={(e) => setPosTaxRate(parseFloat(e.target.value) || 0)}
             />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start border-b border-zinc-800/50 pb-4">
+            <div>
+              <Label className="text-zinc-200 flex items-center gap-2">
+                <ImageIcon className="h-4 w-4" /> Receipt Logo
+              </Label>
+              <p className="text-xs text-zinc-500 mt-1">Shown at the top of printed, emailed, and WhatsApp-shared receipts.</p>
+            </div>
+            <div className="space-y-3">
+              {receiptLogoUrl ? (
+                <div className="relative group">
+                  <div className="bg-white p-3 rounded-lg w-fit">
+                    <img src={receiptLogoUrl} alt="Receipt Logo" className="h-16 w-auto max-w-[160px] object-contain" />
+                  </div>
+                  <button
+                    onClick={() => setReceiptLogoUrl('')}
+                    className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ) : null}
+              <label className="flex items-center gap-2 bg-zinc-950 border border-zinc-800 hover:border-zinc-600 rounded-lg px-4 py-2.5 cursor-pointer transition-colors w-fit">
+                {uploadingLogo ? <Loader2 className="h-4 w-4 animate-spin text-zinc-400" /> : <Upload className="h-4 w-4 text-zinc-400" />}
+                <span className="text-sm text-zinc-300">{receiptLogoUrl ? 'Replace Logo' : 'Upload Logo'}</span>
+                <input
+                  type="file"
+                  className="hidden"
+                  accept="image/*"
+                  disabled={uploadingLogo}
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0]
+                    if (!file) return
+                    setUploadingLogo(true)
+                    try {
+                      const fileExt = file.name.split('.').pop()
+                      const fileName = `receipt-logo-${orgId}-${Date.now()}.${fileExt}`
+                      const { error: uploadError } = await supabase.storage
+                        .from('product-images')
+                        .upload(fileName, file)
+                      if (uploadError) throw uploadError
+                      const { data: { publicUrl } } = supabase.storage
+                        .from('product-images')
+                        .getPublicUrl(fileName)
+                      setReceiptLogoUrl(publicUrl)
+                      toast.success('Logo uploaded. Click Save Settings to apply.')
+                    } catch (err: any) {
+                      toast.error(err.message || 'Failed to upload logo')
+                    } finally {
+                      setUploadingLogo(false)
+                    }
+                  }}
+                />
+              </label>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start border-b border-zinc-800/50 pb-4">

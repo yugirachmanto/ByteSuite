@@ -11,6 +11,7 @@ export interface ReceiptOrg {
   bank_name: string | null
   bank_account_number: string | null
   bank_account_holder: string | null
+  receipt_logo_url?: string | null
 }
 
 export interface ReceiptOutlet {
@@ -88,6 +89,10 @@ export function ReceiptLayout({ order, lines, payments, org, outlet, paperWidth,
         )}
 
         <div className="text-center mb-2">
+          {org.receipt_logo_url && (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img src={org.receipt_logo_url} alt={org.name} className="mx-auto mb-1.5" style={{ maxHeight: '14mm', maxWidth: '70%', objectFit: 'contain' }} crossOrigin="anonymous" />
+          )}
           <p className="font-bold text-[1.15em] leading-tight">{org.name}</p>
           {outlet.address || org.address ? (
             <p className="leading-tight whitespace-pre-line">{outlet.address || org.address}</p>
