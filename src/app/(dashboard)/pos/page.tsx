@@ -650,19 +650,15 @@ export default function POSPage() {
     // wa.me needs digits only, country code first, no leading +/0.
     const normalizedPhone = phone.startsWith('+') ? phone.slice(1) : phone.startsWith('0') ? `62${phone.slice(1)}` : phone
 
-    const itemLines = receiptLines.map((l) => `${l.qty}x ${l.name} - ${formatRp(l.subtotal)}`).join('\n')
     const message = [
-      `*${receiptOrg.name}*`,
-      receiptOutlet?.name || '',
-      `Order #${receiptOrder.id.slice(0, 8).toUpperCase()} - ${format(new Date(receiptOrder.created_at), 'dd/MM/yyyy HH:mm')}`,
+      'Halo kak 👋',
+      `Terima kasih sudah berkunjung ke *${receiptOutlet?.name || receiptOrg.name}* ☕`,
+      `Berikut struk pembelian kakak (Order #${receiptOrder.id.slice(0, 8).toUpperCase()}).`,
       '',
-      itemLines,
+      `Total: *${formatRp(receiptOrder.total_amount)}*`,
       '',
-      `*TOTAL: ${formatRp(receiptOrder.total_amount)}*`,
-      `Dibayar via ${receiptOrder.payment_method}`,
-      '',
-      'Terima kasih atas kunjungan Anda!',
-    ].filter(Boolean).join('\n')
+      'Ditunggu kedatangannya kembali! 🙏',
+    ].join('\n')
 
     // Copy the number first, while still inside the tap (clipboard needs a
     // user gesture): the share sheet can't pre-target a contact, so the
