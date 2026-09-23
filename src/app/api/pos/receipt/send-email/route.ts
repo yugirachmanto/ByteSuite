@@ -12,10 +12,11 @@ function buildReceiptHtml(params: {
   lines: { name: string; qty: number; unit_price: number; subtotal: number }[]
   totalAmount: number
   taxAmount: number
+  roundingAmount?: number
   paymentMethod: string
   logoUrl?: string | null
 }) {
-  const { orgName, outletName, orderId, createdAt, lines, totalAmount, taxAmount, paymentMethod, logoUrl } = params
+  const { orgName, outletName, orderId, createdAt, lines, totalAmount, taxAmount, paymentMethod, logoUrl, roundingAmount } = params
   const rows = lines.map((l) => `
     <tr>
       <td style="padding:4px 0;">${l.name}<br><span style="color:#71717a;font-size:12px;">${l.qty} x ${formatRp(l.unit_price)}</span></td>
@@ -37,6 +38,7 @@ function buildReceiptHtml(params: {
     <table style="width:100%;border-collapse:collapse;">${rows}</table>
     <hr style="border:none;border-top:1px dashed #a1a1aa;margin:8px 0;" />
     ${taxAmount > 0 ? `<p style="display:flex;justify-content:space-between;margin:2px 0;">Pajak: ${formatRp(taxAmount)}</p>` : ''}
+    ${roundingAmount && roundingAmount > 0 ? `<p style="display:flex;justify-content:space-between;margin:2px 0;">Pembulatan: ${formatRp(roundingAmount)}</p>` : ''}
     <p style="font-weight:bold;font-size:16px;margin:6px 0;">TOTAL: ${formatRp(totalAmount)}</p>
     <p style="margin:2px 0;color:#52525b;">Dibayar via ${paymentMethod}</p>
     <hr style="border:none;border-top:1px dashed #a1a1aa;margin:8px 0;" />
@@ -73,7 +75,7 @@ export async function POST(request: Request) {
 
     const { data: order } = await supabase
       .from('pos_orders')
-      .select('id, created_at, payment_method, tax_amount, total_amount, org_id, outlet_id')
+      .select('id, created_at, payment_method, tax_amount, rounding_amount, total_amount, org_id, outlet_id')
       .eq('id', order_id)
       .eq('org_id', profile.org_id)
       .single()
@@ -103,6 +105,7 @@ export async function POST(request: Request) {
       lines,
       totalAmount: order.total_amount,
       taxAmount: order.tax_amount,
+      roundingAmount: order.rounding_amount,
       paymentMethod: order.payment_method,
       logoUrl: orgRes.data?.receipt_logo_url,
     })

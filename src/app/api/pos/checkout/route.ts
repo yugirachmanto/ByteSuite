@@ -33,7 +33,7 @@ export async function POST(request: Request) {
 
     const { data: org } = await supabase
       .from('organizations')
-      .select('pos_enabled, pos_tax_rate')
+      .select('pos_enabled, pos_tax_rate, pos_rounding_step')
       .eq('id', profile.org_id)
       .single()
 
@@ -171,7 +171,12 @@ export async function POST(request: Request) {
 
     const taxRate = org?.pos_tax_rate || 0
     const tax_amount = Math.round(subtotal * (taxRate / 100))
-    const total_amount = subtotal + tax_amount
+    // Always rounds UP to the org's step (0 = off); the difference is stored
+    // separately so it can be shown on the receipt and journaled on its own.
+    const roundingStep = org?.pos_rounding_step || 0
+    const preRoundTotal = subtotal + tax_amount
+    const rounding_amount = roundingStep > 0 ? Math.ceil(preRoundTotal / roundingStep) * roundingStep - preRoundTotal : 0
+    const total_amount = preRoundTotal + rounding_amount
 
     const tendersSum = tenders.reduce((sum: number, t: any) => sum + t.amount, 0)
     if (tendersSum !== total_amount) {
@@ -202,7 +207,8 @@ export async function POST(request: Request) {
       p_order_discount_type: orderDiscountType,
       p_order_discount_value: orderDiscountValue,
       p_order_discount_amount: orderDiscountAmount,
-      p_payment_summary: paymentSummary
+      p_payment_summary: paymentSummary,
+      p_rounding_amount: rounding_amount
     })
 
     if (rpcError) {

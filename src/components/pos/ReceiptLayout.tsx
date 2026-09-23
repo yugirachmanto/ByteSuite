@@ -43,6 +43,7 @@ export interface ReceiptOrderData {
   payment_method: string
   subtotal: number
   tax_amount: number
+  rounding_amount?: number
   total_amount: number
   discount_amount: number
   cashier_name: string | null
@@ -136,6 +137,7 @@ export function ReceiptLayout({ order, lines, payments, org, outlet, paperWidth,
           <Row label="Subtotal" value={formatRp(grossSubtotal)} />
           {totalDiscount > 0 && <Row label="Diskon" value={`-${formatRp(totalDiscount)}`} />}
           {order.tax_amount > 0 && <Row label="Pajak" value={formatRp(order.tax_amount)} />}
+          {(order.rounding_amount ?? 0) > 0 && <Row label="Pembulatan" value={formatRp(order.rounding_amount!)} />}
           <div className="flex justify-between font-bold text-[1.1em] pt-1">
             <span>TOTAL</span>
             <span>{formatRp(order.total_amount)}</span>

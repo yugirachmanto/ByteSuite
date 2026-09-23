@@ -77,6 +77,7 @@ export default function POSPage() {
   const [lastOrderTotal, setLastOrderTotal] = useState<number | null>(null)
   const [lastOrderChange, setLastOrderChange] = useState<number>(0)
   const [taxRate, setTaxRate] = useState(0)
+  const [roundingStep, setRoundingStep] = useState(0)
   const [qrisImageUrl, setQrisImageUrl] = useState('')
   const [bankInfo, setBankInfo] = useState({ bankName: '', bankAccountNumber: '', bankAccountHolder: '' })
   const [posEnabled, setPosEnabled] = useState(true)
@@ -136,8 +137,11 @@ export default function POSPage() {
   const orderDiscountAmount = computeDiscountAmount(orderDiscountType, orderDiscountValue, preOrderDiscountSubtotal)
   const discountTotal = lineDiscountTotal + orderDiscountAmount
   const subtotal = preOrderDiscountSubtotal - orderDiscountAmount
-  const tax = subtotal * (taxRate / 100)
-  const total = subtotal + tax
+  const tax = Math.round(subtotal * (taxRate / 100))
+  // Mirrors /api/pos/checkout: always rounded up to the org's step.
+  const preRoundTotal = subtotal + tax
+  const roundingAmount = roundingStep > 0 ? Math.ceil(preRoundTotal / roundingStep) * roundingStep - preRoundTotal : 0
+  const total = preRoundTotal + roundingAmount
 
   // Non-cash tenders are entered as an exact amount charged. At most one
   // Cash tender is expected — it auto-fills to whatever remains after the
@@ -345,12 +349,13 @@ export default function POSPage() {
         if (profile?.org_id) {
           const { data: orgData, error: orgErr } = await supabase
             .from('organizations')
-            .select('pos_tax_rate, qris_image_url, bank_name, bank_account_number, bank_account_holder, pos_enabled')
+            .select('pos_tax_rate, qris_image_url, bank_name, bank_account_number, bank_account_holder, pos_enabled, pos_rounding_step')
             .eq('id', profile.org_id)
             .single()
 
           if (orgData) {
             setTaxRate(orgData.pos_tax_rate || 0)
+            setRoundingStep(orgData.pos_rounding_step || 0)
             setQrisImageUrl(orgData.qris_image_url || '')
             setBankInfo({
               bankName: orgData.bank_name || '',
@@ -545,7 +550,7 @@ export default function POSPage() {
     try {
       const { data: orderData } = await supabase
         .from('pos_orders')
-        .select('id, created_at, payment_method, subtotal, tax_amount, total_amount, discount_amount, org_id, outlet_id, cashier_id')
+        .select('id, created_at, payment_method, subtotal, tax_amount, rounding_amount, total_amount, discount_amount, org_id, outlet_id, cashier_id')
         .eq('id', orderId)
         .single()
 
@@ -567,6 +572,7 @@ export default function POSPage() {
         payment_method: orderData.payment_method,
         subtotal: orderData.subtotal,
         tax_amount: orderData.tax_amount,
+        rounding_amount: orderData.rounding_amount || 0,
         total_amount: orderData.total_amount,
         discount_amount: orderData.discount_amount || 0,
         cashier_name: cashierRes.data?.full_name || null,
@@ -831,6 +837,12 @@ export default function POSPage() {
             <span>Tax</span>
             <span>{formatRp(tax)}</span>
           </div>
+          {roundingAmount > 0 && (
+            <div className="flex justify-between text-sm text-zinc-400">
+              <span>Pembulatan</span>
+              <span>{formatRp(roundingAmount)}</span>
+            </div>
+          )}
           <div className="flex justify-between text-lg font-bold text-zinc-100 pt-2 border-t border-zinc-800">
             <span>Total</span>
             <span className="text-indigo-400">{formatRp(total)}</span>
