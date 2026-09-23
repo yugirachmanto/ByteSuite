@@ -52,7 +52,7 @@ const SYSTEM_ROLES: { value: string; label: string; typeFilter: CoaType | CoaTyp
   { value: 'accounts_payable', label: 'Accounts Payable', typeFilter: 'liability' },
   { value: 'accounts_receivable', label: 'Accounts Receivable', typeFilter: 'asset' },
   { value: 'ppn_masukan', label: 'PPN Masukan (Input Tax)', typeFilter: 'asset' },
-  { value: 'ppn_keluaran', label: 'PPN Keluaran (Output Tax)', typeFilter: 'liability' },
+  { value: 'ppn_keluaran', label: 'PPN Keluaran (Output Tax)', typeFilter: ['liability', 'income'] },
   { value: 'freight_expense', label: 'Freight/Transport Expense', typeFilter: 'expense' },
   { value: 'gr_ir_clearing', label: 'GR/IR Clearing (Goods Received Not Invoiced)', typeFilter: 'liability' },
   { value: 'pph23_payable', label: 'PPH 23 Payable', typeFilter: 'liability' },
