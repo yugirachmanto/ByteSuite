@@ -129,6 +129,9 @@ export async function POST(request: Request) {
       attachment,
     })
 
+    // Best-effort: save the recipient to the customer list; never fail the send over it.
+    await supabase.rpc('record_receipt_contact', { p_email: to_email.trim() }).then(() => {}, () => {})
+
     return NextResponse.json({ success: true, messageId: result.messageId })
 
   } catch (error: any) {

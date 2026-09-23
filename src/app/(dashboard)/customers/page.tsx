@@ -13,7 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Plus, Search, Users, ChevronRight, Loader2 } from 'lucide-react'
+import { Plus, Search, Users, ChevronRight, Loader2, Download } from 'lucide-react'
 
 export default function CustomersPage() {
   const [customers, setCustomers] = useState<any[]>([])
@@ -51,8 +51,29 @@ export default function CustomersPage() {
 
   const filteredCustomers = customers.filter(c =>
     c.name.toLowerCase().includes(search.toLowerCase()) ||
-    (c.email && c.email.toLowerCase().includes(search.toLowerCase()))
+    (c.email && c.email.toLowerCase().includes(search.toLowerCase())) ||
+    (c.phone && c.phone.includes(search))
   )
+
+  const handleExportCsv = () => {
+    const header = ['Nama', 'Email', 'Telepon', 'Alamat', 'Sumber', 'Struk Terakhir Dikirim', 'Dibuat']
+    const cell = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`
+    const rows = filteredCustomers.map(c => [
+      c.name, c.email, c.phone, c.address,
+      c.source === 'pos_receipt' ? 'POS Receipt' : 'Manual',
+      c.last_receipt_at ? new Date(c.last_receipt_at).toLocaleString('id-ID') : '',
+      c.created_at ? new Date(c.created_at).toLocaleString('id-ID') : '',
+    ])
+    const csv = '﻿' + [header, ...rows].map(r => r.map(cell).join(',')).join('\r\n')
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `customers-${new Date().toISOString().slice(0, 10)}.csv`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
 
   return (
     <div className="space-y-6">
@@ -61,10 +82,16 @@ export default function CustomersPage() {
           <h2 className="text-2xl font-bold tracking-tight text-zinc-100">Customers</h2>
           <p className="text-sm text-zinc-400">Manage your customers and their credit terms.</p>
         </div>
-        <Button onClick={() => router.push('/customers/new')} className="bg-zinc-100 text-zinc-900 hover:bg-zinc-200">
-          <Plus className="mr-2 h-4 w-4" />
-          Add Customer
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handleExportCsv} disabled={filteredCustomers.length === 0} className="border-zinc-800 text-zinc-300 hover:bg-zinc-800">
+            <Download className="mr-2 h-4 w-4" />
+            Export CSV
+          </Button>
+          <Button onClick={() => router.push('/customers/new')} className="bg-zinc-100 text-zinc-900 hover:bg-zinc-200">
+            <Plus className="mr-2 h-4 w-4" />
+            Add Customer
+          </Button>
+        </div>
       </div>
 
       <div className="flex items-center space-x-2">
@@ -113,6 +140,9 @@ export default function CustomersPage() {
                 >
                   <TableCell className="font-medium text-zinc-200">
                     {customer.name}
+                    {customer.source === 'pos_receipt' && (
+                      <span className="ml-2 rounded bg-indigo-500/10 px-1.5 py-0.5 text-[10px] font-medium text-indigo-400">POS</span>
+                    )}
                   </TableCell>
                   <TableCell>
                     <div className="text-sm text-zinc-300">{customer.email || '-'}</div>

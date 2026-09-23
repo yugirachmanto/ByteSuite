@@ -658,6 +658,12 @@ export default function POSPage() {
       'Terima kasih atas kunjungan Anda!',
     ].filter(Boolean).join('\n')
 
+    // Copy the number first, while still inside the tap (clipboard needs a
+    // user gesture): the share sheet can't pre-target a contact, so the
+    // cashier just pastes it into WhatsApp's recipient search.
+    const copied = await navigator.clipboard?.writeText(`+${normalizedPhone}`).then(() => true, () => false)
+    if (copied) toast.info(`Nomor +${normalizedPhone} disalin — paste di WhatsApp`)
+
     setSendingWa(true)
     try {
       const filename = `struk-${receiptOrder.id.slice(0, 8)}.png`
@@ -669,6 +675,9 @@ export default function POSPage() {
       // WhatsApp), and only fall back to the old pre-filled-number text
       // link when file sharing isn't available on this browser/device.
       const result = await shareReceiptImage(blob, filename, message)
+      if (result !== 'cancelled') {
+        supabase.rpc('record_receipt_contact', { p_phone: normalizedPhone }).then(() => {}, () => {})
+      }
       if (result === 'shared') {
         toast.success('Struk terkirim ke aplikasi share')
       } else if (result === 'cancelled') {

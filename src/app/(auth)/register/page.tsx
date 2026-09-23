@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 import { Loader2, Eye, EyeOff, MailCheck } from 'lucide-react'
 import Link from 'next/link'
+import { LogoMark } from '@/components/brand/LogoMark'
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
@@ -99,7 +100,7 @@ export default function RegisterPage() {
       <div className="flex min-h-screen items-center justify-center bg-background p-4">
         <div className="w-full max-w-[400px] space-y-8 text-center">
           <Link href="/" className="inline-block mb-6">
-            <span className="text-2xl font-bold tracking-tight">ByteSuite</span>
+            <span className="inline-flex items-center gap-2.5 text-2xl font-bold tracking-tight"><LogoMark className="h-9 w-9" />ByteSuite</span>
           </Link>
           
           <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-muted">
@@ -140,7 +141,7 @@ export default function RegisterPage() {
       <div className="w-full max-w-[480px] space-y-8">
         <div className="text-center space-y-2">
           <Link href="/" className="inline-block mb-6">
-            <span className="text-2xl font-bold tracking-tight">ByteSuite</span>
+            <span className="inline-flex items-center gap-2.5 text-2xl font-bold tracking-tight"><LogoMark className="h-9 w-9" />ByteSuite</span>
           </Link>
           <h1 className="text-3xl font-semibold tracking-tight">Create an account</h1>
           <p className="text-sm text-muted-foreground">Set up your organization and first outlet to get started</p>

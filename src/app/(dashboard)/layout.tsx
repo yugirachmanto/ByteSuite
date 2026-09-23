@@ -56,6 +56,7 @@ import {
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { ChatWidget } from '@/components/chat/ChatWidget'
+import { LogoMark } from '@/components/brand/LogoMark'
 
 const sidebarGroups = [
   {
@@ -287,9 +288,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       >
         <div className="flex h-16 items-center px-6">
           <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-zinc-100 text-zinc-900">
-              <span className="text-xl font-bold italic">B</span>
-            </div>
+            <LogoMark className="h-8 w-8 shrink-0" />
             {isSidebarOpen && (
               <span className="text-xl font-bold tracking-tight text-zinc-100">ByteSuite</span>
             )}
