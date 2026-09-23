@@ -218,10 +218,13 @@ export default function PosMappingSettingsPage() {
     if (!orgId) return
     setSaving(true)
     try {
-      // Basic validation
-      const invalid = paymentMappings.some(m => !m.payment_method.trim() || !m.coa_id)
+      // Basic validation — the COA account is optional: a method with no
+      // account mapped can still show up as a POS tender, it just won't
+      // post to the GL until an account is set (same "pending_mapping"
+      // gap-tolerant behavior already used elsewhere in POS).
+      const invalid = paymentMappings.some(m => !m.payment_method.trim())
       if (invalid) {
-        toast.error('Please specify both Payment Method and target Cash/AR Account for all rows')
+        toast.error('Please specify a Payment Method name for all rows')
         setSaving(false)
         return
       }
