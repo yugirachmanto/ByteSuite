@@ -873,7 +873,7 @@ export default function POSPage() {
             <div className="space-y-2">
               <label className="text-xs text-zinc-500 font-medium uppercase">Opening Cash Float</label>
               <Input
-                type="number"
+                type="number" inputMode="numeric"
                 value={openingFloat}
                 onChange={(e) => setOpeningFloat(e.target.value)}
                 placeholder="0"
@@ -1208,7 +1208,7 @@ export default function POSPage() {
                         <div className="space-y-1.5">
                           <label className="text-xs text-zinc-500">Tunai Diterima</label>
                           <Input
-                            type="number"
+                            type="number" inputMode="numeric"
                             min={0}
                             className="bg-zinc-900 border-zinc-800"
                             value={t.cashReceived || ''}
@@ -1225,7 +1225,7 @@ export default function POSPage() {
                         <div className="space-y-1.5">
                           <label className="text-xs text-zinc-500">Jumlah</label>
                           <Input
-                            type="number"
+                            type="number" inputMode="numeric"
                             min={0}
                             className="bg-zinc-900 border-zinc-800"
                             value={t.amount || ''}
@@ -1320,7 +1320,7 @@ export default function POSPage() {
             <div className="space-y-2">
               <label className="text-xs text-zinc-500 font-medium uppercase">Counted Cash</label>
               <Input
-                type="number"
+                type="number" inputMode="numeric"
                 value={countedCash}
                 onChange={(e) => setCountedCash(e.target.value)}
                 placeholder="0"
