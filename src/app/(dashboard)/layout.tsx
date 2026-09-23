@@ -471,7 +471,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     <OutletProvider>
       <DateWindowProvider>
         <DashboardShell>{children}</DashboardShell>
-        <div className="print:hidden"><ChatWidget /></div>
+        {/* ChatWidget temporarily disabled site-wide per user request — re-enable by uncommenting. */}
+        {/* <div className="print:hidden"><ChatWidget /></div> */}
       </DateWindowProvider>
     </OutletProvider>
   )

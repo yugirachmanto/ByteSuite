@@ -11,7 +11,6 @@ import { Plus, Minus, Search, Trash2, CreditCard, Loader2, ShoppingCart, Ban, Ch
 import { formatRp } from '@/lib/format'
 import { toast } from 'sonner'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { format } from 'date-fns'
 import { enqueue } from '@/lib/pos/offlineQueue'
@@ -380,8 +379,9 @@ export default function POSPage() {
 
         const { data: methods } = await supabase
           .from('pos_payment_method_mapping')
-          .select('payment_method')
+          .select('payment_method, is_pos_visible')
           .or(`outlet_id.eq.${selectedOutletId},outlet_id.is.null`)
+          .eq('is_pos_visible', true)
 
         if (methods && methods.length > 0) {
           setPaymentMethods(Array.from(new Set(methods.map(m => m.payment_method))))
@@ -1146,19 +1146,25 @@ export default function POSPage() {
                 <div className="space-y-3">
                   {tenders.map((t) => (
                     <div key={t.id} className="space-y-2 p-3 bg-zinc-950 rounded-lg border border-zinc-800">
-                      <div className="flex items-center gap-2">
-                        <Select value={t.method} onValueChange={(val: any) => updateTenderMethod(t.id, val || '')}>
-                          <SelectTrigger className="flex-1 bg-zinc-900 border-zinc-800 h-10">
-                            <SelectValue placeholder="Metode Pembayaran" />
-                          </SelectTrigger>
-                          <SelectContent className="bg-zinc-900 border-zinc-800">
-                            {paymentMethods
-                              .filter(method => !isCashMethod(method) || t.method === method || !tenders.some(other => other.id !== t.id && isCashMethod(other.method)))
-                              .map(method => (
-                                <SelectItem key={method} value={method}>{method}</SelectItem>
-                              ))}
-                          </SelectContent>
-                        </Select>
+                      <div className="flex items-start gap-2">
+                        <div className="flex-1 flex flex-wrap gap-1.5">
+                          {paymentMethods
+                            .filter(method => !isCashMethod(method) || t.method === method || !tenders.some(other => other.id !== t.id && isCashMethod(other.method)))
+                            .map(method => (
+                              <Button
+                                key={method}
+                                type="button"
+                                size="sm"
+                                variant={t.method === method ? 'default' : 'outline'}
+                                className={t.method === method
+                                  ? 'bg-indigo-600 hover:bg-indigo-700 text-white border-indigo-600'
+                                  : 'bg-zinc-900 border-zinc-800 text-zinc-300 hover:bg-zinc-800'}
+                                onClick={() => updateTenderMethod(t.id, method)}
+                              >
+                                {method}
+                              </Button>
+                            ))}
+                        </div>
                         {tenders.length > 1 && (
                           <Button variant="ghost" size="icon" className="h-9 w-9 text-rose-400 hover:text-rose-300 shrink-0" onClick={() => removeTenderRow(t.id)}>
                             <Trash2 className="h-4 w-4" />
