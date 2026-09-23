@@ -853,11 +853,7 @@ export default function POSPage() {
 
   if (!shiftLoading && !shift) {
     return (
-      <div className="flex flex-col h-[calc(100vh-8rem)] -mt-2">
-        <div className="mb-4">
-          <h2 className="text-2xl font-bold text-zinc-100">Point of Sale</h2>
-          <p className="text-sm text-zinc-400">Open a shift to start selling</p>
-        </div>
+      <div className="flex flex-col h-[calc(100dvh-4rem)]">
         <div className="flex-1 flex items-center justify-center">
           <div className="w-full max-w-sm bg-zinc-900 border border-zinc-800 rounded-xl p-6 space-y-5">
             <div className="text-center space-y-1">
