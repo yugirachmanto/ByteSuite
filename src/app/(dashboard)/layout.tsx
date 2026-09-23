@@ -415,7 +415,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col overflow-hidden print:overflow-visible print:block">
-        <header className="flex h-16 items-center border-b border-zinc-800 bg-zinc-900/50 px-4 md:px-8 backdrop-blur-sm print:hidden">
+        <header className={cn('flex items-center border-b border-zinc-800 bg-zinc-900/50 backdrop-blur-sm print:hidden', pathname === '/pos' ? 'h-12 px-2' : 'h-16 px-4 md:px-8')}>
           <Button
             variant="ghost"
             size="icon"
@@ -441,7 +441,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
               .find((i) => pathname === i.href || (i.href !== '/dashboard' && pathname?.startsWith(i.href)))
               ?.name || 'Dashboard'}
           </h1>
-          <div className="ml-auto flex items-center gap-2 pr-4 print:hidden">
+          <div className={cn('ml-auto flex items-center gap-2 pr-4 print:hidden', pathname === '/pos' && 'hidden')}>
             <DateWindowPicker />
             <Link href="/sop">
               <Button
@@ -455,7 +455,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
             </Link>
           </div>
         </header>
-        <div className="flex-1 overflow-auto bg-zinc-950 p-4 md:p-8 print:bg-white print:p-0 print:overflow-visible">
+        <div className={cn('flex-1 overflow-auto bg-zinc-950 print:bg-white print:p-0 print:overflow-visible', pathname === '/pos' ? 'p-2' : 'p-4 md:p-8')}>
           <div className="mx-auto max-w-7xl print:max-w-none">
             {isSuspendedAndBlocked ? <SuspendedBlock /> : (isAuthorized ? children : null)}
           </div>
