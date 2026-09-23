@@ -7,6 +7,7 @@ import { Button, buttonVariants } from '@/components/ui/button'
 import { Menu, X, Zap, BrainCircuit, Calculator, Package, CreditCard, ArrowRight } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { ShadowOverlay } from '@/components/ui/shadow-overlay'
+import { LogoMark } from '@/components/brand/LogoMark'
 
 const menuItems = [
     { name: 'Features', href: '#' },
@@ -210,9 +211,7 @@ export default function HeroSection() {
 export const Logo = ({ className }: { className?: string }) => {
     return (
         <div className={cn("flex items-center gap-2", className)}>
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-zinc-900 dark:bg-white">
-                <Zap className="h-4 w-4 text-white dark:text-zinc-900" />
-            </div>
+            <LogoMark className="h-8 w-8" />
             <span className="text-xl font-bold tracking-tight text-zinc-900 dark:text-white">ByteSuite</span>
         </div>
     )

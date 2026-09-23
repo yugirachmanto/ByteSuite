@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 import { Loader2, Eye, EyeOff } from 'lucide-react'
 import Link from 'next/link'
+import { LogoMark } from '@/components/brand/LogoMark'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -60,7 +61,7 @@ export default function LoginPage() {
       <div className="w-full max-w-[400px] space-y-8">
         <div className="text-center space-y-2">
           <Link href="/" className="inline-block mb-6">
-            <span className="text-2xl font-bold tracking-tight">ByteSuite</span>
+            <span className="inline-flex items-center gap-2.5 text-2xl font-bold tracking-tight"><LogoMark className="h-9 w-9" />ByteSuite</span>
           </Link>
           <h1 className="text-3xl font-semibold tracking-tight">Welcome back</h1>
           <p className="text-sm text-muted-foreground">Enter your credentials to access your account</p>
