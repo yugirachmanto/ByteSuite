@@ -13,8 +13,9 @@ function buildReceiptHtml(params: {
   totalAmount: number
   taxAmount: number
   paymentMethod: string
+  logoUrl?: string | null
 }) {
-  const { orgName, outletName, orderId, createdAt, lines, totalAmount, taxAmount, paymentMethod } = params
+  const { orgName, outletName, orderId, createdAt, lines, totalAmount, taxAmount, paymentMethod, logoUrl } = params
   const rows = lines.map((l) => `
     <tr>
       <td style="padding:4px 0;">${l.name}<br><span style="color:#71717a;font-size:12px;">${l.qty} x ${formatRp(l.unit_price)}</span></td>
@@ -25,6 +26,7 @@ function buildReceiptHtml(params: {
   return `
   <div style="font-family:monospace;max-width:380px;margin:0 auto;color:#18181b;">
     <div style="text-align:center;margin-bottom:12px;">
+      ${logoUrl ? `<img src="${logoUrl}" alt="${orgName}" style="max-height:48px;max-width:70%;object-fit:contain;margin-bottom:6px;" />` : ''}
       <p style="font-weight:bold;font-size:16px;margin:0;">${orgName}</p>
       <p style="margin:2px 0 0;color:#52525b;">${outletName}</p>
     </div>
@@ -63,7 +65,7 @@ export async function POST(request: Request) {
     }
 
     const payload = await request.json()
-    const { order_id, to_email } = payload
+    const { order_id, to_email, receipt_image_base64 } = payload
 
     if (!order_id || !to_email?.trim()) {
       return NextResponse.json({ error: 'Missing order_id or to_email' }, { status: 400 })
@@ -82,7 +84,7 @@ export async function POST(request: Request) {
 
     const [linesRes, orgRes, outletRes] = await Promise.all([
       supabase.from('pos_order_lines').select('qty, unit_price, subtotal, item_master(name)').eq('order_id', order_id),
-      supabase.from('organizations').select('name').eq('id', order.org_id).single(),
+      supabase.from('organizations').select('name, receipt_logo_url').eq('id', order.org_id).single(),
       supabase.from('outlets').select('name').eq('id', order.outlet_id).single(),
     ])
 
@@ -102,13 +104,29 @@ export async function POST(request: Request) {
       totalAmount: order.total_amount,
       taxAmount: order.tax_amount,
       paymentMethod: order.payment_method,
+      logoUrl: orgRes.data?.receipt_logo_url,
     })
+
+    // The receipt image is rasterized client-side (from the same DOM node
+    // shown in the preview) and passed here as base64 — this route has no
+    // browser/DOM to render one itself. Attaching it is optional: a client
+    // that can't produce one (or an older client) still gets the HTML body.
+    let attachment: { filename: string; data: Buffer; contentType: string } | undefined
+    if (typeof receipt_image_base64 === 'string' && receipt_image_base64.length > 0) {
+      const base64Data = receipt_image_base64.includes(',') ? receipt_image_base64.split(',')[1] : receipt_image_base64
+      attachment = {
+        filename: `struk-${order.id.slice(0, 8)}.png`,
+        data: Buffer.from(base64Data, 'base64'),
+        contentType: 'image/png',
+      }
+    }
 
     const result = await sendEmail({
       to: to_email.trim(),
       subject: `Struk Pembelian ${orgRes.data?.name || ''} — #${order.id.slice(0, 8).toUpperCase()}`,
       body: html,
       idempotencyKey: `receipt-${order.id}`,
+      attachment,
     })
 
     return NextResponse.json({ success: true, messageId: result.messageId })

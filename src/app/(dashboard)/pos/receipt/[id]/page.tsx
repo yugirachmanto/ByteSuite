@@ -18,6 +18,7 @@ import { format } from 'date-fns'
 import { ReceiptLayout, type ReceiptOrderData, type ReceiptLine, type ReceiptPayment, type ReceiptOrg, type ReceiptOutlet } from '@/components/pos/ReceiptLayout'
 import { getCurrentUserRole, canAccess } from '@/lib/auth/canAccess'
 import { formatRp } from '@/lib/format'
+import { captureElementAsPngBlob, downloadBlob, shareReceiptImage, blobToBase64 } from '@/lib/pos/receiptImage'
 
 const VOID_ROLES = ['owner', 'admin', 'cashier']
 
@@ -48,7 +49,9 @@ export default function POSReceiptPage({ params }: { params: Promise<{ id: strin
   const [sendEmailTo, setSendEmailTo] = useState('')
   const [sendingEmail, setSendingEmail] = useState(false)
   const [sendWaPhone, setSendWaPhone] = useState('')
+  const [sendingWa, setSendingWa] = useState(false)
   const hasAutoPrinted = useRef(false)
+  const receiptImageRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     getCurrentUserRole(supabase).then((role) => setCanVoid(canAccess(role, VOID_ROLES)))
@@ -67,7 +70,7 @@ export default function POSReceiptPage({ params }: { params: Promise<{ id: strin
     const [lineRes, paymentRes, orgRes, outletRes, cashierRes, voidedByRes] = await Promise.all([
       supabase.from('pos_order_lines').select('id, qty, unit_price, subtotal, discount_amount, item_master(name)').eq('order_id', orderId),
       supabase.from('pos_order_payments').select('id, payment_method, amount, cash_received, change_due, notes').eq('order_id', orderId),
-      supabase.from('organizations').select('name, address, npwp, receipt_paper_width, qris_image_url, bank_name, bank_account_number, bank_account_holder').eq('id', orderData.org_id).single(),
+      supabase.from('organizations').select('name, address, npwp, receipt_paper_width, qris_image_url, bank_name, bank_account_number, bank_account_holder, receipt_logo_url').eq('id', orderData.org_id).single(),
       supabase.from('outlets').select('name, address').eq('id', orderData.outlet_id).single(),
       orderData.cashier_id
         ? supabase.from('user_profiles').select('full_name').eq('id', orderData.cashier_id).single()
@@ -164,10 +167,22 @@ export default function POSReceiptPage({ params }: { params: Promise<{ id: strin
     }
     setSendingEmail(true)
     try {
+      // Best-effort: attach a rasterized copy alongside the HTML body. A
+      // capture failure shouldn't block the (already-working) HTML-only send.
+      let receiptImageBase64: string | undefined
+      if (receiptImageRef.current) {
+        try {
+          const blob = await captureElementAsPngBlob(receiptImageRef.current)
+          receiptImageBase64 = await blobToBase64(blob)
+        } catch {
+          // fall through and send without the attachment
+        }
+      }
+
       const res = await fetch('/api/pos/receipt/send-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ order_id: orderId, to_email: email }),
+        body: JSON.stringify({ order_id: orderId, to_email: email, receipt_image_base64: receiptImageBase64 }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to send receipt')
@@ -180,13 +195,13 @@ export default function POSReceiptPage({ params }: { params: Promise<{ id: strin
     }
   }
 
-  const handleSendWhatsApp = () => {
+  const handleSendWhatsApp = async () => {
     const phone = sendWaPhone.trim().replace(/[^\d+]/g, '')
     if (!phone) {
       toast.error('Enter a customer WhatsApp number')
       return
     }
-    if (!order || !org) return
+    if (!order || !org || !receiptImageRef.current) return
     // wa.me needs digits only, country code first, no leading +/0.
     const normalizedPhone = phone.startsWith('+') ? phone.slice(1) : phone.startsWith('0') ? `62${phone.slice(1)}` : phone
 
@@ -204,7 +219,30 @@ export default function POSReceiptPage({ params }: { params: Promise<{ id: strin
       'Terima kasih atas kunjungan Anda!',
     ].filter(Boolean).join('\n')
 
-    window.open(`https://wa.me/${normalizedPhone}?text=${encodeURIComponent(message)}`, '_blank')
+    setSendingWa(true)
+    try {
+      const filename = `struk-${order.id.slice(0, 8)}.png`
+      const blob = await captureElementAsPngBlob(receiptImageRef.current)
+      // See src/lib/pos/receiptImage.ts — a website can never both attach a
+      // file AND pre-target a specific WhatsApp contact, only plain text via
+      // wa.me can pre-target. So: try sharing the image (recipient picked
+      // manually inside WhatsApp), falling back to the old pre-filled-number
+      // text link when file sharing isn't available on this browser/device.
+      const result = await shareReceiptImage(blob, filename, message)
+      if (result === 'shared') {
+        toast.success('Struk terkirim ke aplikasi share')
+      } else if (result === 'cancelled') {
+        // user backed out of the share sheet — no toast needed
+      } else {
+        downloadBlob(blob, filename)
+        window.open(`https://wa.me/${normalizedPhone}?text=${encodeURIComponent(message)}`, '_blank')
+        toast.info('Gambar struk diunduh — lampirkan manual di WhatsApp (perangkat ini belum mendukung share gambar otomatis)')
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to prepare receipt image')
+    } finally {
+      setSendingWa(false)
+    }
   }
 
   if (loading) {
@@ -298,9 +336,10 @@ export default function POSReceiptPage({ params }: { params: Promise<{ id: strin
               />
               <Button
                 onClick={handleSendWhatsApp}
+                disabled={sendingWa}
                 className="bg-emerald-600 text-white hover:bg-emerald-700 shrink-0"
               >
-                <MessageCircle className="h-4 w-4" />
+                {sendingWa ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
               </Button>
             </div>
           </div>
@@ -308,7 +347,9 @@ export default function POSReceiptPage({ params }: { params: Promise<{ id: strin
       </div>
 
       <div className="mx-auto max-w-sm bg-zinc-900 border border-zinc-800 rounded-lg p-4 print:p-0 print:border-0 print:bg-transparent print:shadow-none">
-        <ReceiptLayout order={order} lines={lines} payments={payments} org={org} outlet={outlet} paperWidth={paperWidth} voided={isVoided} />
+        <div ref={receiptImageRef}>
+          <ReceiptLayout order={order} lines={lines} payments={payments} org={org} outlet={outlet} paperWidth={paperWidth} voided={isVoided} />
+        </div>
       </div>
 
       <AlertDialog open={voidDialogOpen} onOpenChange={setVoidDialogOpen}>
