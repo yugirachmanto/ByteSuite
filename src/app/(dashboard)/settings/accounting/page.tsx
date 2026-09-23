@@ -289,7 +289,12 @@ export default function AccountingSettingsPage() {
                     <img src={receiptLogoUrl} alt="Receipt Logo" className="h-16 w-auto max-w-[160px] object-contain" />
                   </div>
                   <button
-                    onClick={() => setReceiptLogoUrl('')}
+                    onClick={async () => {
+                      const { error } = await supabase.from('organizations').update({ receipt_logo_url: null }).eq('id', orgId)
+                      if (error) return toast.error(error.message)
+                      setReceiptLogoUrl('')
+                      toast.success('Logo removed')
+                    }}
                     className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
                   >
                     <X className="h-3 w-3" />
@@ -318,8 +323,13 @@ export default function AccountingSettingsPage() {
                       const { data: { publicUrl } } = supabase.storage
                         .from('product-images')
                         .getPublicUrl(fileName)
+                      const { error: saveError } = await supabase
+                        .from('organizations')
+                        .update({ receipt_logo_url: publicUrl })
+                        .eq('id', orgId)
+                      if (saveError) throw saveError
                       setReceiptLogoUrl(publicUrl)
-                      toast.success('Logo uploaded. Click Save Settings to apply.')
+                      toast.success('Logo saved. It will appear on new receipts.')
                     } catch (err: any) {
                       toast.error(err.message || 'Failed to upload logo')
                     } finally {
