@@ -5,6 +5,7 @@ export interface QueuedCheckoutLine {
   qty: number
   discount_type?: 'percent' | 'fixed' | null
   discount_value?: number | null
+  note?: string
 }
 
 export interface QueuedTender {

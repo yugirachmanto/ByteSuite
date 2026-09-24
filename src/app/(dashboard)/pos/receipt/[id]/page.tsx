@@ -68,7 +68,7 @@ export default function POSReceiptPage({ params }: { params: Promise<{ id: strin
     if (!orderData) { setLoading(false); return }
 
     const [lineRes, paymentRes, orgRes, outletRes, cashierRes, voidedByRes] = await Promise.all([
-      supabase.from('pos_order_lines').select('id, qty, unit_price, subtotal, discount_amount, item_master(name)').eq('order_id', orderId),
+      supabase.from('pos_order_lines').select('id, qty, unit_price, subtotal, discount_amount, note, item_master(name)').eq('order_id', orderId),
       supabase.from('pos_order_payments').select('id, payment_method, amount, cash_received, change_due, notes').eq('order_id', orderId),
       supabase.from('organizations').select('name, address, npwp, receipt_paper_width, qris_image_url, bank_name, bank_account_number, bank_account_holder, receipt_logo_url').eq('id', orderData.org_id).single(),
       supabase.from('outlets').select('name, address').eq('id', orderData.outlet_id).single(),
@@ -105,6 +105,7 @@ export default function POSReceiptPage({ params }: { params: Promise<{ id: strin
       unit_price: l.unit_price,
       subtotal: l.subtotal,
       discount_amount: l.discount_amount || 0,
+      note: l.note || null,
     })))
     setPayments((paymentRes.data || []).map((p: any) => ({
       id: p.id,

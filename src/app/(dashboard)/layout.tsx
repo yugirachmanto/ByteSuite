@@ -33,6 +33,7 @@ import {
   Trash2,
   Workflow,
   History,
+  ChefHat,
   TrendingUp,
   ShieldAlert
 } from 'lucide-react'
@@ -71,11 +72,12 @@ const sidebarGroups = [
   },
   {
     name: 'Kasir',
-    roles: ['owner', 'admin', 'cashier', 'finance', 'viewer'],
+    roles: ['owner', 'admin', 'cashier', 'kitchen', 'finance', 'viewer'],
     items: [
       { name: 'Point of Sale', href: '/pos', icon: CreditCard, roles: ['owner', 'admin', 'cashier'] },
-      { name: 'Riwayat Shift', href: '/pos/shift-history', icon: History },
-      { name: 'Penjualan POS', href: '/pos/sales-report', icon: TrendingUp },
+      { name: 'Layar Dapur & Bar', href: '/pos/kds', icon: ChefHat, roles: ['owner', 'admin', 'cashier', 'kitchen'] },
+      { name: 'Riwayat Shift', href: '/pos/shift-history', icon: History, roles: ['owner', 'admin', 'cashier', 'finance', 'viewer'] },
+      { name: 'Penjualan POS', href: '/pos/sales-report', icon: TrendingUp, roles: ['owner', 'admin', 'cashier', 'finance', 'viewer'] },
     ]
   },
   {
@@ -139,6 +141,7 @@ const SIDEBAR_LABEL_KEYS: Record<string, string> = {
 // under the same prefix are also open to finance/viewer).
 const ROUTE_ACCESS: { prefix: string; exact?: boolean; roles: string[] }[] = [
   { prefix: '/dashboard', roles: ['owner', 'admin', 'finance', 'kitchen', 'viewer'] },
+  { prefix: '/pos/kds', roles: ['owner', 'admin', 'cashier', 'kitchen'] },
   { prefix: '/pos', exact: true, roles: ['owner', 'admin', 'cashier'] },
   { prefix: '/pos', roles: ['owner', 'admin', 'cashier', 'finance', 'viewer'] },
   { prefix: '/purchasing', roles: ['owner', 'admin', 'finance', 'viewer'] },
@@ -221,6 +224,8 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     }
   }, [pathname])
 
+  // POS terminal and kitchen display are used on phones/tablets: slim chrome.
+  const isCompactPage = pathname === '/pos' || !!pathname?.startsWith('/pos/kds')
   const routeAllowedRoles = pathname ? getAllowedRoles(pathname) : null
   const roleResolved = !outletLoading && !!userRole
   // Unrestricted routes (no entry in ROUTE_ACCESS, e.g. /profile) always
@@ -414,7 +419,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col overflow-hidden print:overflow-visible print:block">
-        <header className={cn('flex items-center border-b border-zinc-800 bg-zinc-900/50 backdrop-blur-sm print:hidden', pathname === '/pos' ? 'h-12 px-2' : 'h-16 px-4 md:px-8')}>
+        <header className={cn('flex items-center border-b border-zinc-800 bg-zinc-900/50 backdrop-blur-sm print:hidden', isCompactPage ? 'h-12 px-2' : 'h-16 px-4 md:px-8')}>
           <Button
             variant="ghost"
             size="icon"
@@ -435,12 +440,16 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           </Button>
           <div className="ml-4 h-4 w-[1px] bg-zinc-800 hidden md:block" />
           <h1 className="ml-6 text-sm font-medium text-zinc-400">
-            {sidebarGroups
-              .flatMap(g => g.items)
-              .find((i) => pathname === i.href || (i.href !== '/dashboard' && pathname?.startsWith(i.href)))
-              ?.name || 'Dashboard'}
+            {(() => {
+              const items = sidebarGroups.flatMap(g => g.items)
+              // Exact match first so /pos/kds is not titled "Point of Sale".
+              return (
+                items.find((i) => pathname === i.href) ||
+                items.find((i) => i.href !== '/dashboard' && pathname?.startsWith(i.href))
+              )?.name || 'Dashboard'
+            })()}
           </h1>
-          <div className={cn('ml-auto flex items-center gap-2 pr-4 print:hidden', pathname === '/pos' && 'hidden')}>
+          <div className={cn('ml-auto flex items-center gap-2 pr-4 print:hidden', isCompactPage && 'hidden')}>
             <DateWindowPicker />
             <Link href="/sop">
               <Button
@@ -454,7 +463,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
             </Link>
           </div>
         </header>
-        <div className={cn('flex-1 overflow-auto bg-zinc-950 print:bg-white print:p-0 print:overflow-visible', pathname === '/pos' ? 'p-2' : 'p-4 md:p-8')}>
+        <div className={cn('flex-1 overflow-auto bg-zinc-950 print:bg-white print:p-0 print:overflow-visible', isCompactPage ? 'p-2' : 'p-4 md:p-8')}>
           <div className="mx-auto max-w-7xl print:max-w-none">
             {isSuspendedAndBlocked ? <SuspendedBlock /> : (isAuthorized ? children : null)}
           </div>
