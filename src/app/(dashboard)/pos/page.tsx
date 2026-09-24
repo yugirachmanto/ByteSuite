@@ -1204,16 +1204,16 @@ export default function POSPage() {
                 </div>
               </div>
 
-              <DialogFooter className="gap-2 sm:gap-0">
+              <DialogFooter className="flex-row flex-wrap items-center justify-start gap-2">
                 {canVoid && (
-                  <Button variant="outline" className="border-red-900/60 text-red-400 hover:bg-red-950/40 hover:text-red-300" onClick={() => setVoidOpen(true)}>
+                  <Button className="mr-auto bg-red-600 text-white hover:bg-red-700" onClick={() => setVoidOpen(true)}>
                     <Ban className="h-4 w-4 mr-2" /> Void
                   </Button>
                 )}
                 <Button variant="outline" className="border-zinc-700 text-zinc-300 hover:bg-zinc-800" onClick={handlePrintReceipt}>
                   <Printer className="h-4 w-4 mr-2" /> Print Receipt
                 </Button>
-                <Button className="bg-indigo-600 hover:bg-indigo-700 text-white" onClick={startNewSale}>
+                <Button className="order-last w-full bg-indigo-600 text-white hover:bg-indigo-700 sm:order-none sm:w-auto" onClick={startNewSale}>
                   New Sale
                 </Button>
               </DialogFooter>
