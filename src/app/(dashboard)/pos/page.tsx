@@ -17,9 +17,11 @@ import { enqueue } from '@/lib/pos/offlineQueue'
 import { useOfflineCheckoutSync } from '@/lib/pos/useOfflineCheckoutSync'
 import { getCurrentUserRole, canAccess } from '@/lib/auth/canAccess'
 import { ReceiptLayout, type ReceiptOrderData, type ReceiptLine, type ReceiptPayment, type ReceiptOrg, type ReceiptOutlet } from '@/components/pos/ReceiptLayout'
+import { VoidOrderDialog } from '@/components/pos/VoidOrderDialog'
 import { captureElementAsPngBlob, downloadBlob, shareReceiptImage, blobToBase64 } from '@/lib/pos/receiptImage'
 
 const DISCOUNT_ROLES = ['owner', 'admin']
+const VOID_ROLES = ['owner', 'admin', 'cashier']
 
 interface Product {
   id: string
@@ -96,6 +98,8 @@ export default function POSPage() {
   const [closingShift, setClosingShift] = useState(false)
   const [isCartSheetOpen, setIsCartSheetOpen] = useState(false)
   const [canDiscount, setCanDiscount] = useState(false)
+  const [canVoid, setCanVoid] = useState(false)
+  const [voidOpen, setVoidOpen] = useState(false)
   const [orderDiscountType, setOrderDiscountType] = useState<DiscountType>(null)
   const [orderDiscountValue, setOrderDiscountValue] = useState(0)
 
@@ -126,7 +130,7 @@ export default function POSPage() {
   }
 
   useEffect(() => {
-    getCurrentUserRole(supabase).then((role) => setCanDiscount(canAccess(role, DISCOUNT_ROLES)))
+    getCurrentUserRole(supabase).then((role) => { setCanDiscount(canAccess(role, DISCOUNT_ROLES)); setCanVoid(canAccess(role, VOID_ROLES)) })
   }, [])
 
   const outletName = outlets.find(o => o.id === selectedOutletId)?.name || 'ByteSuite'
@@ -1164,6 +1168,11 @@ export default function POSPage() {
               </div>
 
               <DialogFooter className="gap-2 sm:gap-0">
+                {canVoid && (
+                  <Button variant="outline" className="border-red-900/60 text-red-400 hover:bg-red-950/40 hover:text-red-300" onClick={() => setVoidOpen(true)}>
+                    <Ban className="h-4 w-4 mr-2" /> Void
+                  </Button>
+                )}
                 <Button variant="outline" className="border-zinc-700 text-zinc-300 hover:bg-zinc-800" onClick={handlePrintReceipt}>
                   <Printer className="h-4 w-4 mr-2" /> Print Receipt
                 </Button>
@@ -1302,6 +1311,13 @@ export default function POSPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      <VoidOrderDialog
+        orderId={lastOrderId}
+        open={voidOpen}
+        onOpenChange={setVoidOpen}
+        onVoided={startNewSale}
+      />
 
       <Dialog open={closeShiftOpen} onOpenChange={setCloseShiftOpen}>
         <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 sm:max-w-md">
