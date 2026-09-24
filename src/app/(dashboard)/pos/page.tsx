@@ -729,7 +729,7 @@ export default function POSPage() {
   // desktop side panel and the mobile bottom sheet so the two stay in sync
   // without duplicating markup. onCharge lets the mobile sheet close
   // itself before the checkout dialog opens on top.
-  const CartContent = ({ onCharge }: { onCharge?: () => void } = {}) => (
+  const renderCart = ({ onCharge }: { onCharge?: () => void } = {}) => (
     <>
       <div className="p-4 border-b border-zinc-800 bg-zinc-900/80 flex justify-between items-center shrink-0">
         <h3 className="font-semibold text-zinc-100 flex items-center gap-2">
@@ -1094,7 +1094,7 @@ export default function POSPage() {
 
         {/* Cart Panel — desktop/tablet only; mobile uses the floating bar + sheet below */}
         <div className="hidden lg:flex w-96 flex-col bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden shadow-xl shrink-0">
-          <CartContent />
+          {renderCart()}
         </div>
       </div>
 
@@ -1123,7 +1123,7 @@ export default function POSPage() {
           <div className="flex justify-center pt-2.5 pb-1 shrink-0">
             <div className="h-1 w-10 rounded-full bg-zinc-700" />
           </div>
-          <CartContent onCharge={() => setIsCartSheetOpen(false)} />
+          {renderCart({ onCharge: () => setIsCartSheetOpen(false) })}
         </DialogContent>
       </Dialog>
 
