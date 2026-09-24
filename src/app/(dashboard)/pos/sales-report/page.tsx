@@ -1,20 +1,25 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useOutlet } from '@/lib/contexts/outlet-context'
 import { useDateWindow } from '@/lib/contexts/date-window-context'
 import {
   XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
-  ResponsiveContainer, LineChart, Line,
+  ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell, BarChart, Bar, Legend,
 } from 'recharts'
-import { Loader2, ShoppingCart, Percent, TrendingUp, DollarSign, Activity, AlertTriangle, Download } from 'lucide-react'
+import { Loader2, ShoppingCart, Percent, TrendingUp, DollarSign, Activity, AlertTriangle, Download, FileSpreadsheet, FileText, ChevronDown, ArrowUp, ArrowDown } from 'lucide-react'
 import { formatRp } from '@/lib/format'
 import { format } from 'date-fns'
 import { id as localeId } from 'date-fns/locale'
 import { toast } from 'sonner'
 import { fetchPosSalesSummary, fetchSalesTrend, fetchPosSalesDetail, fetchPosSalesItemDetail, type PosSalesSummary, type SalesTrend, type PosSaleDetailRow, type PosSaleItemRow } from '@/lib/pos/salesSummary'
 import { canAccess } from '@/lib/auth/canAccess'
+import { fetchSalesAnalytics, type SalesAnalytics } from '@/lib/pos/salesAnalytics'
+import { exportSalesReportExcel, exportSalesReportPdf } from '@/lib/pos/salesReportExport'
+
+const PAY_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#06b6d4', '#8b5cf6', '#ef4444', '#84cc16']
+const DAY_LABELS = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min']
 
 const EXPORT_ROLES = ['owner', 'admin']
 
@@ -28,6 +33,10 @@ export default function PosSalesReportPage() {
   const [trend, setTrend] = useState<SalesTrend>({ granularity: 'hour', points: [] })
   const [saleDetails, setSaleDetails] = useState<PosSaleDetailRow[]>([])
   const [itemRows, setItemRows] = useState<PosSaleItemRow[]>([])
+  const [analytics, setAnalytics] = useState<SalesAnalytics | null>(null)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [exporting, setExporting] = useState<'xlsx' | 'pdf' | null>(null)
+  const chartsRef = useRef<HTMLDivElement>(null)
   const [cashierScope, setCashierScope] = useState<string | undefined>(undefined)
   const [scopeResolved, setScopeResolved] = useState(false)
   const [canExport, setCanExport] = useState(false)
@@ -94,6 +103,17 @@ export default function PosSalesReportPage() {
       setItemRows(items)
     }
     fetchItems()
+
+    async function fetchAnalytics() {
+      const result = await fetchSalesAnalytics(supabase, {
+        outletId: selectedOutletId!,
+        startIso: startDate.toISOString(),
+        endIso: endDate.toISOString(),
+        cashierId: cashierScope
+      })
+      setAnalytics(result)
+    }
+    fetchAnalytics()
   }, [selectedOutletId, supabase, startDate, endDate, scopeResolved, cashierScope])
 
   const downloadCsv = (headers: string[], rows: (string | number)[][], filePrefix: string) => {
@@ -105,6 +125,31 @@ export default function PosSalesReportPage() {
     link.click()
     document.body.removeChild(link)
     toast.success('Data penjualan berhasil diekspor')
+  }
+
+  const handleExportReport = async (kind: 'xlsx' | 'pdf') => {
+    if (!posSalesSummary) return
+    setMenuOpen(false)
+    setExporting(kind)
+    try {
+      const data = {
+        outletName: selectedOutlet?.name || 'outlet',
+        periodLabel,
+        summary: posSalesSummary,
+        trend,
+        analytics,
+        saleDetails,
+        itemRows,
+        chartsEl: chartsRef.current,
+      }
+      if (kind === 'xlsx') await exportSalesReportExcel(data)
+      else await exportSalesReportPdf(data)
+      toast.success('Laporan lengkap berhasil diunduh')
+    } catch (e: any) {
+      toast.error(e?.message || 'Gagal membuat laporan')
+    } finally {
+      setExporting(null)
+    }
   }
 
   const handleExportItemsCsv = () => {
@@ -142,12 +187,31 @@ export default function PosSalesReportPage() {
           </p>
         </div>
         {canExport && (
-          <button
-            onClick={handleExportCsv}
-            className="flex items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-2 text-sm font-medium text-zinc-300 hover:bg-zinc-800 transition-colors shrink-0"
-          >
-            <Download className="h-4 w-4" /> Download CSV
-          </button>
+          <div className="relative shrink-0">
+            <button
+              onClick={() => setMenuOpen(o => !o)}
+              disabled={exporting !== null || posSalesLoading}
+              className="flex items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-2 text-sm font-medium text-zinc-300 hover:bg-zinc-800 transition-colors disabled:opacity-50"
+            >
+              {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              Download Laporan
+              <ChevronDown className="h-3.5 w-3.5" />
+            </button>
+            {menuOpen && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
+                <div className="absolute right-0 z-20 mt-1 w-56 rounded-lg border border-zinc-800 bg-zinc-900 p-1 shadow-lg">
+                  <button onClick={() => handleExportReport('xlsx')} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-zinc-200 hover:bg-zinc-800">
+                    <FileSpreadsheet className="h-4 w-4 text-emerald-400" /> Excel (.xlsx)
+                  </button>
+                  <button onClick={() => handleExportReport('pdf')} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-zinc-200 hover:bg-zinc-800">
+                    <FileText className="h-4 w-4 text-red-400" /> PDF
+                  </button>
+                  <p className="px-3 py-1.5 text-[10px] text-zinc-500">Laporan lengkap; tabel data transaksi di halaman/sheet terakhir.</p>
+                </div>
+              </>
+            )}
+          </div>
         )}
       </div>
 
@@ -177,6 +241,39 @@ export default function PosSalesReportPage() {
               </div>
             ))}
           </div>
+
+          {analytics && (
+            <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 p-4">
+              <p className="text-sm font-bold text-zinc-100">Dibanding Periode Sebelumnya</p>
+              <p className="text-[11px] text-zinc-500 mb-3">{analytics.previousLabel}</p>
+              <div className="grid gap-3 sm:grid-cols-3">
+                {[
+                  { label: 'Total Penjualan', cur: analytics.current.netSales, prev: analytics.previous.netSales, money: true },
+                  { label: 'Transaksi', cur: analytics.current.orderCount, prev: analytics.previous.orderCount, money: false },
+                  { label: 'Rata-rata Transaksi', cur: analytics.current.averageTransaction, prev: analytics.previous.averageTransaction, money: true },
+                ].map(t => {
+                  const delta = t.prev > 0 ? ((t.cur - t.prev) / t.prev) * 100 : null
+                  const up = (delta ?? 0) >= 0
+                  return (
+                    <div key={t.label} className="rounded-lg border border-zinc-800 bg-zinc-950/40 p-3">
+                      <div className="text-[10px] uppercase tracking-wider text-zinc-500">{t.label}</div>
+                      <div className="mt-1 flex items-baseline justify-between gap-2">
+                        <span className="font-mono text-lg font-bold text-zinc-100">{t.money ? formatRp(t.cur) : t.cur}</span>
+                        {delta === null ? (
+                          <span className="text-xs text-zinc-500">baru</span>
+                        ) : (
+                          <span className={`flex items-center text-xs font-semibold ${up ? 'text-emerald-400' : 'text-red-400'}`}>
+                            {up ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}{Math.abs(delta).toFixed(1)}%
+                          </span>
+                        )}
+                      </div>
+                      <div className="mt-0.5 text-[11px] text-zinc-500">sebelumnya {t.money ? formatRp(t.prev) : t.prev}</div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
 
           <div className="grid gap-5 lg:grid-cols-2">
             <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 overflow-hidden">
@@ -264,6 +361,7 @@ export default function PosSalesReportPage() {
             </div>
           </div>
 
+          <div ref={chartsRef} className="space-y-5">
           <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 overflow-hidden">
             <div className="px-6 py-4 border-b border-zinc-800/60">
               <p className="text-sm font-bold text-zinc-100">{trend.granularity === 'hour' ? 'Penjualan per Jam' : 'Penjualan per Hari'}</p>
@@ -286,12 +384,131 @@ export default function PosSalesReportPage() {
             </div>
           </div>
 
+            <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 overflow-hidden">
+              <div className="px-6 py-4 border-b border-zinc-800/60">
+                <p className="text-sm font-bold text-zinc-100">Komposisi Metode Pembayaran</p>
+                <p className="text-[11px] text-zinc-500">{periodLabel}</p>
+              </div>
+              {(analytics?.paymentTrend.methods.length || 0) === 0 ? (
+                <p className="py-10 text-center text-sm text-zinc-600">Tidak ada transaksi pada periode ini.</p>
+              ) : (
+                <div className="grid gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+                  <div style={{ height: 260 }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie data={posSalesSummary?.tenders || []} dataKey="amount" nameKey="method" innerRadius={55} outerRadius={90} paddingAngle={2}>
+                          {(posSalesSummary?.tenders || []).map((_, i) => <Cell key={i} fill={PAY_COLORS[i % PAY_COLORS.length]} />)}
+                        </Pie>
+                        <RechartsTooltip contentStyle={{ backgroundColor: '#18181b', border: '1px solid #3f3f46', borderRadius: 8 }} formatter={(v: any) => formatRp(Number(v))} />
+                        <Legend wrapperStyle={{ fontSize: 11 }} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div style={{ height: 260 }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={analytics!.paymentTrend.points} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
+                        <XAxis dataKey="label" stroke="#71717a" fontSize={11} interval="preserveStartEnd" minTickGap={24} />
+                        <YAxis stroke="#71717a" fontSize={11} tickFormatter={(v) => formatRp(v)} width={80} />
+                        <RechartsTooltip contentStyle={{ backgroundColor: '#18181b', border: '1px solid #3f3f46', borderRadius: 8 }} formatter={(v: any) => formatRp(Number(v))} />
+                        <Legend wrapperStyle={{ fontSize: 11 }} />
+                        {analytics!.paymentTrend.methods.map((m, i) => (
+                          <Bar key={m} dataKey={m} stackId="pay" fill={PAY_COLORS[i % PAY_COLORS.length]} />
+                        ))}
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {analytics && (
+            <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 overflow-hidden">
+              <div className="px-6 py-4 border-b border-zinc-800/60">
+                <p className="text-sm font-bold text-zinc-100">Jam & Hari Tersibuk</p>
+                <p className="text-[11px] text-zinc-500">Penjualan per hari dalam seminggu x jam · warna lebih pekat = lebih ramai · {periodLabel}</p>
+              </div>
+              <div className="overflow-x-auto p-4">
+                {(() => {
+                  const max = Math.max(1, ...analytics.heatmapSales.flat())
+                  return (
+                    <div className="min-w-[640px]">
+                      <div className="grid gap-[2px]" style={{ gridTemplateColumns: 'auto repeat(24, minmax(0, 1fr))' }}>
+                        <div />
+                        {Array.from({ length: 24 }, (_, h) => <div key={h} className="text-center text-[9px] text-zinc-500">{h}</div>)}
+                        {analytics.heatmapSales.map((row, di) => (
+                          <div key={di} className="contents">
+                            <div className="pr-2 text-[10px] text-zinc-400 flex items-center">{DAY_LABELS[di]}</div>
+                            {row.map((v, h) => (
+                              <div
+                                key={h}
+                                title={`${DAY_LABELS[di]} ${String(h).padStart(2, '0')}:00 — ${formatRp(v)} (${analytics.heatmapOrders[di][h]} transaksi)`}
+                                className="h-6 rounded-[3px] border border-zinc-800/50"
+                                style={{ backgroundColor: v > 0 ? `rgba(99, 102, 241, ${0.12 + (v / max) * 0.88})` : 'transparent' }}
+                              />
+                            ))}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })()}
+              </div>
+            </div>
+          )}
+
+          {analytics && (
+            <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 overflow-hidden">
+              <div className="px-6 py-4 border-b border-zinc-800/60">
+                <p className="text-sm font-bold text-zinc-100">Performa Kasir</p>
+                <p className="text-[11px] text-zinc-500">{periodLabel}</p>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-zinc-800/60 text-left text-[10px] uppercase tracking-wider text-zinc-500">
+                      <th className="px-4 py-2 font-medium">Kasir</th>
+                      <th className="px-4 py-2 font-medium text-right">Transaksi</th>
+                      <th className="px-4 py-2 font-medium text-right">Penjualan</th>
+                      <th className="px-4 py-2 font-medium text-right">Rata-rata</th>
+                      <th className="px-4 py-2 font-medium text-right">Diskon</th>
+                      <th className="px-4 py-2 font-medium text-right">Void</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {analytics.cashiers.length === 0 ? (
+                      <tr><td colSpan={6} className="py-8 text-center text-zinc-600 text-sm">Tidak ada transaksi pada periode ini.</td></tr>
+                    ) : analytics.cashiers.map((c, i) => (
+                      <tr key={i} className="border-b border-zinc-800/30 last:border-0">
+                        <td className="px-4 py-3 font-medium text-zinc-100">{c.name}</td>
+                        <td className="px-4 py-3 text-right text-zinc-300">{c.orders}</td>
+                        <td className="px-4 py-3 text-right font-mono font-bold text-zinc-100">{formatRp(c.sales)}</td>
+                        <td className="px-4 py-3 text-right font-mono text-zinc-400">{formatRp(c.averageTransaction)}</td>
+                        <td className="px-4 py-3 text-right font-mono text-amber-400/80">{c.discount > 0 ? formatRp(c.discount) : '—'}</td>
+                        <td className={`px-4 py-3 text-right ${c.voided > 0 ? 'text-red-400' : 'text-zinc-500'}`}>{c.voided}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
           <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 overflow-hidden">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800/60">
+            <div className="flex items-center justify-between gap-4 px-6 py-4 border-b border-zinc-800/60">
               <div>
                 <p className="text-sm font-bold text-zinc-100">Data Transaksi</p>
                 <p className="text-[11px] text-zinc-500">Rincian per order · {periodLabel} · {saleDetails.length} transaksi</p>
               </div>
+              {canExport && (
+                <button
+                  onClick={handleExportCsv}
+                  className="flex items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:bg-zinc-800 transition-colors shrink-0"
+                >
+                  <Download className="h-3.5 w-3.5" /> Download CSV
+                </button>
+              )}
             </div>
             <div className="overflow-x-auto max-h-[480px] overflow-y-auto">
               <table className="w-full text-sm">
