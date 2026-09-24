@@ -26,6 +26,7 @@ export interface ReceiptLine {
   unit_price: number
   subtotal: number
   discount_amount: number
+  note?: string | null
 }
 
 export interface ReceiptPayment {
@@ -117,6 +118,7 @@ export function ReceiptLayout({ order, lines, payments, org, outlet, paperWidth,
           {lines.map((line) => (
             <div key={line.id} className="leading-tight">
               <p>{line.name}</p>
+              {line.note && <p className="text-[0.9em] italic text-zinc-600">Catatan: {line.note}</p>}
               <div className="flex justify-between">
                 <span>{line.qty} x {formatRp(line.unit_price)}</span>
                 <span>{formatRp(line.subtotal)}</span>

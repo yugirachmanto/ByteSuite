@@ -7,7 +7,7 @@ import { useOutlet } from '@/lib/contexts/outlet-context'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Plus, Minus, Search, Trash2, CreditCard, Loader2, ShoppingCart, Ban, CheckCircle2, Printer, Monitor, Clock, LogOut, Wallet, ChevronUp, RefreshCw, FileText, Mail, MessageCircle, Maximize, Minimize } from 'lucide-react'
+import { Plus, Minus, Search, Trash2, CreditCard, Loader2, ShoppingCart, Ban, CheckCircle2, Printer, Monitor, Clock, LogOut, Wallet, ChevronUp, RefreshCw, FileText, Mail, MessageCircle, Maximize, Minimize, StickyNote } from 'lucide-react'
 import { formatRp } from '@/lib/format'
 import { toast } from 'sonner'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
@@ -38,6 +38,7 @@ type CartItem = Product & {
   qty: number
   discountType: DiscountType
   discountValue: number
+  note: string
 }
 
 interface Tender {
@@ -98,6 +99,8 @@ export default function POSPage() {
   const [closingShift, setClosingShift] = useState(false)
   const [isCartSheetOpen, setIsCartSheetOpen] = useState(false)
   const [canDiscount, setCanDiscount] = useState(false)
+  const [openNotes, setOpenNotes] = useState<string[]>([])
+  useEffect(() => { if (cart.length === 0) setOpenNotes([]) }, [cart.length])
   const [canVoid, setCanVoid] = useState(false)
   const [voidOpen, setVoidOpen] = useState(false)
   const [orderDiscountType, setOrderDiscountType] = useState<DiscountType>(null)
@@ -422,8 +425,12 @@ export default function POSPage() {
       if (existing) {
         return prev.map(p => p.id === product.id ? { ...p, qty: p.qty + 1 } : p)
       }
-      return [...prev, { ...product, qty: 1, discountType: null, discountValue: 0 }]
+      return [...prev, { ...product, qty: 1, discountType: null, discountValue: 0, note: '' }]
     })
+  }
+
+  const updateLineNote = (id: string, note: string) => {
+    setCart(prev => prev.map(p => p.id === id ? { ...p, note } : p))
   }
 
   const updateLineDiscount = (id: string, discountType: DiscountType, discountValue: number) => {
@@ -473,7 +480,8 @@ export default function POSPage() {
       item_id: item.id,
       qty: item.qty,
       discount_type: item.discountType,
-      discount_value: item.discountValue
+      discount_value: item.discountValue,
+      note: item.note.trim() || undefined
     }))
     const checkoutTenders = tenders.map(t => isCashMethod(t.method)
       ? { method: t.method, amount: cashApplied, cash_received: cashTender?.cashReceived || 0, notes: t.notes.trim() || null }
@@ -561,7 +569,7 @@ export default function POSPage() {
       if (!orderData) return
 
       const [lineRes, paymentRes, orgRes, outletRes, cashierRes] = await Promise.all([
-        supabase.from('pos_order_lines').select('id, qty, unit_price, subtotal, discount_amount, item_master(name)').eq('order_id', orderId),
+        supabase.from('pos_order_lines').select('id, qty, unit_price, subtotal, discount_amount, note, item_master(name)').eq('order_id', orderId),
         supabase.from('pos_order_payments').select('id, payment_method, amount, cash_received, change_due, notes').eq('order_id', orderId),
         supabase.from('organizations').select('name, address, npwp, receipt_paper_width, qris_image_url, bank_name, bank_account_number, bank_account_holder, receipt_logo_url').eq('id', orderData.org_id).single(),
         supabase.from('outlets').select('name, address').eq('id', orderData.outlet_id).single(),
@@ -588,6 +596,7 @@ export default function POSPage() {
         unit_price: l.unit_price,
         subtotal: l.subtotal,
         discount_amount: l.discount_amount || 0,
+        note: l.note || null,
       })))
       setReceiptPayments((paymentRes.data || []).map((p: any) => ({
         id: p.id,
@@ -765,6 +774,34 @@ export default function POSPage() {
                   </Button>
                 </div>
               </div>
+              {(openNotes.includes(item.id) || item.note) ? (
+                <div className="flex items-center gap-1.5">
+                  <StickyNote className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                  <Input
+                    autoFocus={!item.note}
+                    maxLength={200}
+                    placeholder="Catatan, mis. tanpa gula, pedas"
+                    className="h-8 text-xs bg-zinc-900 border-zinc-800"
+                    value={item.note}
+                    onChange={(e) => updateLineNote(item.id, e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className="text-xs text-rose-400 hover:text-rose-300 shrink-0"
+                    onClick={() => { updateLineNote(item.id, ''); setOpenNotes(prev => prev.filter(x => x !== item.id)) }}
+                  >
+                    Hapus
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  className="flex w-fit items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-200"
+                  onClick={() => setOpenNotes(prev => [...prev, item.id])}
+                >
+                  <StickyNote className="h-3.5 w-3.5" /> Tambah catatan
+                </button>
+              )}
               {canDiscount && (
                 <div className="flex items-center gap-1.5 pt-1">
                   <button

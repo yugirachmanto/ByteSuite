@@ -13,7 +13,7 @@ function buildReceiptHtml(params: {
   outletName: string
   orderId: string
   createdAt: string
-  lines: { name: string; qty: number; unit_price: number; subtotal: number }[]
+  lines: { name: string; qty: number; unit_price: number; subtotal: number; note?: string | null }[]
   totalAmount: number
   taxAmount: number
   roundingAmount?: number
@@ -28,7 +28,7 @@ function buildReceiptHtml(params: {
 
   const itemRows = lines.map((l) => `
         <tr>
-          <td style="padding:8px 0;border-bottom:1px solid #f4f4f5;font-size:14px;color:#18181b;">${esc(l.name)}<br><span style="color:#71717a;font-size:12px;">${l.qty} x ${formatRp(l.unit_price)}</span></td>
+          <td style="padding:8px 0;border-bottom:1px solid #f4f4f5;font-size:14px;color:#18181b;">${esc(l.name)}<br><span style="color:#71717a;font-size:12px;">${l.qty} x ${formatRp(l.unit_price)}</span>${l.note ? `<br><span style="color:#a16207;font-size:12px;font-style:italic;">Catatan: ${esc(l.note)}</span>` : ''}</td>
           <td style="padding:8px 0;border-bottom:1px solid #f4f4f5;font-size:14px;color:#18181b;text-align:right;vertical-align:top;white-space:nowrap;">${formatRp(l.subtotal)}</td>
         </tr>`).join('')
 
@@ -110,7 +110,7 @@ export async function POST(request: Request) {
     }
 
     const [linesRes, orgRes, outletRes] = await Promise.all([
-      supabase.from('pos_order_lines').select('qty, unit_price, subtotal, item_master(name)').eq('order_id', order_id),
+      supabase.from('pos_order_lines').select('qty, unit_price, subtotal, note, item_master(name)').eq('order_id', order_id),
       supabase.from('organizations').select('name, receipt_logo_url').eq('id', order.org_id).single(),
       supabase.from('outlets').select('name').eq('id', order.outlet_id).single(),
     ])
@@ -120,6 +120,7 @@ export async function POST(request: Request) {
       qty: l.qty,
       unit_price: l.unit_price,
       subtotal: l.subtotal,
+      note: l.note || null,
     }))
 
     const html = buildReceiptHtml({

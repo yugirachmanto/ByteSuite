@@ -24,7 +24,7 @@ import {
 } from '@/components/ui/table'
 import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
-import { Loader2, Plus, Trash2, Save, Store, CreditCard, Layers, AlertTriangle, RefreshCw } from 'lucide-react'
+import { Loader2, Plus, Trash2, Save, Store, CreditCard, Layers, AlertTriangle, RefreshCw, ChefHat } from 'lucide-react'
 import { toast } from 'sonner'
 import { CoaCombobox } from '@/components/ui/coa-combobox'
 
@@ -74,6 +74,8 @@ export default function PosMappingSettingsPage() {
   const [paymentMappings, setPaymentMappings] = useState<PosPaymentMapping[]>([])
   const [pendingGlCount, setPendingGlCount] = useState(0)
   const [reposting, setReposting] = useState(false)
+  const [stations, setStations] = useState<{ category: string; station: 'kitchen' | 'bar' | 'none' }[]>([])
+  const [savingStations, setSavingStations] = useState(false)
 
   const outletLabel = (outletId: string | null) =>
     outletId ? outlets.find(o => o.id === outletId)?.name || 'Outlet' : 'Org Default (All)'
@@ -85,6 +87,25 @@ export default function PosMappingSettingsPage() {
       .eq('org_id', currentOrgId)
       .eq('gl_status', 'pending_mapping')
     setPendingGlCount(count || 0)
+  }
+
+  const handleSaveStations = async () => {
+    if (!orgId) return
+    setSavingStations(true)
+    try {
+      await supabase.from('pos_station_mapping').delete().eq('org_id', orgId)
+      if (stations.length > 0) {
+        const { error } = await supabase.from('pos_station_mapping').insert(
+          stations.map(r => ({ org_id: orgId, pos_category: r.category, station: r.station }))
+        )
+        if (error) throw error
+      }
+      toast.success('Pembagian Dapur / Bar disimpan. Berlaku untuk pesanan berikutnya.')
+    } catch (error: any) {
+      toast.error(error.message || 'Gagal menyimpan pembagian stasiun')
+    } finally {
+      setSavingStations(false)
+    }
   }
 
   const handleRepost = async () => {
@@ -156,6 +177,15 @@ export default function PosMappingSettingsPage() {
             .filter(c => !mappedDefaults.has(c.toLowerCase()))
             .map(c => ({ outlet_id: null, pos_category: c, revenue_coa_id: '', cogs_coa_id: null, suggested: true }))
           setCoaMappings([...(coaMapData || []), ...suggestions])
+
+          // Station (Dapur / Bar) per POS category: categories come from the
+          // products; anything not saved yet defaults to Dapur.
+          const { data: stationData } = await supabase
+            .from('pos_station_mapping')
+            .select('pos_category, station')
+            .eq('org_id', currentOrgId)
+          const savedStations = new Map((stationData || []).map((r: any) => [String(r.pos_category).toLowerCase(), r.station as 'kitchen' | 'bar' | 'none']))
+          setStations(productCategories.map(c => ({ category: c, station: savedStations.get(c.toLowerCase()) ?? 'kitchen' })))
 
           // Fetch POS Payment Mappings
           const { data: payMapData } = await supabase
@@ -371,6 +401,9 @@ export default function PosMappingSettingsPage() {
             </TabsTrigger>
             <TabsTrigger value="payments" className="data-[state=active]:bg-zinc-800 data-[state=active]:text-zinc-100 text-zinc-400 gap-2">
               <CreditCard className="h-4 w-4" /> Payment Mappings
+            </TabsTrigger>
+            <TabsTrigger value="stations" className="data-[state=active]:bg-zinc-800 data-[state=active]:text-zinc-100 text-zinc-400 gap-2">
+              <ChefHat className="h-4 w-4" /> Dapur / Bar
             </TabsTrigger>
           </TabsList>
         </div>
@@ -634,6 +667,59 @@ export default function PosMappingSettingsPage() {
                       </TableCell>
                     </TableRow>
                   )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* --- KITCHEN / BAR STATIONS TAB --- */}
+        <TabsContent value="stations" className="space-y-4 outline-none">
+          <Card className="border-zinc-800 bg-zinc-900/50">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <div>
+                <CardTitle className="text-zinc-100">Pembagian Dapur / Bar</CardTitle>
+                <CardDescription className="text-zinc-400">
+                  Tentukan kategori POS diproses di Dapur atau di Bar. Setelah pembayaran, pesanan otomatis tampil di layar stasiun yang sesuai (menu Layar Dapur &amp; Bar). Kategori baru dari produk ikut masuk otomatis.
+                </CardDescription>
+              </div>
+              <Button className="bg-zinc-100 text-zinc-900 hover:bg-zinc-200" onClick={handleSaveStations} disabled={savingStations}>
+                {savingStations ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                Save Changes
+              </Button>
+            </CardHeader>
+            <CardContent className="pt-4">
+              <Table>
+                <TableHeader className="border-zinc-800">
+                  <TableRow className="hover:bg-transparent border-zinc-800">
+                    <TableHead className="text-zinc-400">POS Category</TableHead>
+                    <TableHead className="text-zinc-400 w-[240px]">Diproses di</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {stations.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={2} className="text-center text-zinc-500 py-10">
+                        <ChefHat className="h-8 w-8 mx-auto mb-2 opacity-20" />
+                        Belum ada kategori POS pada produk.
+                      </TableCell>
+                    </TableRow>
+                  ) : stations.map((row, idx) => (
+                    <TableRow key={row.category} className="border-zinc-800 hover:bg-zinc-850/20">
+                      <TableCell className="font-medium text-zinc-100">{row.category}</TableCell>
+                      <TableCell>
+                        <select
+                          className="h-10 w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-100"
+                          value={row.station}
+                          onChange={(e) => setStations(prev => prev.map((r, i) => i === idx ? { ...r, station: e.target.value as 'kitchen' | 'bar' | 'none' } : r))}
+                        >
+                          <option value="kitchen">Dapur</option>
+                          <option value="bar">Bar</option>
+                          <option value="none">Tidak ditampilkan</option>
+                        </select>
+                      </TableCell>
+                    </TableRow>
+                  ))}
                 </TableBody>
               </Table>
             </CardContent>

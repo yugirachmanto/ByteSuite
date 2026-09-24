@@ -160,7 +160,8 @@ export async function POST(request: Request) {
         cogs_per_unit: priceData?.estimated_hpp || 0,
         discount_type: line_discount_type,
         discount_value: line_discount_value,
-        discount_amount: line_discount_amount
+        discount_amount: line_discount_amount,
+        note: line.note ? String(line.note).trim().slice(0, 200) || null : null
       }
     })
 
