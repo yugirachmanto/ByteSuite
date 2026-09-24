@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
-import { AlertTriangle, Loader2, ShieldAlert, Trash2, CheckCircle2, XCircle, CreditCard, Receipt } from 'lucide-react'
+import { AlertTriangle, Loader2, ShieldAlert, Trash2, CheckCircle2, XCircle, CreditCard, Receipt, ChefHat } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
@@ -21,6 +21,8 @@ export default function SystemResetPage() {
   const [confirmText, setConfirmText] = useState('')
   const [posEnabled, setPosEnabled] = useState(true)
   const [savingModule, setSavingModule] = useState(false)
+  const [kdsEnabled, setKdsEnabled] = useState(false)
+  const [savingKds, setSavingKds] = useState(false)
   const [receiptPaperWidth, setReceiptPaperWidth] = useState<'58mm' | '80mm'>('58mm')
   const [savingPaperWidth, setSavingPaperWidth] = useState(false)
   
@@ -36,7 +38,7 @@ export default function SystemResetPage() {
 
       const { data: profile } = await supabase
         .from('user_profiles')
-        .select('org_id, role, organizations(pos_enabled, receipt_paper_width)')
+        .select('org_id, role, organizations(pos_enabled, kds_enabled, receipt_paper_width)')
         .eq('id', user.id)
         .single()
 
@@ -44,12 +46,32 @@ export default function SystemResetPage() {
         setUserProfile(profile)
         const orgData = profile.organizations as any
         setPosEnabled(orgData?.pos_enabled ?? true)
+        setKdsEnabled(orgData?.kds_enabled ?? false)
         setReceiptPaperWidth((orgData?.receipt_paper_width as '58mm' | '80mm') || '58mm')
       }
       setLoading(false)
     }
     checkRole()
   }, [supabase, router])
+
+  const toggleKdsModule = async () => {
+    if (!userProfile) return
+    const newValue = !kdsEnabled
+    setSavingKds(true)
+    try {
+      const { error } = await supabase
+        .from('organizations')
+        .update({ kds_enabled: newValue })
+        .eq('id', userProfile.org_id)
+      if (error) throw error
+      setKdsEnabled(newValue)
+      toast.success(newValue ? 'Layar Dapur & Bar diaktifkan. Muat ulang halaman untuk menampilkan menunya.' : 'Layar Dapur & Bar dimatikan. Pesanan baru tidak lagi dikirim ke layar.')
+    } catch (err: any) {
+      toast.error(err.message || 'Gagal mengubah pengaturan')
+    } finally {
+      setSavingKds(false)
+    }
+  }
 
   const togglePosModule = async () => {
     if (!userProfile) return
@@ -187,6 +209,22 @@ export default function SystemResetPage() {
               onCheckedChange={togglePosModule}
               disabled={savingModule}
             />
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between p-4 rounded-lg bg-zinc-950/50 border border-zinc-800/40 mt-3">
+          <div className="flex items-center gap-4">
+            <div className="p-2 rounded-lg bg-amber-500/10 text-amber-400">
+              <ChefHat className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-zinc-200">Layar Dapur &amp; Bar (opsional)</p>
+              <p className="text-xs text-zinc-500 mt-0.5">Tampilkan pesanan baru di satu layar untuk dapur dan bar. Kalau dimatikan, tidak ada pesanan yang dikirim ke layar. Pesanan yang tidak diselesaikan hilang sendiri dari layar setelah 45 menit.</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            {savingKds && <Loader2 className="h-4 w-4 animate-spin text-zinc-500" />}
+            <Switch checked={kdsEnabled} onCheckedChange={toggleKdsModule} disabled={savingKds} />
           </div>
         </div>
 

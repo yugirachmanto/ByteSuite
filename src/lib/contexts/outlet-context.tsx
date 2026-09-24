@@ -13,6 +13,7 @@ interface OutletContextType {
   setSelectedOutletId: (id: string) => void
   userRole: string | null
   posEnabled: boolean
+  kdsEnabled: boolean
   orgSuspended: boolean
   outlets: Outlet[]
   loading: boolean
@@ -25,6 +26,7 @@ export function OutletProvider({ children }: { children: React.ReactNode }) {
   const [selectedOutletId, setSelectedOutletId] = useState<string | null>(null)
   const [userRole, setUserRole] = useState<string | null>(null)
   const [posEnabled, setPosEnabled] = useState<boolean>(true)
+  const [kdsEnabled, setKdsEnabled] = useState<boolean>(false)
   const [orgSuspended, setOrgSuspended] = useState<boolean>(false)
   const [outlets, setOutlets] = useState<Outlet[]>([])
   const [loading, setLoading] = useState(true)
@@ -41,7 +43,7 @@ export function OutletProvider({ children }: { children: React.ReactNode }) {
 
     const { data: profile, error: profileError } = await supabase
       .from('user_profiles')
-      .select('org_id, outlet_ids, role, organizations(pos_enabled, is_active)')
+      .select('org_id, outlet_ids, role, organizations(pos_enabled, kds_enabled, is_active)')
       .eq('id', user.id)
       .single()
 
@@ -54,6 +56,7 @@ export function OutletProvider({ children }: { children: React.ReactNode }) {
     setUserRole(profile?.role || 'viewer')
     const orgData = profile?.organizations as any
     setPosEnabled(orgData?.pos_enabled ?? true)
+    setKdsEnabled(orgData?.kds_enabled ?? false)
     // is_active defaults to true at the DB level, but treat a missing/null
     // organizations join defensively as "not suspended" rather than locking
     // someone out on a data hiccup.
@@ -110,6 +113,7 @@ export function OutletProvider({ children }: { children: React.ReactNode }) {
       setSelectedOutletId: handleSetSelectedOutletId,
       userRole,
       posEnabled,
+      kdsEnabled,
       orgSuspended,
       outlets,
       loading,
