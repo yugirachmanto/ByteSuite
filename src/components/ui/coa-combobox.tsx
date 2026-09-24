@@ -59,6 +59,7 @@ export function CoaCombobox({
   // wrapping this combobox in a scrollable container, which used to cut
   // the popover off before a user could see the full account list.
   const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({})
+  const [listMaxHeight, setListMaxHeight] = useState(300)
   const containerRef = useRef<HTMLDivElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -80,21 +81,35 @@ export function CoaCombobox({
   const updatePosition = () => {
     if (!containerRef.current) return
     const rect = containerRef.current.getBoundingClientRect()
+    const vw = window.innerWidth
+    const vh = window.innerHeight
+    const gap = 4
+    const margin = 12
+    const chrome = 52 // search box + borders above the scrolling list
+
+    // Open upward when there is not enough room below (e.g. the last rows of
+    // a table near the bottom of the screen), and cap the list height to the
+    // room actually available so it is never cut off by the viewport.
+    const below = vh - rect.bottom - margin
+    const above = rect.top - margin
+    const openUp = dropdownPosition === 'top' || (below < 240 && above > below)
+    setListMaxHeight(Math.max(120, Math.min(300, (openUp ? above : below) - chrome)))
+
+    const style: React.CSSProperties = { position: 'fixed', zIndex: 50 }
     // A caller-supplied dropdownClassName may set its own width (e.g.
     // "w-max min-w-[350px]") — only impose our own floor width when it
     // doesn't, so that override still fully controls sizing.
-    const style: React.CSSProperties = {
-      position: 'fixed',
-      left: rect.left,
-      zIndex: 50,
-    }
+    let left = rect.left
     if (!dropdownClassName) {
-      style.width = Math.max(rect.width, 320)
+      const width = Math.min(Math.max(rect.width, 320), vw - 16)
+      style.width = width
+      left = Math.min(Math.max(8, rect.left), vw - width - 8)
     }
-    if (dropdownPosition === 'top') {
-      style.bottom = window.innerHeight - rect.top + 4
+    style.left = left
+    if (openUp) {
+      style.bottom = vh - rect.top + gap
     } else {
-      style.top = rect.bottom + 4
+      style.top = rect.bottom + gap
     }
     setDropdownStyle(style)
   }
@@ -168,7 +183,7 @@ export function CoaCombobox({
           onChange={(e) => setSearch(e.target.value)}
         />
       </div>
-      <div className="max-h-[300px] overflow-y-auto p-1">
+      <div className="overflow-y-auto p-1" style={{ maxHeight: listMaxHeight }}>
         {allowAll && !search && (
            <div
              className={cn(
