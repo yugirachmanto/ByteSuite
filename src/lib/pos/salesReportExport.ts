@@ -11,8 +11,28 @@ export interface SalesReportExportData {
   analytics: SalesAnalytics | null
   saleDetails: PosSaleDetailRow[]
   itemRows: PosSaleItemRow[]
-  /** Optional chart area to embed as an image in the PDF. */
-  chartsEl?: HTMLElement | null
+  /** Name shown on the PDF cover ("Dibuat oleh"). */
+  generatedBy?: string
+  /** Captured image of the on-screen charts, embedded in the PDF and the Excel dashboard. */
+  chartsImage?: ChartsImage | null
+}
+
+export interface ChartsImage {
+  dataUrl: string
+  width: number
+  height: number
+}
+
+/** Rasterises the on-screen chart area once, for reuse by both exports. */
+export async function captureChartsImage(el: HTMLElement | null): Promise<ChartsImage | null> {
+  if (!el) return null
+  try {
+    const { default: html2canvas } = await import('html2canvas-pro')
+    const canvas = await html2canvas(el, { scale: 1.5, backgroundColor: '#18181b', useCORS: true })
+    return { dataUrl: canvas.toDataURL('image/png'), width: canvas.width, height: canvas.height }
+  } catch {
+    return null
+  }
 }
 
 const DAYS = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu']
@@ -39,61 +59,8 @@ function kpiRows(d: SalesReportExportData): [string, string | number][] {
 }
 
 export async function exportSalesReportExcel(d: SalesReportExportData) {
-  const XLSX = await import('xlsx')
-  const wb = XLSX.utils.book_new()
-  const add = (name: string, rows: (string | number)[][], widths?: number[]) => {
-    const ws = XLSX.utils.aoa_to_sheet(rows)
-    if (widths) ws['!cols'] = widths.map(wch => ({ wch }))
-    XLSX.utils.book_append_sheet(wb, ws, name)
-  }
-
-  const ringkasan: (string | number)[][] = [
-    ['Laporan Penjualan POS'],
-    ['Outlet', d.outletName],
-    ['Periode', d.periodLabel],
-    ['Dibuat', format(new Date(), 'yyyy-MM-dd HH:mm')],
-    [],
-    ['Ringkasan', 'Nilai'],
-    ...kpiRows(d),
-  ]
-  if (d.analytics) {
-    const { current: c, previous: p, previousLabel } = d.analytics
-    ringkasan.push([], [`Perbandingan dengan periode sebelumnya (${previousLabel})`, 'Sekarang', 'Sebelumnya', 'Perubahan'],
-      ['Total Penjualan', c.netSales, p.netSales, pct(c.netSales, p.netSales)],
-      ['Jumlah Transaksi', c.orderCount, p.orderCount, pct(c.orderCount, p.orderCount)],
-      ['Rata-rata Transaksi', Math.round(c.averageTransaction), Math.round(p.averageTransaction), pct(c.averageTransaction, p.averageTransaction)])
-  }
-  add('Ringkasan', ringkasan, [44, 18, 18, 14])
-
-  add('Metode Bayar', [['Metode', 'Jumlah'], ...d.summary.tenders.map(t => [t.method, t.amount])], [28, 18])
-  add('Kategori', [['Kategori', 'Qty', 'Pendapatan'], ...d.summary.categoryBreakdown.map(c => [c.category, c.qty, c.revenue])], [28, 10, 18])
-  add('Item Terlaris', [['Item', 'Qty', 'Pendapatan'], ...d.summary.topItems.map(i => [i.name, i.qty, i.revenue])], [36, 10, 18])
-  add('Tren', [[d.trend.granularity === 'hour' ? 'Jam' : 'Tanggal', 'Penjualan', 'Transaksi'], ...d.trend.points.map(p => [p.label, p.sales, p.orders])], [16, 18, 12])
-
-  if (d.analytics) {
-    const a = d.analytics
-    add('Hari x Jam', [['Penjualan', ...Array.from({ length: 24 }, (_, h) => `${String(h).padStart(2, '0')}:00`)], ...a.heatmapSales.map((row, i) => [DAYS[i], ...row])], [12, ...Array(24).fill(11)])
-    add('Kasir', [['Kasir', 'Transaksi', 'Penjualan', 'Rata-rata', 'Diskon', 'Void'], ...a.cashiers.map(c => [c.name, c.orders, c.sales, Math.round(c.averageTransaction), c.discount, c.voided])], [26, 12, 18, 16, 16, 8])
-    const m = a.paymentTrend.methods
-    add('Tren Metode Bayar', [[a.paymentTrend.granularity === 'hour' ? 'Jam' : 'Tanggal', ...m], ...a.paymentTrend.points.map(p => [p.label, ...m.map(k => Number(p[k]) || 0)])], [16, ...m.map(() => 16)])
-  }
-
-  if (d.summary.compRecipients.length > 0) {
-    add('Komplimen', [['Untuk / Alasan', 'Jumlah'], ...d.summary.compRecipients.map(r => [r.notes, r.amount])], [36, 18])
-  }
-
-  add('Detail Item', [
-    ['Tanggal', 'Order ID', 'Kasir', 'Metode Bayar', 'Status', 'Item', 'Kategori', 'Qty', 'Harga Satuan', 'Diskon', 'Subtotal'],
-    ...d.itemRows.map(r => [stamp(r.created_at), r.order_id, r.cashier_name, r.payment_methods, statusLabel(r.status), r.item_name, r.category, r.qty, r.unit_price, r.discount_amount, r.subtotal]),
-  ], [17, 38, 18, 16, 9, 30, 16, 6, 13, 11, 13])
-
-  // Last sheet: the raw transaction table.
-  add('Data Transaksi', [
-    ['Tanggal', 'Order ID', 'Kasir', 'Jumlah Item', 'Metode Bayar', 'Subtotal', 'Diskon', 'Pajak', 'Pembulatan', 'Total', 'Status'],
-    ...d.saleDetails.map(r => [stamp(r.created_at), r.id, r.cashier_name, r.item_count, r.payment_methods, r.subtotal, r.discount_amount, r.tax_amount, r.rounding_amount, r.total_amount, statusLabel(r.status)]),
-  ], [17, 38, 18, 12, 16, 13, 11, 11, 12, 13, 9])
-
-  XLSX.writeFile(wb, fileBase(d, 'xlsx'))
+  const { exportSalesReportExcel: run } = await import('@/lib/pos/salesReportExcel')
+  await run(d, fileBase(d, 'xlsx'))
 }
 
 export async function exportSalesReportPdf(d: SalesReportExportData) {
@@ -114,7 +81,40 @@ export async function exportSalesReportPdf(d: SalesReportExportData) {
   }
   const right = { halign: 'right' as const }
 
-  // Page 1: title, KPIs, comparison
+  // Cover
+  doc.setFillColor(9, 9, 11)
+  doc.rect(0, 0, pageW, pageH, 'F')
+  doc.setFillColor(79, 70, 229)
+  doc.roundedRect(margin + 8, 30, 22, 22, 5, 5, 'F')
+  doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(20)
+  doc.text('B', margin + 19, 45.5, { align: 'center' })
+  doc.setFontSize(11); doc.setFont('helvetica', 'normal'); doc.setTextColor(161, 161, 170)
+  doc.text('ByteSuite', margin + 34, 42)
+  doc.setFontSize(34); doc.setFont('helvetica', 'bold'); doc.setTextColor(255, 255, 255)
+  doc.text('Laporan Penjualan POS', margin + 8, 88)
+  doc.setFillColor(79, 70, 229)
+  doc.rect(margin + 8, 95, 40, 1.4, 'F')
+  doc.setFontSize(16); doc.setFont('helvetica', 'normal'); doc.setTextColor(228, 228, 231)
+  doc.text(clean(d.outletName), margin + 8, 108)
+  doc.setFontSize(12); doc.setTextColor(161, 161, 170)
+  doc.text(clean(d.periodLabel), margin + 8, 116)
+  const kpis: [string, string][] = [
+    ['TOTAL PENJUALAN', formatRp(d.summary.netSales)],
+    ['TRANSAKSI', String(d.summary.orderCount)],
+    ['RATA-RATA TRANSAKSI', formatRp(d.summary.averageTransaction)],
+  ]
+  kpis.forEach(([label, value], i) => {
+    const x = margin + 8 + i * 80
+    doc.setFontSize(8); doc.setTextColor(113, 113, 122); doc.text(label, x, 146)
+    doc.setFontSize(16); doc.setFont('helvetica', 'bold'); doc.setTextColor(255, 255, 255); doc.text(value, x, 155)
+    doc.setFont('helvetica', 'normal')
+  })
+  doc.setFontSize(9); doc.setTextColor(113, 113, 122)
+  doc.text(`Dibuat ${format(new Date(), 'dd/MM/yyyy HH:mm')}${d.generatedBy ? ` oleh ${clean(d.generatedBy)}` : ''}`, margin + 8, pageH - 16)
+
+  // Page 2: title, KPIs, comparison
+  doc.addPage()
+  doc.setFont('helvetica', 'normal')
   doc.setFontSize(16); doc.setTextColor(24, 24, 27)
   doc.text('Laporan Penjualan POS', margin, 16)
   doc.setFontSize(9); doc.setTextColor(82, 82, 91)
@@ -141,18 +141,12 @@ export async function exportSalesReportPdf(d: SalesReportExportData) {
   }
 
   // Charts captured from the on-screen dashboard
-  if (d.chartsEl) {
-    try {
-      const { default: html2canvas } = await import('html2canvas-pro')
-      const canvas = await html2canvas(d.chartsEl, { scale: 1.5, backgroundColor: '#18181b', useCORS: true })
-      doc.addPage()
-      const w = pageW - margin * 2
-      const h = Math.min((canvas.height / canvas.width) * w, pageH - margin * 2 - 8)
-      doc.setFontSize(11); doc.setTextColor(24, 24, 27); doc.text('Grafik', margin, 14)
-      doc.addImage(canvas.toDataURL('image/png'), 'PNG', margin, 18, w, h)
-    } catch {
-      // Charts are a bonus; the tables below still carry all the data.
-    }
+  if (d.chartsImage) {
+    doc.addPage()
+    const w = pageW - margin * 2
+    const h = Math.min((d.chartsImage.height / d.chartsImage.width) * w, pageH - margin * 2 - 8)
+    doc.setFontSize(11); doc.setTextColor(24, 24, 27); doc.text('Grafik', margin, 14)
+    doc.addImage(d.chartsImage.dataUrl, 'PNG', margin, 18, w, h)
   }
 
   // Tables
@@ -214,7 +208,7 @@ export async function exportSalesReportPdf(d: SalesReportExportData) {
   for (let i = 1; i <= pages; i++) {
     doc.setPage(i)
     doc.setFontSize(7); doc.setTextColor(113, 113, 122)
-    doc.text(`Halaman ${i} / ${pages}`, pageW - margin, pageH - 6, { align: 'right' })
+    if (i > 1) doc.text(`Halaman ${i - 1} / ${pages - 1}`, pageW - margin, pageH - 6, { align: 'right' })
   }
   doc.save(fileBase(d, 'pdf'))
 }
