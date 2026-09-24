@@ -203,7 +203,7 @@ function SuspendedBlock() {
 // ── Inner shell (consumes OutletProvider context) ────────────────────────────
 function DashboardShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
-  const { selectedOutletId, setSelectedOutletId, userRole, outlets, posEnabled, orgSuspended, loading: outletLoading } = useOutlet()
+  const { selectedOutletId, setSelectedOutletId, userRole, outlets, posEnabled, kdsEnabled, orgSuspended, loading: outletLoading } = useOutlet()
   const { t } = useLanguage()
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
   const [mounted, setMounted] = useState(false)
@@ -355,6 +355,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                   <div className="space-y-0.5">
                     {mounted && group.items.map((item) => {
                       if (!posEnabled && item.name === 'Point of Sale') return null;
+                      if (!kdsEnabled && item.href === '/pos/kds') return null;
                       if ((item as any).roles && userRole && !(item as any).roles.includes(userRole)) return null;
                       const isActive =
                         pathname === item.href ||

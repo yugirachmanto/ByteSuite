@@ -1,21 +1,18 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { useOutlet } from '@/lib/contexts/outlet-context'
 import { Button } from '@/components/ui/button'
-import { Loader2, Volume2, VolumeX, Maximize, Minimize, Check, RotateCcw, BellRing, ChefHat, GlassWater } from 'lucide-react'
+import { Loader2, Volume2, VolumeX, Maximize, Minimize, Check, RotateCcw, BellRing, ChefHat } from 'lucide-react'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 
-type Station = 'kitchen' | 'bar'
-
 interface KdsItem { name: string; qty: number; note: string | null }
-interface KdsTicket {
-  ticket_id: string
+interface KdsOrder {
   order_id: string
   order_no: string
-  station: Station
   status: 'new' | 'done'
   created_at: string
   done_at: string | null
@@ -23,14 +20,18 @@ interface KdsTicket {
 }
 
 const POLL_MS = 8000
-const STORAGE_STATION = 'bytesuite_kds_station'
+// Mirrors the server: an unfinished order leaves the screen after this long,
+// so an ignored ticket can never sit there with an ever-growing timer.
+const EXPIRE_SECONDS = 45 * 60
+const RING_MAX_MS = 8000
+const SOUND_SRC = '/sounds/new-order.mp3'
 
 function elapsed(fromIso: string, nowMs: number) {
-  const s = Math.max(0, Math.floor((nowMs - new Date(fromIso).getTime()) / 1000))
+  const s = Math.min(EXPIRE_SECONDS, Math.max(0, Math.floor((nowMs - new Date(fromIso).getTime()) / 1000)))
   return { s, label: `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}` }
 }
 
-// Green -> amber -> red as a ticket waits longer.
+// Green -> amber -> red as an order waits longer.
 function ageStyle(seconds: number) {
   if (seconds >= 600) return 'border-red-500/70 bg-red-950/30'
   if (seconds >= 300) return 'border-amber-500/70 bg-amber-950/20'
@@ -39,75 +40,52 @@ function ageStyle(seconds: number) {
 
 export default function KitchenDisplayPage() {
   const supabase = createClient()
-  const { selectedOutletId, outlets } = useOutlet()
-  const [station, setStation] = useState<Station>('kitchen')
-  const [tickets, setTickets] = useState<KdsTicket[]>([])
+  const { selectedOutletId, outlets, kdsEnabled, loading: outletLoading } = useOutlet()
+  const [orders, setOrders] = useState<KdsOrder[]>([])
   const [loading, setLoading] = useState(true)
   const [showDone, setShowDone] = useState(false)
   const [soundOn, setSoundOn] = useState(false)
-  const [audioReady, setAudioReady] = useState(false)
   const [flash, setFlash] = useState(false)
   const [now, setNow] = useState(() => Date.now())
   const [isFullscreen, setIsFullscreen] = useState(false)
-  const audioRef = useRef<AudioContext | null>(null)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const ringTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const knownIds = useRef<Set<string> | null>(null)
   const soundOnRef = useRef(false)
-
   soundOnRef.current = soundOn
 
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_STATION)
-      if (saved === 'bar' || saved === 'kitchen') setStation(saved)
-      const q = new URLSearchParams(window.location.search).get('station')
-      if (q === 'bar' || q === 'kitchen') setStation(q)
-    } catch { /* storage unavailable */ }
-  }, [])
-
-  // ── Sound: two-tone chime via Web Audio (no asset needed). Browsers only
-  // allow audio after a user gesture, so it is unlocked by the first tap.
-  const unlockAudio = useCallback(() => {
+  const getAudio = useCallback(() => {
     if (!audioRef.current) {
-      const Ctx = window.AudioContext || (window as any).webkitAudioContext
-      if (!Ctx) return
-      audioRef.current = new Ctx()
+      const a = new Audio(SOUND_SRC)
+      a.preload = 'auto'
+      audioRef.current = a
     }
-    audioRef.current.resume().then(() => setAudioReady(true)).catch(() => {})
+    return audioRef.current
   }, [])
 
-  const playChime = useCallback(() => {
-    const ctx = audioRef.current
-    if (!ctx || ctx.state !== 'running') return
-    const start = ctx.currentTime
-    // three "ding-dong" pairs so it is hard to miss in a noisy kitchen
-    for (let i = 0; i < 3; i++) {
-      for (const [j, freq] of [880, 660].entries()) {
-        const t = start + i * 0.9 + j * 0.28
-        const osc = ctx.createOscillator()
-        const gain = ctx.createGain()
-        osc.type = 'sine'
-        osc.frequency.value = freq
-        gain.gain.setValueAtTime(0.0001, t)
-        gain.gain.exponentialRampToValueAtTime(0.5, t + 0.02)
-        gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.26)
-        osc.connect(gain).connect(ctx.destination)
-        osc.start(t)
-        osc.stop(t + 0.28)
-      }
-    }
-  }, [])
+  // Browsers only allow sound after a tap; playing it once (muted) inside the
+  // tap unlocks later programmatic playback, including on iOS.
+  const unlockAudio = useCallback(() => {
+    const a = getAudio()
+    a.muted = true
+    a.play().then(() => { a.pause(); a.currentTime = 0; a.muted = false }).catch(() => { a.muted = false })
+  }, [getAudio])
 
-  useEffect(() => {
-    const handler = () => unlockAudio()
-    window.addEventListener('pointerdown', handler, { once: true })
-    return () => window.removeEventListener('pointerdown', handler)
-  }, [unlockAudio])
+  const ring = useCallback(() => {
+    const a = getAudio()
+    if (ringTimer.current) clearTimeout(ringTimer.current)
+    a.pause()
+    a.currentTime = 0
+    a.muted = false
+    a.play().catch(() => {})
+    // The recording is long; stop it after a few seconds.
+    ringTimer.current = setTimeout(() => a.pause(), RING_MAX_MS)
+  }, [getAudio])
 
   const load = useCallback(async () => {
-    if (!selectedOutletId) return
-    const { data, error } = await supabase.rpc('get_kds_tickets', {
+    if (!selectedOutletId || !kdsEnabled) { setLoading(false); return }
+    const { data, error } = await supabase.rpc('get_kds_orders', {
       p_outlet_id: selectedOutletId,
-      p_station: station,
       p_include_done: showDone,
     })
     if (error) {
@@ -115,28 +93,27 @@ export default function KitchenDisplayPage() {
       setLoading(false)
       return
     }
-    const list = (data || []) as KdsTicket[]
-    const openIds = list.filter(t => t.status === 'new').map(t => t.ticket_id)
+    const list = (data || []) as KdsOrder[]
+    const openIds = list.filter(o => o.status === 'new').map(o => o.order_id)
     if (knownIds.current) {
       const fresh = openIds.filter(id => !knownIds.current!.has(id))
       if (fresh.length > 0) {
-        if (soundOnRef.current) playChime()
+        if (soundOnRef.current) ring()
         try { navigator.vibrate?.([200, 100, 200]) } catch { /* not supported */ }
         setFlash(true)
         setTimeout(() => setFlash(false), 2500)
       }
     }
     knownIds.current = new Set(openIds)
-    setTickets(list)
+    setOrders(list)
     setLoading(false)
-  }, [supabase, selectedOutletId, station, showDone, playChime])
+  }, [supabase, selectedOutletId, kdsEnabled, showDone, ring])
 
-  // Reset the "already seen" set whenever the screen's scope changes, so
-  // switching station/outlet never chimes for tickets that were just waiting.
+  // Switching outlet must not chime for orders that were simply already waiting.
   useEffect(() => {
     knownIds.current = null
     setLoading(true)
-  }, [selectedOutletId, station])
+  }, [selectedOutletId])
 
   useEffect(() => {
     load()
@@ -144,15 +121,15 @@ export default function KitchenDisplayPage() {
     return () => clearInterval(poll)
   }, [load])
 
-  // Realtime accelerates delivery; polling above is the safety net.
+  // Realtime speeds delivery up; polling above is the safety net.
   useEffect(() => {
-    if (!selectedOutletId) return
+    if (!selectedOutletId || !kdsEnabled) return
     const channel = supabase
       .channel(`kds-${selectedOutletId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'kds_tickets', filter: `outlet_id=eq.${selectedOutletId}` }, () => load())
       .subscribe()
     return () => { supabase.removeChannel(channel) }
-  }, [supabase, selectedOutletId, load])
+  }, [supabase, selectedOutletId, kdsEnabled, load])
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000)
@@ -166,6 +143,8 @@ export default function KitchenDisplayPage() {
     return () => { lock?.release?.().catch?.(() => {}) }
   }, [])
 
+  useEffect(() => () => { if (ringTimer.current) clearTimeout(ringTimer.current) }, [])
+
   useEffect(() => {
     const onChange = () => setIsFullscreen(!!document.fullscreenElement)
     document.addEventListener('fullscreenchange', onChange)
@@ -177,53 +156,53 @@ export default function KitchenDisplayPage() {
     else document.documentElement.requestFullscreen().catch(() => toast.error('Layar penuh tidak didukung di browser ini'))
   }
 
-  const chooseStation = (s: Station) => {
-    setStation(s)
-    try { localStorage.setItem(STORAGE_STATION, s) } catch { /* ignore */ }
-  }
-
   const toggleSound = () => {
-    unlockAudio()
     const next = !soundOn
+    if (next) {
+      unlockAudio()
+      setTimeout(ring, 250) // audible confirmation
+    } else {
+      audioRef.current?.pause()
+    }
     setSoundOn(next)
-    if (next) setTimeout(playChime, 150) // audible confirmation
   }
 
   const complete = async (id: string) => {
-    setTickets(prev => prev.map(t => t.ticket_id === id ? { ...t, status: 'done', done_at: new Date().toISOString() } : t))
-    const { error } = await supabase.rpc('complete_kds_ticket', { p_ticket_id: id })
+    setOrders(prev => prev.map(o => o.order_id === id ? { ...o, status: 'done', done_at: new Date().toISOString() } : o))
+    const { error } = await supabase.rpc('complete_kds_order', { p_order_id: id })
     if (error) toast.error(error.message)
     load()
   }
 
   const reopen = async (id: string) => {
-    const { error } = await supabase.rpc('reopen_kds_ticket', { p_ticket_id: id })
+    const { error } = await supabase.rpc('reopen_kds_order', { p_order_id: id })
     if (error) toast.error(error.message)
     load()
   }
 
   const outletName = outlets.find(o => o.id === selectedOutletId)?.name || ''
-  const open = tickets.filter(t => t.status === 'new')
-  const done = tickets.filter(t => t.status === 'done')
-  const StationIcon = station === 'kitchen' ? ChefHat : GlassWater
+
+  if (!outletLoading && !kdsEnabled) {
+    return (
+      <div className="mx-auto mt-16 max-w-md rounded-xl border border-dashed border-zinc-800 bg-zinc-900/30 p-8 text-center">
+        <ChefHat className="mx-auto mb-3 h-10 w-10 text-zinc-600" />
+        <h2 className="text-lg font-semibold text-zinc-200">Layar Dapur &amp; Bar belum diaktifkan</h2>
+        <p className="mt-1 text-sm text-zinc-500">Fitur ini opsional. Aktifkan di Settings &rarr; System &rarr; Organization Modules bila ingin menampilkan pesanan baru di layar dapur/bar.</p>
+        <Link href="/settings/system" className="mt-4 inline-block text-sm text-indigo-400 hover:underline">Buka pengaturan</Link>
+      </div>
+    )
+  }
+
+  // Also hide, locally, anything past the expiry between polls.
+  const visible = orders.filter(o => o.status === 'done' || (now - new Date(o.created_at).getTime()) / 1000 < EXPIRE_SECONDS)
+  const open = visible.filter(o => o.status === 'new')
+  const done = visible.filter(o => o.status === 'done')
 
   return (
     <div className={`flex h-[calc(100dvh-4rem)] flex-col ${flash ? 'ring-4 ring-inset ring-amber-400/70' : ''}`}>
       <div className="mb-2 flex flex-wrap items-center gap-2">
-        <div className="flex rounded-lg border border-zinc-800 bg-zinc-900 p-0.5">
-          {(['kitchen', 'bar'] as Station[]).map(s => (
-            <button
-              key={s}
-              onClick={() => chooseStation(s)}
-              className={`flex items-center gap-1.5 rounded-md px-4 py-1.5 text-sm font-semibold transition-colors ${station === s ? 'bg-indigo-600 text-white' : 'text-zinc-400 hover:text-zinc-200'}`}
-            >
-              {s === 'kitchen' ? <ChefHat className="h-4 w-4" /> : <GlassWater className="h-4 w-4" />}
-              {s === 'kitchen' ? 'Dapur' : 'Bar'}
-            </button>
-          ))}
-        </div>
-        <span className="rounded-md border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm text-zinc-300">
-          {open.length} pesanan aktif
+        <span className="flex items-center gap-2 rounded-md border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm font-semibold text-zinc-200">
+          <ChefHat className="h-4 w-4 text-indigo-400" /> {open.length} pesanan aktif
         </span>
         <span className="hidden text-xs text-zinc-500 sm:inline">{outletName}</span>
 
@@ -255,32 +234,29 @@ export default function KitchenDisplayPage() {
           <BellRing className="h-4 w-4" /> Ketuk untuk mengaktifkan bunyi notifikasi pesanan baru
         </button>
       )}
-      {soundOn && !audioReady && (
-        <p className="mb-2 text-center text-xs text-amber-400">Ketuk layar sekali untuk mengaktifkan suara di browser ini.</p>
-      )}
 
       <div className="flex-1 overflow-y-auto">
         {loading ? (
           <div className="flex h-48 items-center justify-center text-zinc-500"><Loader2 className="h-6 w-6 animate-spin" /></div>
         ) : open.length === 0 && (!showDone || done.length === 0) ? (
           <div className="flex h-64 flex-col items-center justify-center gap-2 text-zinc-600">
-            <StationIcon className="h-12 w-12 opacity-30" />
-            <p className="text-sm">Belum ada pesanan untuk {station === 'kitchen' ? 'Dapur' : 'Bar'}.</p>
+            <ChefHat className="h-12 w-12 opacity-30" />
+            <p className="text-sm">Belum ada pesanan.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-            {[...open, ...(showDone ? done : [])].map(t => {
-              const isDone = t.status === 'done'
-              const { s, label } = elapsed(t.created_at, now)
+            {[...open, ...(showDone ? done : [])].map(o => {
+              const isDone = o.status === 'done'
+              const { s, label } = elapsed(o.created_at, now)
               return (
-                <div key={t.ticket_id} className={`flex flex-col rounded-xl border-2 p-3 ${isDone ? 'border-zinc-800 bg-zinc-900/40 opacity-60' : ageStyle(s)}`}>
+                <div key={o.order_id} className={`flex flex-col rounded-xl border-2 p-3 ${isDone ? 'border-zinc-800 bg-zinc-900/40 opacity-60' : ageStyle(s)}`}>
                   <div className="mb-2 flex items-center justify-between">
-                    <span className="font-mono text-base font-bold text-zinc-100">#{t.order_no}</span>
-                    <span className="text-xs text-zinc-500">{format(new Date(t.created_at), 'HH:mm')}</span>
+                    <span className="font-mono text-base font-bold text-zinc-100">#{o.order_no}</span>
+                    <span className="text-xs text-zinc-500">{format(new Date(o.created_at), 'HH:mm')}</span>
                     {!isDone && <span className={`font-mono text-lg font-bold ${s >= 600 ? 'text-red-400' : s >= 300 ? 'text-amber-400' : 'text-emerald-400'}`}>{label}</span>}
                   </div>
                   <ul className="flex-1 space-y-1.5">
-                    {t.items.map((it, i) => (
+                    {o.items.map((it, i) => (
                       <li key={i}>
                         <div className="flex items-baseline gap-2 text-zinc-100">
                           <span className="text-xl font-bold tabular-nums">{it.qty}x</span>
@@ -293,11 +269,11 @@ export default function KitchenDisplayPage() {
                     ))}
                   </ul>
                   {isDone ? (
-                    <Button variant="outline" className="mt-3 h-11 border-zinc-700 text-zinc-300 hover:bg-zinc-800" onClick={() => reopen(t.ticket_id)}>
+                    <Button variant="outline" className="mt-3 h-11 border-zinc-700 text-zinc-300 hover:bg-zinc-800" onClick={() => reopen(o.order_id)}>
                       <RotateCcw className="mr-2 h-4 w-4" /> Buka lagi
                     </Button>
                   ) : (
-                    <Button className="mt-3 h-12 bg-emerald-600 text-base font-semibold text-white hover:bg-emerald-700" onClick={() => complete(t.ticket_id)}>
+                    <Button className="mt-3 h-12 bg-emerald-600 text-base font-semibold text-white hover:bg-emerald-700" onClick={() => complete(o.order_id)}>
                       <Check className="mr-2 h-5 w-5" /> Selesai
                     </Button>
                   )}
