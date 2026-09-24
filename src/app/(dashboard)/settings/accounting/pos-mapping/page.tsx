@@ -47,6 +47,8 @@ interface PosCoaMapping {
   pos_category: string
   revenue_coa_id: string
   cogs_coa_id: string | null
+  /** Category found on products but not mapped yet (UI only, not stored). */
+  suggested?: boolean
 }
 
 interface PosPaymentMapping {
@@ -72,6 +74,9 @@ export default function PosMappingSettingsPage() {
   const [paymentMappings, setPaymentMappings] = useState<PosPaymentMapping[]>([])
   const [pendingGlCount, setPendingGlCount] = useState(0)
   const [reposting, setReposting] = useState(false)
+
+  const outletLabel = (outletId: string | null) =>
+    outletId ? outlets.find(o => o.id === outletId)?.name || 'Outlet' : 'Org Default (All)'
 
   const fetchPendingGlCount = async (currentOrgId: string) => {
     const { count } = await supabase
@@ -138,7 +143,19 @@ export default function PosMappingSettingsPage() {
             .select('id, outlet_id, pos_category, revenue_coa_id, cogs_coa_id')
             .eq('org_id', currentOrgId)
             .order('pos_category')
-          setCoaMappings(coaMapData || [])
+          // Categories already used on products become rows automatically, so
+          // only the accounts have to be picked.
+          const { data: catData } = await supabase
+            .from('item_master')
+            .select('pos_category')
+            .eq('org_id', currentOrgId)
+            .eq('category', 'finished')
+          const productCategories = Array.from(new Set((catData || []).map((r: any) => (r.pos_category || '').trim() || 'Uncategorized'))).sort()
+          const mappedDefaults = new Set((coaMapData || []).filter((m: any) => !m.outlet_id).map((m: any) => m.pos_category.toLowerCase()))
+          const suggestions: PosCoaMapping[] = productCategories
+            .filter(c => !mappedDefaults.has(c.toLowerCase()))
+            .map(c => ({ outlet_id: null, pos_category: c, revenue_coa_id: '', cogs_coa_id: null, suggested: true }))
+          setCoaMappings([...(coaMapData || []), ...suggestions])
 
           // Fetch POS Payment Mappings
           const { data: payMapData } = await supabase
@@ -161,8 +178,11 @@ export default function PosMappingSettingsPage() {
     if (!orgId) return
     setSaving(true)
     try {
+      // Suggested categories the user did not map are simply not saved.
+      const toSave = coaMappings.filter(m => !(m.suggested && !m.revenue_coa_id))
+
       // Basic client-side validation
-      const invalid = coaMappings.some(m => !m.pos_category.trim() || !m.revenue_coa_id)
+      const invalid = toSave.some(m => !m.pos_category.trim() || !m.revenue_coa_id)
       if (invalid) {
         toast.error('Please specify both Category and Revenue Account for all mapping rows')
         setSaving(false)
@@ -171,7 +191,7 @@ export default function PosMappingSettingsPage() {
 
       // Check duplicates for same Category + Outlet combination
       const seen = new Set<string>()
-      for (const m of coaMappings) {
+      for (const m of toSave) {
         const key = `${m.pos_category.toLowerCase()}-${m.outlet_id || 'default'}`
         if (seen.has(key)) {
           toast.error(`Duplicate mapping found for category "${m.pos_category}" and specified outlet. Each category-outlet pair must be unique.`)
@@ -185,9 +205,9 @@ export default function PosMappingSettingsPage() {
       await supabase.from('pos_coa_mapping').delete().eq('org_id', orgId)
 
       // Inserting new mappings
-      if (coaMappings.length > 0) {
+      if (toSave.length > 0) {
         const { error } = await supabase.from('pos_coa_mapping').insert(
-          coaMappings.map(m => ({
+          toSave.map(m => ({
             org_id: orgId,
             outlet_id: m.outlet_id || null,
             pos_category: m.pos_category.trim(),
@@ -206,7 +226,9 @@ export default function PosMappingSettingsPage() {
         .select('id, outlet_id, pos_category, revenue_coa_id, cogs_coa_id')
         .eq('org_id', orgId)
         .order('pos_category')
-      setCoaMappings(coaMapData || [])
+      const savedDefaults = new Set((coaMapData || []).filter((m: any) => !m.outlet_id).map((m: any) => m.pos_category.toLowerCase()))
+      const stillSuggested = coaMappings.filter(m => m.suggested && !m.revenue_coa_id && !savedDefaults.has(m.pos_category.toLowerCase()))
+      setCoaMappings([...(coaMapData || []), ...stillSuggested])
     } catch (error: any) {
       toast.error(error.message || 'Failed to save category mappings')
     } finally {
@@ -394,7 +416,7 @@ export default function PosMappingSettingsPage() {
                           onValueChange={(val) => updateCoaMapping(idx, 'outlet_id', val === 'default' ? null : val)}
                         >
                           <SelectTrigger className="bg-zinc-950 border-zinc-800 text-zinc-200">
-                            <SelectValue />
+                            <SelectValue>{outletLabel(mapping.outlet_id)}</SelectValue>
                           </SelectTrigger>
                           <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-200">
                             <SelectItem value="default">
@@ -417,6 +439,7 @@ export default function PosMappingSettingsPage() {
                           value={mapping.pos_category}
                           onChange={(e) => updateCoaMapping(idx, 'pos_category', e.target.value)}
                         />
+                        {mapping.suggested && <p className="mt-1 text-[10px] text-amber-400">Dari produk - pilih akun untuk memetakan</p>}
                       </TableCell>
 
                       {/* Revenue Account Selector */}
@@ -513,7 +536,7 @@ export default function PosMappingSettingsPage() {
                           onValueChange={(val) => updatePaymentMapping(idx, 'outlet_id', val === 'default' ? null : val)}
                         >
                           <SelectTrigger className="bg-zinc-950 border-zinc-800 text-zinc-200">
-                            <SelectValue />
+                            <SelectValue>{outletLabel(mapping.outlet_id)}</SelectValue>
                           </SelectTrigger>
                           <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-200">
                             <SelectItem value="default">
