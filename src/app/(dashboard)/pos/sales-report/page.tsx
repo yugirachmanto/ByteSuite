@@ -15,6 +15,8 @@ import { id as localeId } from 'date-fns/locale'
 import { toast } from 'sonner'
 import { fetchPosSalesSummary, fetchSalesTrend, fetchPosSalesDetail, fetchPosSalesItemDetail, type PosSalesSummary, type SalesTrend, type PosSaleDetailRow, type PosSaleItemRow } from '@/lib/pos/salesSummary'
 import { canAccess } from '@/lib/auth/canAccess'
+import Link from 'next/link'
+import { VoidOrderDialog } from '@/components/pos/VoidOrderDialog'
 import { fetchSalesAnalytics, type SalesAnalytics } from '@/lib/pos/salesAnalytics'
 import { exportSalesReportExcel, exportSalesReportPdf, captureChartsImage } from '@/lib/pos/salesReportExport'
 
@@ -22,6 +24,7 @@ const PAY_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#06b6d4', '#8b5
 const DAY_LABELS = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min']
 
 const EXPORT_ROLES = ['owner', 'admin']
+const VOID_ROLES = ['owner', 'admin', 'cashier']
 
 export default function PosSalesReportPage() {
   const supabase = createClient()
@@ -40,6 +43,9 @@ export default function PosSalesReportPage() {
   const [cashierScope, setCashierScope] = useState<string | undefined>(undefined)
   const [scopeResolved, setScopeResolved] = useState(false)
   const [canExport, setCanExport] = useState(false)
+  const [canVoid, setCanVoid] = useState(false)
+  const [voidOrderId, setVoidOrderId] = useState<string | null>(null)
+  const [reloadKey, setReloadKey] = useState(0)
   const [userName, setUserName] = useState<string | undefined>(undefined)
 
   const selectedOutlet = outlets.find(o => o.id === selectedOutletId)
@@ -52,6 +58,7 @@ export default function PosSalesReportPage() {
       const { data: profile } = await supabase.from('user_profiles').select('role, full_name').eq('id', user.id).single()
       setCashierScope(profile?.role === 'cashier' ? user.id : undefined)
       setCanExport(canAccess(profile?.role ?? null, EXPORT_ROLES))
+      setCanVoid(canAccess(profile?.role ?? null, VOID_ROLES))
       setUserName(profile?.full_name || undefined)
       setScopeResolved(true)
     }
@@ -116,7 +123,7 @@ export default function PosSalesReportPage() {
       setAnalytics(result)
     }
     fetchAnalytics()
-  }, [selectedOutletId, supabase, startDate, endDate, scopeResolved, cashierScope])
+  }, [selectedOutletId, supabase, startDate, endDate, scopeResolved, cashierScope, reloadKey])
 
   const downloadCsv = (headers: string[], rows: (string | number)[][], filePrefix: string) => {
     const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))].join('\n')
@@ -528,15 +535,16 @@ export default function PosSalesReportPage() {
                     <th className="px-4 py-2 font-medium text-right">Pembulatan</th>
                     <th className="px-4 py-2 font-medium text-right">Total</th>
                     <th className="px-4 py-2 font-medium">Status</th>
+                    {canVoid && <th className="px-4 py-2 font-medium text-right">Aksi</th>}
                   </tr>
                 </thead>
                 <tbody>
                   {saleDetails.length === 0 ? (
-                    <tr><td colSpan={11} className="py-8 text-center text-zinc-600 text-sm">Tidak ada transaksi pada periode ini.</td></tr>
+                    <tr><td colSpan={12} className="py-8 text-center text-zinc-600 text-sm">Tidak ada transaksi pada periode ini.</td></tr>
                   ) : saleDetails.map((d) => (
                     <tr key={d.id} className="border-b border-zinc-800/30 last:border-0 hover:bg-zinc-800/20">
                       <td className="px-4 py-2.5 text-zinc-400 text-xs whitespace-nowrap">{format(new Date(d.created_at), 'dd/MM/yy HH:mm')}</td>
-                      <td className="px-4 py-2.5 text-zinc-500 font-mono text-xs">{d.id.slice(0, 8).toUpperCase()}</td>
+                      <td className="px-4 py-2.5 font-mono text-xs"><Link href={`/pos/receipt/${d.id}`} target="_blank" className="text-indigo-400 hover:underline">{d.id.slice(0, 8).toUpperCase()}</Link></td>
                       <td className="px-4 py-2.5 text-zinc-300">{d.cashier_name}</td>
                       <td className="px-4 py-2.5 text-zinc-500 text-xs text-right">{d.item_count}</td>
                       <td className="px-4 py-2.5 text-zinc-400 text-xs">{d.payment_methods}</td>
@@ -550,6 +558,18 @@ export default function PosSalesReportPage() {
                           {d.status === 'voided' ? 'Voided' : 'Selesai'}
                         </span>
                       </td>
+                      {canVoid && (
+                        <td className="px-4 py-2.5 text-right">
+                          {d.status === 'completed' && format(new Date(d.created_at), 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd') ? (
+                            <button
+                              onClick={() => setVoidOrderId(d.id)}
+                              className="rounded-md border border-red-900/60 px-2 py-0.5 text-[11px] font-medium text-red-400 hover:bg-red-950/40"
+                            >
+                              Void
+                            </button>
+                          ) : null}
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -639,6 +659,13 @@ export default function PosSalesReportPage() {
           )}
         </div>
       )}
+
+      <VoidOrderDialog
+        orderId={voidOrderId}
+        open={voidOrderId !== null}
+        onOpenChange={(o) => { if (!o) setVoidOrderId(null) }}
+        onVoided={() => { setVoidOrderId(null); setReloadKey(k => k + 1) }}
+      />
     </div>
   )
 }
