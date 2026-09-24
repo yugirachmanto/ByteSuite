@@ -16,7 +16,7 @@ import { toast } from 'sonner'
 import { fetchPosSalesSummary, fetchSalesTrend, fetchPosSalesDetail, fetchPosSalesItemDetail, type PosSalesSummary, type SalesTrend, type PosSaleDetailRow, type PosSaleItemRow } from '@/lib/pos/salesSummary'
 import { canAccess } from '@/lib/auth/canAccess'
 import { fetchSalesAnalytics, type SalesAnalytics } from '@/lib/pos/salesAnalytics'
-import { exportSalesReportExcel, exportSalesReportPdf } from '@/lib/pos/salesReportExport'
+import { exportSalesReportExcel, exportSalesReportPdf, captureChartsImage } from '@/lib/pos/salesReportExport'
 
 const PAY_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#06b6d4', '#8b5cf6', '#ef4444', '#84cc16']
 const DAY_LABELS = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min']
@@ -40,6 +40,7 @@ export default function PosSalesReportPage() {
   const [cashierScope, setCashierScope] = useState<string | undefined>(undefined)
   const [scopeResolved, setScopeResolved] = useState(false)
   const [canExport, setCanExport] = useState(false)
+  const [userName, setUserName] = useState<string | undefined>(undefined)
 
   const selectedOutlet = outlets.find(o => o.id === selectedOutletId)
   const periodLabel = `${format(startDate, 'd MMM yyyy', { locale: localeId })} — ${format(endDate, 'd MMM yyyy', { locale: localeId })}`
@@ -48,9 +49,10 @@ export default function PosSalesReportPage() {
     async function resolveScope() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { setScopeResolved(true); return }
-      const { data: profile } = await supabase.from('user_profiles').select('role').eq('id', user.id).single()
+      const { data: profile } = await supabase.from('user_profiles').select('role, full_name').eq('id', user.id).single()
       setCashierScope(profile?.role === 'cashier' ? user.id : undefined)
       setCanExport(canAccess(profile?.role ?? null, EXPORT_ROLES))
+      setUserName(profile?.full_name || undefined)
       setScopeResolved(true)
     }
     resolveScope()
@@ -140,7 +142,8 @@ export default function PosSalesReportPage() {
         analytics,
         saleDetails,
         itemRows,
-        chartsEl: chartsRef.current,
+        generatedBy: userName,
+        chartsImage: await captureChartsImage(chartsRef.current),
       }
       if (kind === 'xlsx') await exportSalesReportExcel(data)
       else await exportSalesReportPdf(data)
