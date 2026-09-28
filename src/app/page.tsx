@@ -3,12 +3,12 @@
 import { useEffect } from 'react'
 import { motion, useReducedMotion, useMotionValue, animate } from 'framer-motion'
 import Link from 'next/link'
-import { LogoMark } from '@/components/brand/LogoMark'
 import { displayFont } from '@/components/home/font'
 import HeroBanner from '@/components/home/HeroBanner'
 import ProductsSection from '@/components/home/ProductsSection'
 import SolutionsSection from '@/components/home/SolutionsSection'
 import { ScrollProgressLine } from '@/components/home/ScrollProgressLine'
+import { SiteHeader } from '@/components/home/SiteHeader'
 
 // Apple's damping-ratio (0-1, 1.0 = critically damped) maps to Framer
 // Motion's duration-based spring as `bounce: 0` — NOT `damping: 1`, which
@@ -60,32 +60,7 @@ export default function HomePage() {
   return (
     <div className={`${displayFont.className} min-h-[100dvh] bg-zinc-950 text-zinc-100`}>
       <ScrollProgressLine />
-      <header className="sticky top-0 z-40 border-b border-white/[0.06] bg-zinc-950/70 backdrop-blur-xl backdrop-saturate-150">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4 sm:px-10">
-          <div className="flex items-center gap-2">
-            <LogoMark className="h-7 w-7" />
-            <span className="text-lg font-semibold tracking-[-0.01em]">ByteSuite</span>
-          </div>
-          <nav className="hidden items-center gap-8 md:flex">
-            {[{ label: 'Products', href: '#products' }, { label: 'Solutions', href: '#solutions' }, { label: 'Pricing', href: '#' }].map(item => (
-              <Link key={item.label} href={item.href} className="text-sm font-medium text-zinc-400 transition-colors duration-150 hover:text-zinc-100">
-                {item.label}
-              </Link>
-            ))}
-          </nav>
-          <div className="flex items-center gap-3">
-            <Link href="/login" className="text-sm font-medium text-zinc-400 transition-colors duration-150 hover:text-zinc-100">
-              Login
-            </Link>
-            <Link
-              href="/register"
-              className="inline-flex h-9 items-center justify-center rounded-full bg-white/10 px-4 text-sm font-medium text-white transition-colors duration-150 hover:bg-white/15"
-            >
-              Sign Up
-            </Link>
-          </div>
-        </div>
-      </header>
+      <SiteHeader />
 
       <main className="mx-auto max-w-6xl px-6 pb-28 pt-10 sm:px-10 lg:pt-20">
         <div className="grid grid-cols-1 items-center gap-12 lg:grid-cols-[minmax(0,380px)_1fr] lg:gap-16">

@@ -9,7 +9,9 @@ import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 import { Loader2, Eye, EyeOff, MailCheck } from 'lucide-react'
 import Link from 'next/link'
-import { LogoMark } from '@/components/brand/LogoMark'
+import { AuthShell } from '@/components/auth/AuthShell'
+
+const fieldClass = 'h-11 border-white/10 bg-zinc-950/50 text-zinc-100 placeholder:text-zinc-500 focus-visible:border-indigo-500/50 focus-visible:ring-indigo-500/20'
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
@@ -97,34 +99,33 @@ export default function RegisterPage() {
 
   if (step === 'email_confirm') {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background p-4">
-        <div className="w-full max-w-[400px] space-y-8 text-center">
-          <Link href="/" className="inline-block mb-6">
-            <span className="inline-flex items-center gap-2.5 text-2xl font-bold tracking-tight"><LogoMark className="h-9 w-9" />ByteSuite</span>
-          </Link>
-          
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-muted">
-            <MailCheck className="h-8 w-8 text-foreground" />
+      <AuthShell activePage="register">
+        <div className="space-y-4 text-center">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-500/15">
+            <MailCheck className="h-8 w-8 text-indigo-300" />
           </div>
-          
+
           <div className="space-y-2">
-            <h2 className="text-2xl font-bold tracking-tight">Check your inbox</h2>
-            <p className="text-sm text-muted-foreground leading-relaxed">
+            <h2 className="text-2xl font-semibold tracking-[-0.01em] text-white">Check your inbox</h2>
+            <p className="text-sm leading-relaxed text-zinc-400">
               We sent a confirmation link to{' '}
-              <span className="font-medium text-foreground">{formData.email}</span>.
+              <span className="font-medium text-zinc-200">{formData.email}</span>.
               Click it to activate your account, then come back and sign in.
             </p>
           </div>
 
-          <Button className="w-full h-11" onClick={() => router.push('/login')}>
+          <Button
+            className="h-11 w-full rounded-full bg-indigo-600 text-white shadow-[0_16px_40px_-12px_rgba(79,70,229,0.6)] hover:bg-indigo-500"
+            onClick={() => router.push('/login')}
+          >
             Go to Sign In
           </Button>
 
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-zinc-500">
             Didn&apos;t receive it? Check your spam folder or{' '}
             <button
               type="button"
-              className="text-foreground hover:underline"
+              className="text-zinc-300 hover:underline"
               onClick={() => setStep('form')}
             >
               try again
@@ -132,129 +133,128 @@ export default function RegisterPage() {
             .
           </p>
         </div>
-      </div>
+      </AuthShell>
     )
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4 py-12">
-      <div className="w-full max-w-[480px] space-y-8">
-        <div className="text-center space-y-2">
-          <Link href="/" className="inline-block mb-6">
-            <span className="inline-flex items-center gap-2.5 text-2xl font-bold tracking-tight"><LogoMark className="h-9 w-9" />ByteSuite</span>
-          </Link>
-          <h1 className="text-3xl font-semibold tracking-tight">Create an account</h1>
-          <p className="text-sm text-muted-foreground">Set up your organization and first outlet to get started</p>
-        </div>
+    <AuthShell activePage="register">
+      <div className="space-y-2 text-center">
+        <h1 className="text-2xl font-semibold tracking-[-0.01em] text-white">Create an account</h1>
+        <p className="text-sm text-zinc-400">Set up your organization and first outlet to get started</p>
+      </div>
 
-        <form onSubmit={handleRegister} className="space-y-6">
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="fullName">Full Name</Label>
-                <Input
-                  id="fullName"
-                  placeholder="John Doe"
-                  required
-                  value={formData.fullName}
-                  onChange={handleChange}
-                  className="h-11"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="name@example.com"
-                  required
-                  value={formData.email}
-                  onChange={handleChange}
-                  className="h-11"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <div className="relative">
-                  <Input
-                    id="password"
-                    type={showPassword ? 'text' : 'password'}
-                    placeholder="Min. 6 characters"
-                    minLength={6}
-                    required
-                    value={formData.password}
-                    onChange={handleChange}
-                    className="h-11 pr-11"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="orgName">Organization Name</Label>
-                <Input
-                  id="orgName"
-                  placeholder="Acme F&B Group"
-                  required
-                  value={formData.orgName}
-                  onChange={handleChange}
-                  className="h-11"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="outletName">First Outlet Name</Label>
-                <Input
-                  id="outletName"
-                  placeholder="Grand Central Cafe"
-                  required
-                  value={formData.outletName}
-                  onChange={handleChange}
-                  className="h-11"
-                />
-              </div>
-            </div>
-
+      <form onSubmit={handleRegister} className="mt-8 space-y-6">
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="coaTemplate">Chart of Accounts Template</Label>
-              <select
-                id="coaTemplate"
-                value={formData.coaTemplate}
-                onChange={(e) => setFormData((prev) => ({ ...prev, coaTemplate: e.target.value }))}
-                className="flex h-11 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-              >
-                <option value="default">Default ByteSuite (~200 akun standar F&amp;B)</option>
-                <option value="kl">Kopitiam Lim (struktur COA custom)</option>
-              </select>
-              <p className="text-xs text-muted-foreground">Bisa disesuaikan lagi kapan saja lewat Settings setelah akun dibuat.</p>
+              <Label htmlFor="fullName" className="text-zinc-300">Full Name</Label>
+              <Input
+                id="fullName"
+                placeholder="John Doe"
+                required
+                value={formData.fullName}
+                onChange={handleChange}
+                className={fieldClass}
+              />
             </div>
           </div>
 
-          <Button type="submit" disabled={loading} className="w-full h-11">
-            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Create Account
-          </Button>
-        </form>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="email" className="text-zinc-300">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="name@example.com"
+                required
+                value={formData.email}
+                onChange={handleChange}
+                className={fieldClass}
+              />
+            </div>
 
-        <p className="text-center text-sm text-muted-foreground">
-          Already have an account?{' '}
-          <Link href="/login" className="font-medium text-foreground hover:underline">
-            Sign in instead
-          </Link>
-        </p>
-      </div>
-    </div>
+            <div className="space-y-2">
+              <Label htmlFor="password" className="text-zinc-300">Password</Label>
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="Min. 6 characters"
+                  minLength={6}
+                  required
+                  value={formData.password}
+                  onChange={handleChange}
+                  className={`${fieldClass} pr-11`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300"
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="orgName" className="text-zinc-300">Organization Name</Label>
+              <Input
+                id="orgName"
+                placeholder="Acme F&B Group"
+                required
+                value={formData.orgName}
+                onChange={handleChange}
+                className={fieldClass}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="outletName" className="text-zinc-300">First Outlet Name</Label>
+              <Input
+                id="outletName"
+                placeholder="Grand Central Cafe"
+                required
+                value={formData.outletName}
+                onChange={handleChange}
+                className={fieldClass}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="coaTemplate" className="text-zinc-300">Chart of Accounts Template</Label>
+            <select
+              id="coaTemplate"
+              value={formData.coaTemplate}
+              onChange={(e) => setFormData((prev) => ({ ...prev, coaTemplate: e.target.value }))}
+              className="flex h-11 w-full rounded-lg border border-white/10 bg-zinc-950/50 px-3 text-sm text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+            >
+              <option value="default">Default ByteSuite (~200 akun standar F&amp;B)</option>
+              <option value="kl">Kopitiam Lim (struktur COA custom)</option>
+            </select>
+            <p className="text-xs text-zinc-500">Bisa disesuaikan lagi kapan saja lewat Settings setelah akun dibuat.</p>
+          </div>
+        </div>
+
+        <Button
+          type="submit"
+          disabled={loading}
+          className="h-11 w-full rounded-full bg-indigo-600 text-white shadow-[0_16px_40px_-12px_rgba(79,70,229,0.6)] hover:bg-indigo-500"
+        >
+          {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          Create Account
+        </Button>
+      </form>
+
+      <p className="mt-6 text-center text-sm text-zinc-400">
+        Already have an account?{' '}
+        <Link href="/login" className="font-medium text-zinc-100 hover:underline">
+          Sign in instead
+        </Link>
+      </p>
+    </AuthShell>
   )
 }
