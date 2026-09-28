@@ -35,6 +35,21 @@ export async function captureChartsImage(el: HTMLElement | null): Promise<Charts
   }
 }
 
+/** Fetches a same-origin public asset and returns it as a data URL, for embedding in the PDF (jsPDF needs image data, not a URL). */
+async function loadImageAsDataUrl(path: string): Promise<string | null> {
+  try {
+    const blob = await fetch(path).then(r => r.blob())
+    return await new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(reader.result as string)
+      reader.onerror = reject
+      reader.readAsDataURL(blob)
+    })
+  } catch {
+    return null
+  }
+}
+
 const DAYS = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu']
 const pct = (cur: number, prev: number) => (prev > 0 ? `${(((cur - prev) / prev) * 100).toFixed(1)}%` : '-')
 const stamp = (iso: string) => format(new Date(iso), 'yyyy-MM-dd HH:mm')
@@ -84,10 +99,8 @@ export async function exportSalesReportPdf(d: SalesReportExportData) {
   // Cover
   doc.setFillColor(9, 9, 11)
   doc.rect(0, 0, pageW, pageH, 'F')
-  doc.setFillColor(79, 70, 229)
-  doc.roundedRect(margin + 8, 30, 22, 22, 5, 5, 'F')
-  doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(20)
-  doc.text('B', margin + 19, 45.5, { align: 'center' })
+  const markDataUrl = await loadImageAsDataUrl('/brand/mark.png')
+  if (markDataUrl) doc.addImage(markDataUrl, 'PNG', margin + 8, 30, 22, 22)
   doc.setFontSize(11); doc.setFont('helvetica', 'normal'); doc.setTextColor(161, 161, 170)
   doc.text('ByteSuite', margin + 34, 42)
   doc.setFontSize(34); doc.setFont('helvetica', 'bold'); doc.setTextColor(255, 255, 255)
