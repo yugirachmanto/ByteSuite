@@ -399,7 +399,14 @@ export default function PosSalesReportPage() {
                     labelFormatter={(l) => (trend.granularity === 'hour' ? `Jam ${l}` : String(l))}
                     formatter={(value: any, name: any) => [name === 'sales' ? formatRp(value) : value, name === 'sales' ? 'Penjualan' : 'Transaksi']}
                   />
-                  <Line type="monotone" dataKey="sales" stroke="#6366f1" strokeWidth={2} dot={false} />
+                  <Line
+                    type="monotone"
+                    dataKey="sales"
+                    stroke="#6366f1"
+                    strokeWidth={2}
+                    dot={{ r: 3, fill: '#6366f1', strokeWidth: 0 }}
+                    activeDot={{ r: 5 }}
+                  />
                 </LineChart>
               </ResponsiveContainer>
             </div>
