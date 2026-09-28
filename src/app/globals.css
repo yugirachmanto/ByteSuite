@@ -134,3 +134,11 @@
   50%  { transform: translateX(200%); }
   100% { transform: translateX(-100%); }
 }
+
+:root {
+  /* Shared motion curves (Kowalski animation vocabulary) — reference these,
+     don't hand-roll a parallel cubic-bezier elsewhere in the app. */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+}
