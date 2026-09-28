@@ -9,7 +9,9 @@ import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 import { Loader2, Eye, EyeOff } from 'lucide-react'
 import Link from 'next/link'
-import { LogoMark } from '@/components/brand/LogoMark'
+import { AuthShell } from '@/components/auth/AuthShell'
+
+const fieldClass = 'h-11 border-white/10 bg-zinc-950/50 text-zinc-100 placeholder:text-zinc-500 focus-visible:border-indigo-500/50 focus-visible:ring-indigo-500/20'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -24,10 +26,10 @@ export default function LoginPage() {
       const hash = window.location.hash
       const search = window.location.search
       const hasForwarded = sessionStorage.getItem('setup_forwarded')
-      
+
       if (!hasForwarded && (
-        hash.includes('access_token=') || 
-        hash.includes('type=invite') || 
+        hash.includes('access_token=') ||
+        hash.includes('type=invite') ||
         hash.includes('type=recovery') ||
         hash.includes('type=signup') ||
         search.includes('code=') ||
@@ -57,72 +59,71 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
-      <div className="w-full max-w-[400px] space-y-8">
-        <div className="text-center space-y-2">
-          <Link href="/" className="inline-block mb-6">
-            <span className="inline-flex items-center gap-2.5 text-2xl font-bold tracking-tight"><LogoMark className="h-9 w-9" />ByteSuite</span>
-          </Link>
-          <h1 className="text-3xl font-semibold tracking-tight">Welcome back</h1>
-          <p className="text-sm text-muted-foreground">Enter your credentials to access your account</p>
-        </div>
+    <AuthShell activePage="login">
+      <div className="space-y-2 text-center">
+        <h1 className="text-2xl font-semibold tracking-[-0.01em] text-white">Welcome back</h1>
+        <p className="text-sm text-zinc-400">Enter your credentials to access your account</p>
+      </div>
 
-        <form onSubmit={handleLogin} className="space-y-6">
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email address</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="name@example.com"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="h-11"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password">Password</Label>
-                <Link href="/forgot-password" className="text-xs text-muted-foreground hover:text-foreground hover:underline">
-                  Forgot password?
-                </Link>
-              </div>
-              <div className="relative">
-                <Input
-                  id="password"
-                  type={showPassword ? 'text' : 'password'}
-                  placeholder="Enter your password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="h-11 pr-11"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
-            </div>
+      <form onSubmit={handleLogin} className="mt-8 space-y-6">
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="email" className="text-zinc-300">Email address</Label>
+            <Input
+              id="email"
+              type="email"
+              placeholder="name@example.com"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className={fieldClass}
+            />
           </div>
 
-          <Button type="submit" disabled={loading} className="w-full h-11">
-            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Sign In
-          </Button>
-        </form>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="password" className="text-zinc-300">Password</Label>
+              <Link href="/forgot-password" className="text-xs text-zinc-500 hover:text-zinc-300 hover:underline">
+                Forgot password?
+              </Link>
+            </div>
+            <div className="relative">
+              <Input
+                id="password"
+                type={showPassword ? 'text' : 'password'}
+                placeholder="Enter your password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className={`${fieldClass} pr-11`}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300"
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+          </div>
+        </div>
 
-        <p className="text-center text-sm text-muted-foreground">
-          Don&apos;t have an account?{' '}
-          <Link href="/register" className="font-medium text-foreground hover:underline">
-            Create one for free
-          </Link>
-        </p>
-      </div>
-    </div>
+        <Button
+          type="submit"
+          disabled={loading}
+          className="h-11 w-full rounded-full bg-indigo-600 text-white shadow-[0_16px_40px_-12px_rgba(79,70,229,0.6)] hover:bg-indigo-500"
+        >
+          {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          Sign In
+        </Button>
+      </form>
+
+      <p className="mt-6 text-center text-sm text-zinc-400">
+        Don&apos;t have an account?{' '}
+        <Link href="/register" className="font-medium text-zinc-100 hover:underline">
+          Create one for free
+        </Link>
+      </p>
+    </AuthShell>
   )
 }
