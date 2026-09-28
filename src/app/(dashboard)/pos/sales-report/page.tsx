@@ -21,6 +21,18 @@ import { fetchSalesAnalytics, type SalesAnalytics } from '@/lib/pos/salesAnalyti
 import { exportSalesReportExcel, exportSalesReportPdf, captureChartsImage } from '@/lib/pos/salesReportExport'
 
 const PAY_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#06b6d4', '#8b5cf6', '#ef4444', '#84cc16']
+
+/**
+ * The donut (sorted by revenue) and the stacked bar chart (sorted
+ * alphabetically) list payment methods in different orders — indexing
+ * PAY_COLORS positionally made the same method show a different color in
+ * each chart. Assigning by name against one shared, alphabetically-sorted
+ * list keeps a method's color identical everywhere it appears.
+ */
+function paymentColorMap(methods: string[]): Map<string, string> {
+  const sorted = [...new Set(methods)].sort()
+  return new Map(sorted.map((m, i) => [m, PAY_COLORS[i % PAY_COLORS.length]]))
+}
 const DAY_LABELS = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min']
 
 const EXPORT_ROLES = ['owner', 'admin']
@@ -402,31 +414,41 @@ export default function PosSalesReportPage() {
                 <p className="py-10 text-center text-sm text-zinc-600">Tidak ada transaksi pada periode ini.</p>
               ) : (
                 <div className="grid gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-                  <div style={{ height: 260 }}>
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie data={posSalesSummary?.tenders || []} dataKey="amount" nameKey="method" innerRadius={55} outerRadius={90} paddingAngle={2}>
-                          {(posSalesSummary?.tenders || []).map((_, i) => <Cell key={i} fill={PAY_COLORS[i % PAY_COLORS.length]} />)}
-                        </Pie>
-                        <RechartsTooltip contentStyle={{ backgroundColor: '#18181b', border: '1px solid #3f3f46', borderRadius: 8 }} formatter={(v: any) => formatRp(Number(v))} />
-                        <Legend wrapperStyle={{ fontSize: 11 }} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <div style={{ height: 260 }}>
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={analytics!.paymentTrend.points} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                        <XAxis dataKey="label" stroke="#71717a" fontSize={11} interval="preserveStartEnd" minTickGap={24} />
-                        <YAxis stroke="#71717a" fontSize={11} tickFormatter={(v) => formatRp(v)} width={80} />
-                        <RechartsTooltip contentStyle={{ backgroundColor: '#18181b', border: '1px solid #3f3f46', borderRadius: 8 }} formatter={(v: any) => formatRp(Number(v))} />
-                        <Legend wrapperStyle={{ fontSize: 11 }} />
-                        {analytics!.paymentTrend.methods.map((m, i) => (
-                          <Bar key={m} dataKey={m} stackId="pay" fill={PAY_COLORS[i % PAY_COLORS.length]} />
-                        ))}
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
+                  {(() => {
+                    const colorOf = paymentColorMap([
+                      ...(posSalesSummary?.tenders || []).map(t => t.method),
+                      ...analytics!.paymentTrend.methods,
+                    ])
+                    return (
+                      <>
+                        <div style={{ height: 260 }}>
+                          <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                              <Pie data={posSalesSummary?.tenders || []} dataKey="amount" nameKey="method" innerRadius={55} outerRadius={90} paddingAngle={2}>
+                                {(posSalesSummary?.tenders || []).map((t) => <Cell key={t.method} fill={colorOf.get(t.method)} />)}
+                              </Pie>
+                              <RechartsTooltip contentStyle={{ backgroundColor: '#18181b', border: '1px solid #3f3f46', borderRadius: 8 }} formatter={(v: any) => formatRp(Number(v))} />
+                              <Legend wrapperStyle={{ fontSize: 11 }} />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        </div>
+                        <div style={{ height: 260 }}>
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={analytics!.paymentTrend.points} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
+                              <XAxis dataKey="label" stroke="#71717a" fontSize={11} interval="preserveStartEnd" minTickGap={24} />
+                              <YAxis stroke="#71717a" fontSize={11} tickFormatter={(v) => formatRp(v)} width={80} />
+                              <RechartsTooltip contentStyle={{ backgroundColor: '#18181b', border: '1px solid #3f3f46', borderRadius: 8 }} formatter={(v: any) => formatRp(Number(v))} />
+                              <Legend wrapperStyle={{ fontSize: 11 }} />
+                              {analytics!.paymentTrend.methods.map((m) => (
+                                <Bar key={m} dataKey={m} stackId="pay" fill={colorOf.get(m)} />
+                              ))}
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </>
+                    )
+                  })()}
                 </div>
               )}
             </div>
