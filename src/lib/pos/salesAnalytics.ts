@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { format, eachDayOfInterval } from 'date-fns'
+import { inChunks } from './inChunks'
 
 export interface PeriodTotals {
   netSales: number
@@ -38,17 +39,6 @@ interface Scope {
   startIso: string
   endIso: string
   cashierId?: string
-}
-
-const CHUNK = 200
-
-async function inChunks<T>(ids: string[], run: (chunk: string[]) => PromiseLike<{ data: T[] | null }>): Promise<T[]> {
-  const out: T[] = []
-  for (let i = 0; i < ids.length; i += CHUNK) {
-    const { data } = await run(ids.slice(i, i + CHUNK))
-    if (data) out.push(...data)
-  }
-  return out
 }
 
 const totalsOf = (orders: { total_amount: number | null }[]): PeriodTotals => {

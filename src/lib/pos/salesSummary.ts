@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { format, eachDayOfInterval } from 'date-fns'
+import { inChunks } from './inChunks'
 
 function isComplimentaryMethod(method: string): boolean {
   return /komplimen|complimentary|compliment/i.test(method)
@@ -86,14 +87,14 @@ export async function fetchPosSalesSummary(supabase: SupabaseClient, scope: Sale
   let compRecipients: { notes: string; amount: number }[] = []
 
   if (completedIds.length > 0) {
-    const { data: payments } = await supabase
-      .from('pos_order_payments')
-      .select('payment_method, amount, notes')
-      .in('order_id', completedIds)
+    const payments = await inChunks<{ payment_method: string; amount: number; notes: string | null }>(
+      completedIds,
+      chunk => supabase.from('pos_order_payments').select('payment_method, amount, notes').in('order_id', chunk)
+    )
 
     const tenderMap = new Map<string, number>()
     const compMap = new Map<string, number>()
-    for (const p of payments || []) {
+    for (const p of payments) {
       tenderMap.set(p.payment_method, (tenderMap.get(p.payment_method) || 0) + (p.amount || 0))
       if (isComplimentaryMethod(p.payment_method)) {
         compTotal += p.amount || 0
@@ -104,14 +105,14 @@ export async function fetchPosSalesSummary(supabase: SupabaseClient, scope: Sale
     tenders = Array.from(tenderMap.entries()).map(([method, amount]) => ({ method, amount })).sort((a, b) => b.amount - a.amount)
     compRecipients = Array.from(compMap.entries()).map(([notes, amount]) => ({ notes, amount })).sort((a, b) => b.amount - a.amount)
 
-    const { data: lines } = await supabase
-      .from('pos_order_lines')
-      .select('item_id, qty, subtotal, item_master(name, pos_category)')
-      .in('order_id', completedIds)
+    const lines = await inChunks<any>(
+      completedIds,
+      chunk => supabase.from('pos_order_lines').select('item_id, qty, subtotal, item_master(name, pos_category)').in('order_id', chunk)
+    )
 
     const itemMap = new Map<string, { name: string; qty: number; revenue: number }>()
     const categoryMap = new Map<string, { qty: number; revenue: number }>()
-    for (const l of (lines || []) as any[]) {
+    for (const l of lines) {
       const key = l.item_id
       const name = l.item_master?.name || 'Unknown Item'
       const existing = itemMap.get(key) || { name, qty: 0, revenue: 0 }
@@ -251,21 +252,22 @@ export async function fetchPosSalesDetail(supabase: SupabaseClient, scope: Sales
   const orderIds = orders.map(o => o.id)
   const cashierIds = Array.from(new Set(orders.map(o => o.cashier_id).filter(Boolean)))
 
-  const [{ data: lines }, { data: payments }, { data: cashiers }] = await Promise.all([
-    supabase.from('pos_order_lines').select('order_id, qty').in('order_id', orderIds),
-    supabase.from('pos_order_payments').select('order_id, payment_method').in('order_id', orderIds),
+  const [lines, payments, cashiersData] = await Promise.all([
+    inChunks<{ order_id: string; qty: number }>(orderIds, chunk => supabase.from('pos_order_lines').select('order_id, qty').in('order_id', chunk)),
+    inChunks<{ order_id: string; payment_method: string }>(orderIds, chunk => supabase.from('pos_order_payments').select('order_id, payment_method').in('order_id', chunk)),
     cashierIds.length > 0
-      ? supabase.from('user_profiles').select('id, full_name').in('id', cashierIds)
-      : Promise.resolve({ data: [] as { id: string; full_name: string }[] })
+      ? supabase.from('user_profiles').select('id, full_name').in('id', cashierIds).then(r => r.data || [])
+      : Promise.resolve([] as { id: string; full_name: string }[])
   ])
+  const cashiers = cashiersData
 
   const itemCountMap = new Map<string, number>()
-  for (const l of lines || []) {
+  for (const l of lines) {
     itemCountMap.set(l.order_id, (itemCountMap.get(l.order_id) || 0) + (l.qty || 0))
   }
 
   const methodsMap = new Map<string, string[]>()
-  for (const p of payments || []) {
+  for (const p of payments) {
     const existing = methodsMap.get(p.order_id) || []
     if (!existing.includes(p.payment_method)) existing.push(p.payment_method)
     methodsMap.set(p.order_id, existing)
@@ -312,13 +314,13 @@ export async function fetchPosSalesItemDetail(supabase: SupabaseClient, scope: S
   if (orders.length === 0) return []
 
   const orderMap = new Map(orders.map(o => [o.id, o]))
-  const { data: lines } = await supabase
-    .from('pos_order_lines')
-    .select('order_id, qty, unit_price, subtotal, discount_amount, item_master(name, pos_category)')
-    .in('order_id', orders.map(o => o.id))
+  const lines = await inChunks<any>(
+    orders.map(o => o.id),
+    chunk => supabase.from('pos_order_lines').select('order_id, qty, unit_price, subtotal, discount_amount, item_master(name, pos_category)').in('order_id', chunk)
+  )
 
   const rows: PosSaleItemRow[] = []
-  for (const l of (lines || []) as any[]) {
+  for (const l of lines) {
     const o = orderMap.get(l.order_id)
     if (!o) continue
     rows.push({

@@ -65,64 +65,63 @@ export default function PosSalesReportPage() {
     resolveScope()
   }, [supabase])
 
+  // Picking a custom date range fires this effect multiple times in quick
+  // succession (period→CUSTOM with default dates, then again once the start
+  // date is picked, then again once the end date is picked) — normal
+  // react-day-picker range-selection behavior, not a bug in itself. Without
+  // a guard, a slower request for an earlier (now-stale) range could resolve
+  // after a faster request for the final range and overwrite it with wrong
+  // data. fetchPosSalesItemDetail is the slowest of the five (it makes two
+  // sequential round trips instead of one), which is why only the Detail
+  // Item table exhibited this — it was the one most likely to lose the race.
   useEffect(() => {
     if (!selectedOutletId || !scopeResolved) return
+    let cancelled = false
+    const scope = {
+      outletId: selectedOutletId!,
+      startIso: startDate.toISOString(),
+      endIso: endDate.toISOString(),
+      cashierId: cashierScope
+    }
+
     async function fetchPosSales() {
       setPosSalesLoading(true)
-      const summary = await fetchPosSalesSummary(supabase, {
-        outletId: selectedOutletId!,
-        startIso: startDate.toISOString(),
-        endIso: endDate.toISOString(),
-        cashierId: cashierScope
-      })
+      const summary = await fetchPosSalesSummary(supabase, scope)
+      if (cancelled) return
       setPosSalesSummary(summary)
       setPosSalesLoading(false)
     }
     fetchPosSales()
 
     async function fetchTrend() {
-      const result = await fetchSalesTrend(supabase, {
-        outletId: selectedOutletId!,
-        startIso: startDate.toISOString(),
-        endIso: endDate.toISOString(),
-        cashierId: cashierScope
-      })
+      const result = await fetchSalesTrend(supabase, scope)
+      if (cancelled) return
       setTrend(result)
     }
     fetchTrend()
 
     async function fetchDetails() {
-      const details = await fetchPosSalesDetail(supabase, {
-        outletId: selectedOutletId!,
-        startIso: startDate.toISOString(),
-        endIso: endDate.toISOString(),
-        cashierId: cashierScope
-      })
+      const details = await fetchPosSalesDetail(supabase, scope)
+      if (cancelled) return
       setSaleDetails(details)
     }
     fetchDetails()
 
     async function fetchItems() {
-      const items = await fetchPosSalesItemDetail(supabase, {
-        outletId: selectedOutletId!,
-        startIso: startDate.toISOString(),
-        endIso: endDate.toISOString(),
-        cashierId: cashierScope
-      })
+      const items = await fetchPosSalesItemDetail(supabase, scope)
+      if (cancelled) return
       setItemRows(items)
     }
     fetchItems()
 
     async function fetchAnalytics() {
-      const result = await fetchSalesAnalytics(supabase, {
-        outletId: selectedOutletId!,
-        startIso: startDate.toISOString(),
-        endIso: endDate.toISOString(),
-        cashierId: cashierScope
-      })
+      const result = await fetchSalesAnalytics(supabase, scope)
+      if (cancelled) return
       setAnalytics(result)
     }
     fetchAnalytics()
+
+    return () => { cancelled = true }
   }, [selectedOutletId, supabase, startDate, endDate, scopeResolved, cashierScope, reloadKey])
 
   const downloadCsv = (headers: string[], rows: (string | number)[][], filePrefix: string) => {

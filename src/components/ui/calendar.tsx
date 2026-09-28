@@ -43,15 +43,22 @@ function Calendar({
       "dark:group-data-[selected]:bg-white dark:group-data-[selected]:text-black " +
       "group-data-[selected]:shadow-md " +
       "group-data-[disabled]:opacity-40 group-data-[disabled]:cursor-not-allowed group-data-[disabled]:hover:bg-transparent group-data-[disabled]:hover:text-muted-foreground/40",
-    day: "text-center",
+    // "relative" here (not on `today` itself) is what makes the dot below
+    // position against the day cell — every cell needs it since `today`'s
+    // absolute pseudo-element is otherwise anchored to whatever positioned
+    // ancestor happens to be further up the tree (e.g. the popover), which
+    // silently misplaces or hides the dot.
+    day: "relative text-center",
     range_start:
       "rounded-l-full bg-black text-white dark:bg-white dark:text-black shadow-md",
     range_end:
       "rounded-r-full bg-black text-white dark:bg-white dark:text-black shadow-md",
     range_middle:
       "bg-black/10 text-foreground dark:bg-white/20 rounded-none transition-colors",
+    // Today: a small dot beneath the day number, visible whether or not
+    // today is also selected/in-range.
     today:
-      "after:absolute after:bottom-1 after:left-1/2 after:-translate-x-1/2 after:w-1.5 after:h-1.5 after:rounded-full after:bg-primary",
+      "after:absolute after:bottom-1 after:left-1/2 after:-translate-x-1/2 after:w-1.5 after:h-1.5 after:rounded-full after:bg-primary after:content-['']",
     outside:
       "text-muted-foreground/50 hover:text-accent-foreground hover:bg-accent/30",
     hidden: "invisible",
