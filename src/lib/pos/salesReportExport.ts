@@ -99,10 +99,13 @@ export async function exportSalesReportPdf(d: SalesReportExportData) {
   // Cover
   doc.setFillColor(9, 9, 11)
   doc.rect(0, 0, pageW, pageH, 'F')
-  const markDataUrl = await loadImageAsDataUrl('/brand/mark.png')
-  if (markDataUrl) doc.addImage(markDataUrl, 'PNG', margin + 8, 30, 22, 22)
-  doc.setFontSize(11); doc.setFont('helvetica', 'normal'); doc.setTextColor(161, 161, 170)
-  doc.text('ByteSuite', margin + 34, 42)
+  const wordmarkDataUrl = await loadImageAsDataUrl('/brand/wordmark.png')
+  if (wordmarkDataUrl) {
+    // Source is 1374x393 (~3.5:1) — hold that ratio so it isn't stretched.
+    const wmWidth = 46
+    const wmHeight = wmWidth * (393 / 1374)
+    doc.addImage(wordmarkDataUrl, 'PNG', margin + 8, 30, wmWidth, wmHeight)
+  }
   doc.setFontSize(34); doc.setFont('helvetica', 'bold'); doc.setTextColor(255, 255, 255)
   doc.text('Laporan Penjualan POS', margin + 8, 88)
   doc.setFillColor(79, 70, 229)
@@ -156,10 +159,16 @@ export async function exportSalesReportPdf(d: SalesReportExportData) {
   // Charts captured from the on-screen dashboard
   if (d.chartsImage) {
     doc.addPage()
-    const w = pageW - margin * 2
-    const h = Math.min((d.chartsImage.height / d.chartsImage.width) * w, pageH - margin * 2 - 8)
+    const wMax = pageW - margin * 2
+    const hMax = pageH - margin * 2 - 8
+    // Scale by whichever dimension is more constrained so the image is
+    // never stretched non-uniformly (capping only height while keeping
+    // width fixed squashes it — this keeps the original aspect ratio).
+    const scale = Math.min(wMax / d.chartsImage.width, hMax / d.chartsImage.height)
+    const w = d.chartsImage.width * scale
+    const h = d.chartsImage.height * scale
     doc.setFontSize(11); doc.setTextColor(24, 24, 27); doc.text('Grafik', margin, 14)
-    doc.addImage(d.chartsImage.dataUrl, 'PNG', margin, 18, w, h)
+    doc.addImage(d.chartsImage.dataUrl, 'PNG', margin + (wMax - w) / 2, 18, w, h)
   }
 
   // Tables
