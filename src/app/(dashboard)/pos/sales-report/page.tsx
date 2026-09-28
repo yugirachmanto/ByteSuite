@@ -13,7 +13,7 @@ import { formatRp } from '@/lib/format'
 import { format } from 'date-fns'
 import { id as localeId } from 'date-fns/locale'
 import { toast } from 'sonner'
-import { fetchPosSalesSummary, fetchSalesTrend, fetchPosSalesDetail, fetchPosSalesItemDetail, type PosSalesSummary, type SalesTrend, type PosSaleDetailRow, type PosSaleItemRow } from '@/lib/pos/salesSummary'
+import { fetchPosSalesSummary, fetchSalesTrend, fetchPosSalesDetail, fetchPosSalesItemDetail, fetchPosDailyBreakdown, type PosSalesSummary, type SalesTrend, type PosSaleDetailRow, type PosSaleItemRow } from '@/lib/pos/salesSummary'
 import { canAccess } from '@/lib/auth/canAccess'
 import Link from 'next/link'
 import { VoidOrderDialog } from '@/components/pos/VoidOrderDialog'
@@ -148,10 +148,14 @@ export default function PosSalesReportPage() {
   }
 
   const handleExportReport = async (kind: 'xlsx' | 'pdf') => {
-    if (!posSalesSummary) return
+    if (!posSalesSummary || !selectedOutletId) return
     setMenuOpen(false)
     setExporting(kind)
     try {
+      const isMultiDay = format(startDate, 'yyyy-MM-dd') !== format(endDate, 'yyyy-MM-dd')
+      const dailyBreakdown = isMultiDay
+        ? await fetchPosDailyBreakdown(supabase, { outletId: selectedOutletId, startIso: startDate.toISOString(), endIso: endDate.toISOString(), cashierId: cashierScope })
+        : undefined
       const data = {
         outletName: selectedOutlet?.name || 'outlet',
         periodLabel,
@@ -160,6 +164,7 @@ export default function PosSalesReportPage() {
         analytics,
         saleDetails,
         itemRows,
+        dailyBreakdown,
         generatedBy: userName,
         chartsImage: await captureChartsImage(chartsRef.current),
       }

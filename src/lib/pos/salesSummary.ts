@@ -6,6 +6,24 @@ function isComplimentaryMethod(method: string): boolean {
   return /komplimen|complimentary|compliment/i.test(method)
 }
 
+// A gap between two consecutive completed orders longer than this is a
+// quiet spell (no customers), not "time spent serving one order" — it's
+// excluded from the average-order-pace metric rather than dragging the
+// average up on a slow afternoon.
+const IDLE_GAP_THRESHOLD_MS = 60 * 60 * 1000
+
+function computeAvgOrderPaceSeconds(orders: { created_at: string }[]): number | null {
+  if (orders.length < 2) return null
+  const times = orders.map(o => new Date(o.created_at).getTime()).sort((a, b) => a - b)
+  const gaps: number[] = []
+  for (let i = 1; i < times.length; i++) {
+    const gap = times[i] - times[i - 1]
+    if (gap > 0 && gap <= IDLE_GAP_THRESHOLD_MS) gaps.push(gap)
+  }
+  if (gaps.length === 0) return null
+  return Math.round(gaps.reduce((s, g) => s + g, 0) / gaps.length / 1000)
+}
+
 export interface PosSalesSummary {
   grossSales: number
   discountTotal: number
@@ -14,6 +32,8 @@ export interface PosSalesSummary {
   netSales: number
   orderCount: number
   averageTransaction: number
+  /** Average gap between consecutive completed orders, excluding idle spells (see IDLE_GAP_THRESHOLD_MS). Null when there isn't enough data. */
+  avgOrderPaceSeconds: number | null
   voidedCount: number
   voidedAmount: number
   tenders: { method: string; amount: number }[]
@@ -39,6 +59,7 @@ const EMPTY_SUMMARY: PosSalesSummary = {
   netSales: 0,
   orderCount: 0,
   averageTransaction: 0,
+  avgOrderPaceSeconds: null,
   voidedCount: 0,
   voidedAmount: 0,
   tenders: [],
@@ -53,7 +74,7 @@ export async function fetchPosSalesSummary(supabase: SupabaseClient, scope: Sale
 
   let query = supabase
     .from('pos_orders')
-    .select('id, status, subtotal, tax_amount, rounding_amount, total_amount, discount_amount')
+    .select('id, created_at, status, subtotal, tax_amount, rounding_amount, total_amount, discount_amount')
     .eq('outlet_id', outletId)
 
   if (cashierId) query = query.eq('cashier_id', cashierId)
@@ -140,6 +161,7 @@ export async function fetchPosSalesSummary(supabase: SupabaseClient, scope: Sale
     netSales,
     orderCount: completed.length,
     averageTransaction: completed.length > 0 ? netSales / completed.length : 0,
+    avgOrderPaceSeconds: computeAvgOrderPaceSeconds(completed),
     voidedCount: voided.length,
     voidedAmount,
     tenders,
@@ -339,4 +361,111 @@ export async function fetchPosSalesItemDetail(supabase: SupabaseClient, scope: S
   }
   // Newest order first, items in a stable order within it.
   return rows.sort((x, y) => y.created_at.localeCompare(x.created_at) || x.order_id.localeCompare(y.order_id) || x.item_name.localeCompare(y.item_name))
+}
+
+export interface DailySalesBreakdown {
+  dateKey: string
+  dateLabel: string
+  grossSales: number
+  discountTotal: number
+  taxTotal: number
+  roundingTotal: number
+  netSales: number
+  orderCount: number
+  averageTransaction: number
+  topItems: { name: string; qty: number; revenue: number }[]
+  tenders: { method: string; amount: number }[]
+}
+
+/**
+ * Per-day rollup of the same metrics fetchPosSalesSummary computes for the
+ * whole range — feeds the PDF's day-by-day breakdown pages and the
+ * day-comparison table. Zero-fills every day in the range (like
+ * fetchSalesTrend) so a quiet day still shows as a zero row instead of
+ * being silently skipped.
+ */
+export async function fetchPosDailyBreakdown(supabase: SupabaseClient, scope: { outletId: string; startIso: string; endIso: string; cashierId?: string }): Promise<DailySalesBreakdown[]> {
+  const { outletId, startIso, endIso, cashierId } = scope
+
+  let query = supabase
+    .from('pos_orders')
+    .select('id, created_at, status, subtotal, tax_amount, rounding_amount, total_amount, discount_amount')
+    .eq('outlet_id', outletId)
+    .gte('created_at', startIso)
+    .lte('created_at', endIso)
+  if (cashierId) query = query.eq('cashier_id', cashierId)
+
+  const { data: orders } = await query
+  const days = eachDayOfInterval({ start: new Date(startIso), end: new Date(endIso) }).slice(0, 400)
+
+  const dayMap = new Map<string, DailySalesBreakdown>(days.map(d => {
+    const dateKey = format(d, 'yyyy-MM-dd')
+    return [dateKey, {
+      dateKey, dateLabel: format(d, 'd MMM yyyy'),
+      grossSales: 0, discountTotal: 0, taxTotal: 0, roundingTotal: 0, netSales: 0,
+      orderCount: 0, averageTransaction: 0, topItems: [], tenders: [],
+    }]
+  }))
+
+  const completed = (orders || []).filter(o => o.status === 'completed')
+  const orderDay = new Map<string, string>()
+  for (const o of completed) {
+    const dateKey = format(new Date(o.created_at), 'yyyy-MM-dd')
+    orderDay.set(o.id, dateKey)
+    const bucket = dayMap.get(dateKey)
+    if (!bucket) continue
+    bucket.grossSales += (o.subtotal || 0) + (o.discount_amount || 0)
+    bucket.discountTotal += o.discount_amount || 0
+    bucket.taxTotal += o.tax_amount || 0
+    bucket.roundingTotal += o.rounding_amount || 0
+    bucket.netSales += o.total_amount || 0
+    bucket.orderCount += 1
+  }
+  for (const bucket of dayMap.values()) {
+    bucket.averageTransaction = bucket.orderCount > 0 ? bucket.netSales / bucket.orderCount : 0
+  }
+
+  const completedIds = completed.map(o => o.id)
+  if (completedIds.length > 0) {
+    const [payments, lines] = await Promise.all([
+      inChunks<{ order_id: string; payment_method: string; amount: number }>(
+        completedIds, chunk => supabase.from('pos_order_payments').select('order_id, payment_method, amount').in('order_id', chunk)
+      ),
+      inChunks<any>(
+        completedIds, chunk => supabase.from('pos_order_lines').select('order_id, item_id, qty, subtotal, item_master(name)').in('order_id', chunk)
+      ),
+    ])
+
+    const tenderMaps = new Map<string, Map<string, number>>()
+    for (const p of payments) {
+      const dateKey = orderDay.get(p.order_id)
+      if (!dateKey) continue
+      const m = tenderMaps.get(dateKey) || new Map<string, number>()
+      m.set(p.payment_method, (m.get(p.payment_method) || 0) + (p.amount || 0))
+      tenderMaps.set(dateKey, m)
+    }
+    for (const [dateKey, m] of tenderMaps) {
+      const bucket = dayMap.get(dateKey)
+      if (bucket) bucket.tenders = Array.from(m.entries()).map(([method, amount]) => ({ method, amount })).sort((a, b) => b.amount - a.amount)
+    }
+
+    const itemMaps = new Map<string, Map<string, { name: string; qty: number; revenue: number }>>()
+    for (const l of lines) {
+      const dateKey = orderDay.get(l.order_id)
+      if (!dateKey) continue
+      const m = itemMaps.get(dateKey) || new Map<string, { name: string; qty: number; revenue: number }>()
+      const name = l.item_master?.name || 'Unknown Item'
+      const existing = m.get(l.item_id) || { name, qty: 0, revenue: 0 }
+      existing.qty += l.qty || 0
+      existing.revenue += l.subtotal || 0
+      m.set(l.item_id, existing)
+      itemMaps.set(dateKey, m)
+    }
+    for (const [dateKey, m] of itemMaps) {
+      const bucket = dayMap.get(dateKey)
+      if (bucket) bucket.topItems = Array.from(m.values()).sort((a, b) => b.revenue - a.revenue).slice(0, 5)
+    }
+  }
+
+  return Array.from(dayMap.values())
 }
