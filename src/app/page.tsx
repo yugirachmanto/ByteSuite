@@ -9,6 +9,7 @@ import ProductsSection from '@/components/home/ProductsSection'
 import SolutionsSection from '@/components/home/SolutionsSection'
 import { ScrollProgressLine } from '@/components/home/ScrollProgressLine'
 import { SiteHeader } from '@/components/home/SiteHeader'
+import { Footer } from '@/components/home/Footer'
 
 // Apple's damping-ratio (0-1, 1.0 = critically damped) maps to Framer
 // Motion's duration-based spring as `bounce: 0` — NOT `damping: 1`, which
@@ -89,6 +90,7 @@ export default function HomePage() {
 
       <ProductsSection />
       <SolutionsSection />
+      <Footer />
     </div>
   )
 }
