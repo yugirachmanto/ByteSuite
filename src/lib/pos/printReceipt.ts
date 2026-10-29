@@ -1,49 +1,64 @@
+const ROOT_ID = 'receipt-print-root'
+const STYLE_ID = 'receipt-print-style'
+
 /**
- * Prints a rendered receipt (e.g. the POS preview node) from a hidden iframe
- * on the current page — no new tab. The page's own stylesheets are copied in
- * so the Tailwind classes in ReceiptLayout resolve identically. Chrome still
- * shows its print dialog (it cannot be skipped from the web), but on
- * Android print services such as the terminal's built-in printer it is
- * preselected, leaving a single tap.
+ * Prints a rendered receipt (e.g. the POS preview node) without leaving the
+ * page. Chrome on Android ignores `iframe.contentWindow.print()` and prints
+ * the top-level document instead, so rather than an iframe the receipt is
+ * cloned into a body-level container and, while printing, every other body
+ * child is hidden via `@media print`. The page's own stylesheets therefore
+ * apply to the receipt as-is.
+ *
+ * The print dialog itself cannot be skipped from the web; on terminals whose
+ * built-in printer is an Android print service it opens with that printer
+ * preselected.
  */
-export function printReceiptNode(node: HTMLElement, paperWidth: '58mm' | '80mm'): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const styles = Array.from(document.querySelectorAll('link[rel="stylesheet"], style'))
-      .map((el) => el.outerHTML)
-      .join('\n')
+export async function printReceiptNode(node: HTMLElement, paperWidth: '58mm' | '80mm'): Promise<void> {
+  document.getElementById(ROOT_ID)?.remove()
+  document.getElementById(STYLE_ID)?.remove()
 
-    const iframe = document.createElement('iframe')
-    iframe.setAttribute('aria-hidden', 'true')
-    iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:1px;height:1px;border:0;opacity:0;pointer-events:none;'
+  const root = document.createElement('div')
+  root.id = ROOT_ID
+  root.innerHTML = node.innerHTML
 
-    const cleanup = () => {
-      window.setTimeout(() => iframe.remove(), 500)
-    }
-
-    iframe.onload = () => {
-      const win = iframe.contentWindow
-      if (!win) {
-        iframe.remove()
-        reject(new Error('Print frame unavailable'))
-        return
+  const style = document.createElement('style')
+  style.id = STYLE_ID
+  style.textContent = `
+    #${ROOT_ID} { display: none; }
+    @media print {
+      body > *:not(#${ROOT_ID}) { display: none !important; }
+      #${ROOT_ID} { display: block !important; }
+      html, body {
+        margin: 0 !important; padding: 0 !important;
+        height: auto !important; min-height: 0 !important;
+        overflow: visible !important; background: #fff !important;
       }
-      win.addEventListener('afterprint', cleanup)
-      // Safety net if afterprint never fires (some mobile browsers).
-      window.setTimeout(() => iframe.remove(), 120000)
-      win.focus()
-      win.print()
-      resolve()
+      #${ROOT_ID} * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      @page { size: ${paperWidth} auto; margin: 0; }
     }
+  `
 
-    iframe.srcdoc = `<!doctype html><html><head><meta charset="utf-8">
-<base href="${window.location.origin}/">
-${styles}
-<style>
-  @page { size: ${paperWidth} auto; margin: 0; }
-  html, body { margin: 0; padding: 0; background: #fff !important; }
-  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-</style></head><body>${node.outerHTML}</body></html>`
+  document.head.appendChild(style)
+  document.body.appendChild(root)
 
-    document.body.appendChild(iframe)
-  })
+  const cleanup = () => {
+    window.removeEventListener('afterprint', cleanup)
+    root.remove()
+    style.remove()
+  }
+  window.addEventListener('afterprint', cleanup)
+  // Safety net if afterprint never fires (some mobile browsers).
+  window.setTimeout(cleanup, 120000)
+
+  // Logos/footer images must be decoded before the print snapshot is taken.
+  const images = Array.from(root.querySelectorAll('img'))
+  await Promise.race([
+    Promise.all(images.map((img) => (img.complete ? Promise.resolve() : new Promise<void>((res) => {
+      img.onload = () => res()
+      img.onerror = () => res()
+    })))),
+    new Promise<void>((res) => window.setTimeout(res, 3000)),
+  ])
+
+  window.print()
 }
