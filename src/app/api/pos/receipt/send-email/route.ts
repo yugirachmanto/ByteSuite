@@ -19,8 +19,11 @@ function buildReceiptHtml(params: {
   roundingAmount?: number
   paymentMethod: string
   logoUrl?: string | null
+  headerText?: string | null
+  footerText?: string | null
+  footerImageUrl?: string | null
 }) {
-  const { orgName, outletName, orderId, createdAt, lines, totalAmount, taxAmount, paymentMethod, logoUrl, roundingAmount } = params
+  const { orgName, outletName, orderId, createdAt, lines, totalAmount, taxAmount, paymentMethod, logoUrl, roundingAmount, headerText, footerText, footerImageUrl } = params
   const place = esc(outletName || orgName)
   const rounding = roundingAmount && roundingAmount > 0 ? roundingAmount : 0
   const subtotal = totalAmount - taxAmount - rounding
@@ -49,6 +52,7 @@ function buildReceiptHtml(params: {
         <div style="text-align:center;margin-bottom:12px;">
           ${logoUrl ? `<img src="${esc(logoUrl)}" alt="${place}" style="max-height:56px;max-width:70%;margin-bottom:8px;" />` : ''}
           <div style="font-size:17px;font-weight:700;color:#18181b;">${place}</div>
+          ${headerText?.trim() ? `<div style="font-size:12px;color:#52525b;margin-top:2px;white-space:pre-line;">${esc(headerText.trim())}</div>` : ''}
           <div style="font-size:12px;color:#71717a;margin-top:2px;">Order #${orderNo} · ${format(new Date(createdAt), 'dd/MM/yyyy HH:mm')}</div>
         </div>
 
@@ -64,6 +68,10 @@ function buildReceiptHtml(params: {
             <td colspan="2" style="padding:2px 0;font-size:12px;color:#71717a;">Dibayar via ${esc(paymentMethod)}</td>
           </tr>
         </table>
+        ${footerImageUrl || footerText?.trim() ? `<div style="text-align:center;margin-top:14px;padding-top:12px;border-top:1px solid #e4e4e7;">
+          ${footerImageUrl ? `<img src="${esc(footerImageUrl)}" alt="" style="max-height:120px;max-width:100%;margin-bottom:8px;" />` : ''}
+          ${footerText?.trim() ? `<div style="font-size:12px;color:#52525b;white-space:pre-line;">${esc(footerText.trim())}</div>` : ''}
+        </div>` : ''}
       </div>
 
       <p style="font-size:15px;line-height:1.6;color:#3f3f46;text-align:center;margin:16px 0 0;">Ditunggu kedatangannya kembali! 🙏</p>
@@ -111,7 +119,7 @@ export async function POST(request: Request) {
 
     const [linesRes, orgRes, outletRes] = await Promise.all([
       supabase.from('pos_order_lines').select('qty, unit_price, subtotal, note, item_master(name)').eq('order_id', order_id),
-      supabase.from('organizations').select('name, receipt_logo_url').eq('id', order.org_id).single(),
+      supabase.from('organizations').select('name, receipt_logo_url, receipt_header_text, receipt_footer_text, receipt_footer_image_url').eq('id', order.org_id).single(),
       supabase.from('outlets').select('name').eq('id', order.outlet_id).single(),
     ])
 
@@ -134,6 +142,9 @@ export async function POST(request: Request) {
       roundingAmount: order.rounding_amount,
       paymentMethod: order.payment_method,
       logoUrl: orgRes.data?.receipt_logo_url,
+      headerText: orgRes.data?.receipt_header_text,
+      footerText: orgRes.data?.receipt_footer_text,
+      footerImageUrl: orgRes.data?.receipt_footer_image_url,
     })
 
     // The receipt image is rasterized client-side (from the same DOM node

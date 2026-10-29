@@ -28,6 +28,7 @@ const SECTION_META: SectionMeta[] = [
   { prefix: '/settings/users', label: 'Users & Roles', description: 'Anggota tim dan hak akses mereka.' },
   { prefix: '/settings/migration', label: 'Migrasi Data', description: 'Urutan yang disarankan untuk migrasi dari sistem lama — tiap langkah bisa diupload bertahap, tidak wajib berurutan.' },
   { prefix: '/settings/import', label: 'Saldo Awal Inventori', description: 'Import saldo awal stok bahan baku dan WIP.' },
+  { prefix: '/settings/receipt', label: 'Desain Struk', description: 'Atur header, footer, dan gambar pada struk POS.' },
   { prefix: '/settings/system', label: 'Sistem', description: 'Modul organisasi dan opsi reset data.' },
 ]
 

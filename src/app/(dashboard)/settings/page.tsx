@@ -11,6 +11,7 @@ import {
   Users,
   Rocket,
   RotateCcw,
+  Receipt,
   ArrowRight,
 } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -41,6 +42,12 @@ const SETTINGS_SECTIONS: SettingsSection[] = [
       { label: 'Chart of Accounts', description: 'Struktur dan daftar akun akuntansi.', href: '/settings/coa', icon: BookOpen },
       { label: 'Accounting Rules', description: 'Akun default untuk posting otomatis sistem.', href: '/settings/accounting', icon: Landmark },
       { label: 'POS Payment Mapping', description: 'Metode pembayaran POS ke akun akuntansi.', href: '/settings/accounting/pos-mapping', icon: CreditCard },
+    ],
+  },
+  {
+    name: 'POS',
+    cards: [
+      { label: 'Desain Struk', description: 'Header, footer, logo, dan gambar pada struk.', href: '/settings/receipt', icon: Receipt },
     ],
   },
   {

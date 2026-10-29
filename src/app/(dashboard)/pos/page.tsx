@@ -16,7 +16,8 @@ import { format } from 'date-fns'
 import { enqueue } from '@/lib/pos/offlineQueue'
 import { useOfflineCheckoutSync } from '@/lib/pos/useOfflineCheckoutSync'
 import { getCurrentUserRole, canAccess } from '@/lib/auth/canAccess'
-import { ReceiptLayout, type ReceiptOrderData, type ReceiptLine, type ReceiptPayment, type ReceiptOrg, type ReceiptOutlet } from '@/components/pos/ReceiptLayout'
+import { ReceiptLayout, RECEIPT_ORG_COLUMNS, type ReceiptOrderData, type ReceiptLine, type ReceiptPayment, type ReceiptOrg, type ReceiptOutlet } from '@/components/pos/ReceiptLayout'
+import { printReceiptNode } from '@/lib/pos/printReceipt'
 import { VoidOrderDialog } from '@/components/pos/VoidOrderDialog'
 import { captureElementAsPngBlob, downloadBlob, shareReceiptImage, blobToBase64 } from '@/lib/pos/receiptImage'
 
@@ -550,7 +551,18 @@ export default function POSPage() {
     }
   }
 
-  const handlePrintReceipt = () => {
+  // Prints the on-screen preview from a hidden iframe so the cashier stays on
+  // the POS; falls back to the standalone receipt page only if the preview
+  // hasn't rendered yet.
+  const handlePrintReceipt = async () => {
+    if (receiptImageRef.current) {
+      try {
+        await printReceiptNode(receiptImageRef.current, receiptPaperWidth)
+        return
+      } catch {
+        // fall through to the standalone page
+      }
+    }
     if (lastOrderId) window.open(`/pos/receipt/${lastOrderId}`, '_blank')
   }
 
@@ -571,7 +583,7 @@ export default function POSPage() {
       const [lineRes, paymentRes, orgRes, outletRes, cashierRes] = await Promise.all([
         supabase.from('pos_order_lines').select('id, qty, unit_price, subtotal, discount_amount, note, item_master(name)').eq('order_id', orderId),
         supabase.from('pos_order_payments').select('id, payment_method, amount, cash_received, change_due, notes').eq('order_id', orderId),
-        supabase.from('organizations').select('name, address, npwp, receipt_paper_width, qris_image_url, bank_name, bank_account_number, bank_account_holder, receipt_logo_url').eq('id', orderData.org_id).single(),
+        supabase.from('organizations').select(RECEIPT_ORG_COLUMNS).eq('id', orderData.org_id).single(),
         supabase.from('outlets').select('name, address').eq('id', orderData.outlet_id).single(),
         orderData.cashier_id
           ? supabase.from('user_profiles').select('full_name').eq('id', orderData.cashier_id).single()
@@ -1062,27 +1074,26 @@ export default function POSPage() {
                 No products found
               </div>
             ) : (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2">
                 {filteredProducts.map(product => (
-                  <Card 
-                    key={product.id} 
-                    className="bg-zinc-900 border-zinc-800 hover:border-indigo-500/50 cursor-pointer transition-colors"
+                  <Card
+                    key={product.id}
+                    className="bg-zinc-900 border-zinc-800 hover:border-indigo-500/50 active:bg-zinc-800 cursor-pointer transition-colors py-0 gap-0"
                     onClick={() => addToCart(product)}
                   >
-                    <CardContent className="p-4 flex flex-col items-center text-center h-full justify-between gap-3">
-                      <div className="w-16 h-16 bg-zinc-800 rounded-xl flex items-center justify-center mb-2 overflow-hidden border border-zinc-700/50">
+                    <CardContent className="p-2 flex items-center gap-2 h-full">
+                      <div className="w-10 h-10 shrink-0 bg-zinc-800 rounded-lg flex items-center justify-center overflow-hidden border border-zinc-700/50">
                         {product.imageUrl ? (
                           <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" />
                         ) : (
-                          <span className="text-xl font-bold text-zinc-600">{product.name.charAt(0)}</span>
+                          <span className="text-sm font-bold text-zinc-600">{product.name.charAt(0)}</span>
                         )}
                       </div>
-                      <div>
-                        <h3 className="text-sm font-semibold text-zinc-200 leading-tight">{product.name}</h3>
-                        <p className="text-xs text-zinc-500 mt-1">{product.category}</p>
-                      </div>
-                      <div className="text-indigo-400 font-bold text-sm">
-                        {formatRp(product.price)}
+                      <div className="min-w-0 flex-1">
+                        <h3 className="text-xs font-semibold text-zinc-200 leading-tight line-clamp-2">{product.name}</h3>
+                        <div className="text-indigo-400 font-bold text-xs mt-0.5">
+                          {formatRp(product.price)}
+                        </div>
                       </div>
                     </CardContent>
                   </Card>

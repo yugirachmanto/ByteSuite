@@ -12,7 +12,20 @@ export interface ReceiptOrg {
   bank_account_number: string | null
   bank_account_holder: string | null
   receipt_logo_url?: string | null
+  receipt_header_text?: string | null
+  receipt_footer_text?: string | null
+  receipt_footer_image_url?: string | null
+  receipt_show_org_name?: boolean | null
+  receipt_show_address?: boolean | null
+  receipt_show_npwp?: boolean | null
+  receipt_show_outlet_name?: boolean | null
 }
+
+export const DEFAULT_RECEIPT_FOOTER = 'Terima kasih atas kunjungan Anda!'
+
+/** Columns to select from `organizations` to render a receipt. */
+export const RECEIPT_ORG_COLUMNS =
+  'name, address, npwp, receipt_paper_width, qris_image_url, bank_name, bank_account_number, bank_account_holder, receipt_logo_url, receipt_header_text, receipt_footer_text, receipt_footer_image_url, receipt_show_org_name, receipt_show_address, receipt_show_npwp, receipt_show_outlet_name'
 
 export interface ReceiptOutlet {
   name: string
@@ -64,6 +77,10 @@ export function ReceiptLayout({ order, lines, payments, org, outlet, paperWidth,
   const isQris = payments.some(p => p.payment_method.toLowerCase().includes('qris'))
   const isTransfer = payments.some(p => p.payment_method.toLowerCase().includes('transfer'))
   const fontSize = paperWidth === '58mm' ? '10.5px' : '12px'
+  const showOrgName = org.receipt_show_org_name !== false
+  const showAddress = org.receipt_show_address !== false
+  const showNpwp = org.receipt_show_npwp !== false
+  const showOutletName = org.receipt_show_outlet_name !== false
   // order.subtotal is already net of both line-level and order-level
   // discounts (the persisted, GL-correct figure) — reconstruct the gross
   // (pre-discount) subtotal from the lines for display.
@@ -95,12 +112,15 @@ export function ReceiptLayout({ order, lines, payments, org, outlet, paperWidth,
             /* eslint-disable-next-line @next/next/no-img-element */
             <img src={org.receipt_logo_url} alt={org.name} className="mx-auto mb-1.5" style={{ maxHeight: '14mm', maxWidth: '70%', objectFit: 'contain' }} crossOrigin="anonymous" />
           )}
-          <p className="font-bold text-[1.15em] leading-tight">{org.name}</p>
-          {outlet.address || org.address ? (
+          {showOrgName && <p className="font-bold text-[1.15em] leading-tight">{org.name}</p>}
+          {showAddress && (outlet.address || org.address) ? (
             <p className="leading-tight whitespace-pre-line">{outlet.address || org.address}</p>
           ) : null}
-          {org.npwp && <p className="leading-tight">NPWP: {org.npwp}</p>}
-          {outlet.name && <p className="leading-tight mt-1">{outlet.name}</p>}
+          {showNpwp && org.npwp && <p className="leading-tight">NPWP: {org.npwp}</p>}
+          {showOutletName && outlet.name && <p className="leading-tight mt-1">{outlet.name}</p>}
+          {org.receipt_header_text?.trim() && (
+            <p className="leading-tight mt-1 whitespace-pre-line">{org.receipt_header_text.trim()}</p>
+          )}
         </div>
 
         <Divider />
@@ -188,7 +208,11 @@ export function ReceiptLayout({ order, lines, payments, org, outlet, paperWidth,
         <Divider />
 
         <div className="text-center leading-tight">
-          <p>Terima kasih atas kunjungan Anda!</p>
+          {org.receipt_footer_image_url && (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img src={org.receipt_footer_image_url} alt="" className="mx-auto mb-1.5" style={{ maxHeight: '30mm', maxWidth: '100%', objectFit: 'contain' }} crossOrigin="anonymous" />
+          )}
+          <p className="whitespace-pre-line">{org.receipt_footer_text?.trim() || DEFAULT_RECEIPT_FOOTER}</p>
         </div>
       </div>
 
