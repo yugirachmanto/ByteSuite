@@ -51,7 +51,7 @@ export function VoidOrderDialog({ orderId, open, onOpenChange, onVoided }: VoidO
         <AlertDialogHeader>
           <AlertDialogTitle>Batalkan (void) transaksi ini?</AlertDialogTitle>
           <AlertDialogDescription className="text-zinc-400">
-            Stok dikembalikan dan jurnal GL transaksi ini dihapus. Hanya bisa untuk transaksi hari ini dan tidak bisa dibatalkan lagi.
+            Stok dikembalikan dan jurnal GL transaksi ini dibalik dengan entri pembalik (jejak audit tetap tersimpan). Hanya bisa untuk transaksi hari ini pada shift yang masih buka, dan tidak bisa dibatalkan lagi.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <div className="space-y-2 py-2">

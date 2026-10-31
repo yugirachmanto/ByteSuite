@@ -17,6 +17,7 @@ import { fetchPosSalesSummary, fetchSalesTrend, fetchPosSalesDetail, fetchPosSal
 import { canAccess } from '@/lib/auth/canAccess'
 import Link from 'next/link'
 import { VoidOrderDialog } from '@/components/pos/VoidOrderDialog'
+import { RefundOrderDialog } from '@/components/pos/RefundOrderDialog'
 import { fetchSalesAnalytics, type SalesAnalytics } from '@/lib/pos/salesAnalytics'
 import { exportSalesReportExcel, exportSalesReportPdf, captureChartsImage } from '@/lib/pos/salesReportExport'
 
@@ -37,6 +38,7 @@ const DAY_LABELS = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min']
 
 const EXPORT_ROLES = ['owner', 'admin']
 const VOID_ROLES = ['owner', 'admin', 'cashier']
+const REFUND_ROLES = ['owner', 'admin']
 
 export default function PosSalesReportPage() {
   const supabase = createClient()
@@ -57,6 +59,8 @@ export default function PosSalesReportPage() {
   const [canExport, setCanExport] = useState(false)
   const [canVoid, setCanVoid] = useState(false)
   const [voidOrderId, setVoidOrderId] = useState<string | null>(null)
+  const [canRefund, setCanRefund] = useState(false)
+  const [refundOrderId, setRefundOrderId] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
   const [userName, setUserName] = useState<string | undefined>(undefined)
 
@@ -71,6 +75,7 @@ export default function PosSalesReportPage() {
       setCashierScope(profile?.role === 'cashier' ? user.id : undefined)
       setCanExport(canAccess(profile?.role ?? null, EXPORT_ROLES))
       setCanVoid(canAccess(profile?.role ?? null, VOID_ROLES))
+      setCanRefund(canAccess(profile?.role ?? null, REFUND_ROLES))
       setUserName(profile?.full_name || undefined)
       setScopeResolved(true)
     }
@@ -247,7 +252,7 @@ export default function PosSalesReportPage() {
         </div>
       ) : (
         <div className="space-y-5">
-          <div className="grid gap-3 grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
+          <div className="grid gap-3 grid-cols-2 lg:grid-cols-4 xl:grid-cols-9">
             {[
               { label: 'Penjualan Kotor', value: formatRp(posSalesSummary?.grossSales || 0), icon: ShoppingCart, color: 'text-indigo-400', bg: 'bg-indigo-500/10', border: 'border-indigo-500/20' },
               { label: 'Diskon', value: formatRp(posSalesSummary?.discountTotal || 0), icon: Percent, color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20' },
@@ -257,6 +262,7 @@ export default function PosSalesReportPage() {
               { label: 'Transaksi', value: String(posSalesSummary?.orderCount || 0), icon: Activity, color: 'text-zinc-100', bg: 'bg-zinc-500/10', border: 'border-zinc-500/20' },
               { label: 'Rata-rata Transaksi', value: formatRp(posSalesSummary?.averageTransaction || 0), icon: DollarSign, color: 'text-cyan-400', bg: 'bg-cyan-500/10', border: 'border-cyan-500/20' },
               { label: 'Dibatalkan', value: `${posSalesSummary?.voidedCount || 0} (${formatRp(posSalesSummary?.voidedAmount || 0)})`, icon: AlertTriangle, color: 'text-red-400', bg: 'bg-red-500/10', border: 'border-red-500/20' },
+              { label: 'Refund', value: `${posSalesSummary?.refundCount || 0} (${formatRp(posSalesSummary?.refundAmount || 0)})`, icon: AlertTriangle, color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20' },
             ].map(kpi => (
               <div key={kpi.label} className={`rounded-xl border ${kpi.border} bg-zinc-900/50 p-4 backdrop-blur-sm`}>
                 <div className={`mb-3 w-fit rounded-lg p-1.5 ${kpi.bg}`}>
@@ -568,7 +574,7 @@ export default function PosSalesReportPage() {
                     <th className="px-4 py-2 font-medium text-right">Pembulatan</th>
                     <th className="px-4 py-2 font-medium text-right">Total</th>
                     <th className="px-4 py-2 font-medium">Status</th>
-                    {canVoid && <th className="px-4 py-2 font-medium text-right">Aksi</th>}
+                    {(canVoid || canRefund) && <th className="px-4 py-2 font-medium text-right">Aksi</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -590,15 +596,28 @@ export default function PosSalesReportPage() {
                         <span className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded ${d.status === 'voided' ? 'bg-red-950/30 text-red-400 border border-red-900/40' : 'bg-emerald-950/30 text-emerald-400 border border-emerald-900/40'}`}>
                           {d.status === 'voided' ? 'Voided' : 'Selesai'}
                         </span>
+                        {d.refunded_amount > 0 && (
+                          <span className="ml-1 text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded bg-amber-950/30 text-amber-400 border border-amber-900/40" title={`Direfund ${formatRp(d.refunded_amount)}`}>
+                            {d.refunded_amount >= d.total_amount ? 'Refund penuh' : 'Refund sebagian'}
+                          </span>
+                        )}
                       </td>
-                      {canVoid && (
-                        <td className="px-4 py-2.5 text-right">
-                          {d.status === 'completed' && format(new Date(d.created_at), 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd') ? (
+                      {(canVoid || canRefund) && (
+                        <td className="px-4 py-2.5 text-right whitespace-nowrap">
+                          {canVoid && d.status === 'completed' && d.refunded_amount === 0 && format(new Date(d.created_at), 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd') ? (
                             <button
                               onClick={() => setVoidOrderId(d.id)}
                               className="rounded-md border border-red-900/60 px-2 py-0.5 text-[11px] font-medium text-red-400 hover:bg-red-950/40"
                             >
                               Void
+                            </button>
+                          ) : null}
+                          {canRefund && d.status === 'completed' && d.refunded_amount < d.total_amount ? (
+                            <button
+                              onClick={() => setRefundOrderId(d.id)}
+                              className="ml-1.5 rounded-md border border-amber-900/60 px-2 py-0.5 text-[11px] font-medium text-amber-400 hover:bg-amber-950/40"
+                            >
+                              Refund
                             </button>
                           ) : null}
                         </td>
@@ -693,6 +712,12 @@ export default function PosSalesReportPage() {
         </div>
       )}
 
+      <RefundOrderDialog
+        orderId={refundOrderId}
+        open={refundOrderId !== null}
+        onOpenChange={(o) => { if (!o) setRefundOrderId(null) }}
+        onRefunded={() => { setRefundOrderId(null); setReloadKey(k => k + 1) }}
+      />
       <VoidOrderDialog
         orderId={voidOrderId}
         open={voidOrderId !== null}

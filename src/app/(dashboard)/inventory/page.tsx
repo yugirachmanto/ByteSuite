@@ -79,7 +79,7 @@ export default function InventoryPage() {
 
       const { data: ledgerData, error: ledgerError } = await supabase
         .from('stock_ledger')
-        .select('item_id, txn_type, qty, total_value, created_at')
+        .select('item_id, txn_type, qty, total_value, created_at, reference_type')
         .eq('outlet_id', selectedOutletId)
         .lt('created_at', endOfSelectedMonth.toISOString())
 
@@ -129,7 +129,11 @@ export default function InventoryPage() {
           item.endingQty += qtyChange
           item.endingValue += valChange
         } else {
-          if (qtyChange > 0) {
+          if (tx.reference_type === 'pos_order_void') {
+            // A voided POS sale restores stock; show it as a reduction of
+            // that month's stock-out rather than as a purchase/stock-in.
+            item.outQty -= qtyChange
+          } else if (qtyChange > 0) {
             item.inQty += qtyChange
           } else {
             item.outQty += Math.abs(qtyChange)
