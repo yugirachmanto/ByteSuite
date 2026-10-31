@@ -73,7 +73,7 @@ export function ReceiptLayout({ order, lines, payments, org, outlet, paperWidth,
   return (
     <>
       <div
-        className="relative mx-auto bg-white text-black font-mono"
+        className="receipt-sheet relative mx-auto bg-white text-black font-mono"
         style={{ width: paperWidth, boxSizing: 'border-box', padding: '3mm', fontSize }}
       >
         {voided && (
