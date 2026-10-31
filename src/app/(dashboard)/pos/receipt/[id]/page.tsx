@@ -18,7 +18,7 @@ import { format } from 'date-fns'
 import { ReceiptLayout, type ReceiptOrderData, type ReceiptLine, type ReceiptPayment, type ReceiptOrg, type ReceiptOutlet } from '@/components/pos/ReceiptLayout'
 import { getCurrentUserRole, canAccess } from '@/lib/auth/canAccess'
 import { formatRp } from '@/lib/format'
-import { printReceiptElement } from '@/lib/pos/printReceipt'
+import { openReceiptPrintPage } from '@/lib/pos/printReceipt'
 import { captureElementAsPngBlob, downloadBlob, shareReceiptImage, blobToBase64 } from '@/lib/pos/receiptImage'
 
 const VOID_ROLES = ['owner', 'admin', 'cashier']
@@ -51,7 +51,6 @@ export default function POSReceiptPage({ params }: { params: Promise<{ id: strin
   const [sendingEmail, setSendingEmail] = useState(false)
   const [sendWaPhone, setSendWaPhone] = useState('')
   const [sendingWa, setSendingWa] = useState(false)
-  const hasAutoPrinted = useRef(false)
   const receiptImageRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -126,27 +125,9 @@ export default function POSReceiptPage({ params }: { params: Promise<{ id: strin
 
   useEffect(() => { fetchReceipt() }, [orderId])
 
-  // Print only the receipt (hidden iframe); fall back to printing the page
-  // if the frame can't be used.
-  const handlePrint = async () => {
-    if (receiptImageRef.current) {
-      try {
-        await printReceiptElement(receiptImageRef.current, paperWidth)
-        return
-      } catch (error) {
-        console.error('Receipt frame print failed, printing page instead', error)
-      }
-    }
-    window.print()
-  }
+  // Print through the bare print page (just the receipt), then come back here.
+  const handlePrint = () => openReceiptPrintPage(orderId, paperWidth, `/pos/receipt/${orderId}`)
 
-  useEffect(() => {
-    if (loading || hasAutoPrinted.current || !order || orderMeta?.status !== 'completed') return
-    hasAutoPrinted.current = true
-    const timer = setTimeout(() => { handlePrint() }, 400)
-    return () => clearTimeout(timer)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading, order, orderMeta])
 
   const isSameDay = orderMeta ? new Date(orderMeta.created_at).toDateString() === new Date().toDateString() : false
   const canShowVoidButton = canVoid && orderMeta?.status === 'completed' && isSameDay
