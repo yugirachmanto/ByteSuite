@@ -18,6 +18,7 @@ import { format } from 'date-fns'
 import { ReceiptLayout, type ReceiptOrderData, type ReceiptLine, type ReceiptPayment, type ReceiptOrg, type ReceiptOutlet } from '@/components/pos/ReceiptLayout'
 import { getCurrentUserRole, canAccess } from '@/lib/auth/canAccess'
 import { formatRp } from '@/lib/format'
+import { printReceiptElement } from '@/lib/pos/printReceipt'
 import { captureElementAsPngBlob, downloadBlob, shareReceiptImage, blobToBase64 } from '@/lib/pos/receiptImage'
 
 const VOID_ROLES = ['owner', 'admin', 'cashier']
@@ -125,11 +126,26 @@ export default function POSReceiptPage({ params }: { params: Promise<{ id: strin
 
   useEffect(() => { fetchReceipt() }, [orderId])
 
+  // Print only the receipt (hidden iframe); fall back to printing the page
+  // if the frame can't be used.
+  const handlePrint = async () => {
+    if (receiptImageRef.current) {
+      try {
+        await printReceiptElement(receiptImageRef.current, paperWidth)
+        return
+      } catch (error) {
+        console.error('Receipt frame print failed, printing page instead', error)
+      }
+    }
+    window.print()
+  }
+
   useEffect(() => {
     if (loading || hasAutoPrinted.current || !order || orderMeta?.status !== 'completed') return
     hasAutoPrinted.current = true
-    const timer = setTimeout(() => window.print(), 400)
+    const timer = setTimeout(() => { handlePrint() }, 400)
     return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, order, orderMeta])
 
   const isSameDay = orderMeta ? new Date(orderMeta.created_at).toDateString() === new Date().toDateString() : false
@@ -283,7 +299,7 @@ export default function POSReceiptPage({ params }: { params: Promise<{ id: strin
                 <SelectItem value="80mm">80mm</SelectItem>
               </SelectContent>
             </Select>
-            <Button onClick={() => window.print()} className="bg-indigo-600 text-white hover:bg-indigo-700">
+            <Button onClick={handlePrint} className="bg-indigo-600 text-white hover:bg-indigo-700">
               <Printer className="mr-2 h-4 w-4" /> Print
             </Button>
           </div>
