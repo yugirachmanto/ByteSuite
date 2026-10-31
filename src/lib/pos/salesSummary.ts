@@ -36,6 +36,9 @@ export interface PosSalesSummary {
   avgOrderPaceSeconds: number | null
   voidedCount: number
   voidedAmount: number
+  /** Refunds MADE in the period (by refund date). netSales is before refunds. */
+  refundCount: number
+  refundAmount: number
   tenders: { method: string; amount: number }[]
   topItems: { name: string; qty: number; revenue: number }[]
   categoryBreakdown: { category: string; qty: number; revenue: number }[]
@@ -62,11 +65,32 @@ const EMPTY_SUMMARY: PosSalesSummary = {
   avgOrderPaceSeconds: null,
   voidedCount: 0,
   voidedAmount: 0,
+  refundCount: 0,
+  refundAmount: 0,
   tenders: [],
   topItems: [],
   categoryBreakdown: [],
   compTotal: 0,
   compRecipients: []
+}
+
+/** Refunds made in the scope's window (shift, or date range), optionally limited to one cashier's orders. */
+async function fetchRefundTotals(supabase: SupabaseClient, scope: SalesSummaryScope): Promise<{ refundCount: number; refundAmount: number }> {
+  const { outletId, shiftId, startIso, endIso, cashierId } = scope
+  let query = supabase
+    .from('pos_refunds')
+    .select(cashierId ? 'amount, pos_orders!inner(cashier_id)' : 'amount')
+    .eq('outlet_id', outletId)
+  if (cashierId) query = query.eq('pos_orders.cashier_id', cashierId)
+  if (shiftId) {
+    query = query.eq('shift_id', shiftId)
+  } else {
+    if (startIso) query = query.gte('created_at', startIso)
+    if (endIso) query = query.lte('created_at', endIso)
+  }
+  const { data } = await query
+  const rows = (data || []) as unknown as { amount: number }[]
+  return { refundCount: rows.length, refundAmount: rows.reduce((sum, r) => sum + (Number(r.amount) || 0), 0) }
 }
 
 export async function fetchPosSalesSummary(supabase: SupabaseClient, scope: SalesSummaryScope): Promise<PosSalesSummary> {
@@ -86,8 +110,8 @@ export async function fetchPosSalesSummary(supabase: SupabaseClient, scope: Sale
     if (endIso) query = query.lte('created_at', endIso)
   }
 
-  const { data: orders } = await query
-  if (!orders || orders.length === 0) return EMPTY_SUMMARY
+  const [{ data: orders }, refundTotals] = await Promise.all([query, fetchRefundTotals(supabase, scope)])
+  if (!orders || orders.length === 0) return { ...EMPTY_SUMMARY, ...refundTotals }
 
   const completed = orders.filter(o => o.status === 'completed')
   const voided = orders.filter(o => o.status === 'voided')
@@ -164,6 +188,7 @@ export async function fetchPosSalesSummary(supabase: SupabaseClient, scope: Sale
     avgOrderPaceSeconds: computeAvgOrderPaceSeconds(completed),
     voidedCount: voided.length,
     voidedAmount,
+    ...refundTotals,
     tenders,
     topItems,
     categoryBreakdown,
@@ -242,6 +267,8 @@ export interface PosSaleDetailRow {
   tax_amount: number
   rounding_amount: number
   total_amount: number
+  /** Sum of all refunds ever made against this order. */
+  refunded_amount: number
   status: string
 }
 
@@ -274,9 +301,10 @@ export async function fetchPosSalesDetail(supabase: SupabaseClient, scope: Sales
   const orderIds = orders.map(o => o.id)
   const cashierIds = Array.from(new Set(orders.map(o => o.cashier_id).filter(Boolean)))
 
-  const [lines, payments, cashiersData] = await Promise.all([
+  const [lines, payments, refunds, cashiersData] = await Promise.all([
     inChunks<{ order_id: string; qty: number }>(orderIds, chunk => supabase.from('pos_order_lines').select('order_id, qty').in('order_id', chunk)),
     inChunks<{ order_id: string; payment_method: string }>(orderIds, chunk => supabase.from('pos_order_payments').select('order_id, payment_method').in('order_id', chunk)),
+    inChunks<{ order_id: string; amount: number }>(orderIds, chunk => supabase.from('pos_refunds').select('order_id, amount').in('order_id', chunk)),
     cashierIds.length > 0
       ? supabase.from('user_profiles').select('id, full_name').in('id', cashierIds).then(r => r.data || [])
       : Promise.resolve([] as { id: string; full_name: string }[])
@@ -295,6 +323,11 @@ export async function fetchPosSalesDetail(supabase: SupabaseClient, scope: Sales
     methodsMap.set(p.order_id, existing)
   }
 
+  const refundedMap = new Map<string, number>()
+  for (const r of refunds) {
+    refundedMap.set(r.order_id, (refundedMap.get(r.order_id) || 0) + (Number(r.amount) || 0))
+  }
+
   const cashierNameMap = new Map((cashiers || []).map((c: any) => [c.id, c.full_name]))
 
   return orders.map(o => ({
@@ -308,6 +341,7 @@ export async function fetchPosSalesDetail(supabase: SupabaseClient, scope: Sales
     tax_amount: o.tax_amount || 0,
     rounding_amount: o.rounding_amount || 0,
     total_amount: o.total_amount || 0,
+    refunded_amount: refundedMap.get(o.id) || 0,
     status: o.status,
   }))
 }

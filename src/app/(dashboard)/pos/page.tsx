@@ -94,6 +94,7 @@ export default function POSPage() {
   const [openingShift, setOpeningShift] = useState(false)
   const [closeShiftOpen, setCloseShiftOpen] = useState(false)
   const [cashSalesSoFar, setCashSalesSoFar] = useState(0)
+  const [cashRefundsSoFar, setCashRefundsSoFar] = useState(0)
   const [countedCash, setCountedCash] = useState('')
   const [closingNotes, setClosingNotes] = useState('')
   const [closingShift, setClosingShift] = useState(false)
@@ -297,6 +298,13 @@ export default function POSPage() {
       sum = (cashTenders || []).reduce((s, t) => s + (t.amount || 0), 0)
     }
     setCashSalesSoFar(sum)
+    // Cash handed back to customers this shift leaves the drawer (matches close_pos_shift).
+    const { data: cashRefunds } = await supabase
+      .from('pos_refunds')
+      .select('amount')
+      .eq('shift_id', shift.id)
+      .ilike('payment_method', 'cash')
+    setCashRefundsSoFar((cashRefunds || []).reduce((acc, r) => acc + (Number(r.amount) || 0), 0))
     setCountedCash('')
     setClosingNotes('')
     setCloseShiftOpen(true)
@@ -336,7 +344,7 @@ export default function POSPage() {
     }
   }
 
-  const expectedCash = (shift?.opening_float || 0) + cashSalesSoFar
+  const expectedCash = (shift?.opening_float || 0) + cashSalesSoFar - cashRefundsSoFar
   const liveVariance = countedCash ? parseFloat(countedCash) - expectedCash : 0
 
   useEffect(() => {
@@ -1372,6 +1380,12 @@ export default function POSPage() {
                 <span>Cash Sales This Shift</span>
                 <span className="text-zinc-200">{formatRp(cashSalesSoFar)}</span>
               </div>
+              {cashRefundsSoFar > 0 && (
+                <div className="flex justify-between text-zinc-400">
+                  <span>Cash Refunds This Shift</span>
+                  <span className="text-amber-400">-{formatRp(cashRefundsSoFar)}</span>
+                </div>
+              )}
               <div className="flex justify-between font-semibold pt-2 border-t border-zinc-800">
                 <span className="text-zinc-300">Expected Cash</span>
                 <span className="text-indigo-400">{formatRp(expectedCash)}</span>
