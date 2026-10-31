@@ -1,29 +1,37 @@
 /**
  * Print ONLY the receipt, never the surrounding page.
  *
- * The old flow opened /pos/receipt/<id> in a new tab and called
- * window.print() on that whole dashboard page, so what reached the printer
- * depended on how well the page's print CSS hid the sidebar, header, buttons
- * and theme — and on terminals/print services that ignore that CSS the user
- * got the web page instead of the receipt.
+ * History: (1) window.print() on the whole /pos/receipt page printed the
+ * dashboard; (2) printing a hidden iframe still printed the whole top-level
+ * page on the Android POS terminal (its WebView prints the main document and
+ * ignores the iframe), i.e. the "Payment Successful" dialog came out of the
+ * printer instead of the receipt.
  *
- * Here the receipt markup is copied into a hidden iframe whose document
- * contains nothing else (plus the app's stylesheets so the Tailwind classes
- * the receipt uses still apply) and that iframe is printed.
+ * So this prints the TOP-LEVEL document, but arranges for the receipt to be
+ * the only thing in it while printing: a clone of the receipt is mounted as
+ * a direct child of <body>, and a print stylesheet hides every other body
+ * child (the app, dialog portals, toasts...). On screen the clone is hidden.
+ * Both the clone and its stylesheet are removed after printing.
  */
 export type ReceiptPaperWidth = '58mm' | '80mm'
 
+/**
+ * Thermal printers cannot print edge to edge: a "58mm" roll prints ~48mm and
+ * "80mm" ~72mm. Laying the receipt out at the paper width clipped the first
+ * and last characters of every line on the terminal.
+ */
+const PRINTABLE_WIDTH: Record<ReceiptPaperWidth, string> = {
+  '58mm': '48mm',
+  '80mm': '72mm',
+}
+
+const ROOT_ID = 'receipt-print-root'
+const STYLE_ID = 'receipt-print-style'
 const IMAGE_WAIT_MS = 3000
 const CLEANUP_MS = 60_000
 
-function collectStyles(): string {
-  return Array.from(document.querySelectorAll('link[rel="stylesheet"], style'))
-    .map(node => node.outerHTML)
-    .join('\n')
-}
-
-function waitForImages(doc: Document): Promise<void> {
-  const pending = Array.from(doc.images).filter(img => !img.complete)
+function waitForImages(root: HTMLElement): Promise<void> {
+  const pending = Array.from(root.querySelectorAll('img')).filter(img => !img.complete)
   if (pending.length === 0) return Promise.resolve()
   return new Promise(resolve => {
     let left = pending.length
@@ -36,49 +44,71 @@ function waitForImages(doc: Document): Promise<void> {
   })
 }
 
-/** Resolves once the print dialog has been requested; rejects if the receipt can't be printed this way. */
-export function printReceiptElement(node: HTMLElement, paperWidth: ReceiptPaperWidth): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const frame = document.createElement('iframe')
-    frame.setAttribute('aria-hidden', 'true')
-    frame.title = 'Cetak struk'
-    // Not display:none — some browsers refuse to print a frame that isn't rendered.
-    frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;opacity:0;pointer-events:none;'
-
-    const cleanup = () => { frame.remove() }
-
-    frame.onload = async () => {
-      try {
-        const win = frame.contentWindow
-        if (!win) throw new Error('Print frame unavailable')
-        await waitForImages(win.document)
-        win.addEventListener('afterprint', () => setTimeout(cleanup, 500), { once: true })
-        win.focus()
-        win.print()
-        setTimeout(cleanup, CLEANUP_MS)
-        resolve()
-      } catch (error) {
-        cleanup()
-        reject(error)
-      }
-    }
-
-    frame.srcdoc = `<!doctype html>
-<html>
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Struk</title>
-${collectStyles()}
-<style>
+export function buildReceiptPrintCss(paperWidth: ReceiptPaperWidth): string {
+  const printable = PRINTABLE_WIDTH[paperWidth]
+  return `
+@media screen { #${ROOT_ID} { display: none !important; } }
+@media print {
   @page { size: ${paperWidth} auto; margin: 0; }
-  html, body { margin: 0; padding: 0; background: #fff !important; color: #000; }
-  body { width: ${paperWidth}; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-</style>
-</head>
-<body>${node.outerHTML}</body>
-</html>`
+  html, body {
+    background: #fff !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+  body > *:not(#${ROOT_ID}) { display: none !important; }
+  #${ROOT_ID} {
+    display: block !important;
+    position: static !important;
+    width: ${printable} !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    background: #fff !important;
+    color: #000 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  #${ROOT_ID} .receipt-sheet {
+    width: ${printable} !important;
+    max-width: ${printable} !important;
+    margin: 0 !important;
+    padding: 1mm 0 !important;
+    box-shadow: none !important;
+  }
+}`
+}
 
-    document.body.appendChild(frame)
-  })
+/** Resolves once the print dialog has been requested; rejects if printing can't be started. */
+export async function printReceiptElement(node: HTMLElement, paperWidth: ReceiptPaperWidth): Promise<void> {
+  document.getElementById(ROOT_ID)?.remove()
+  document.getElementById(STYLE_ID)?.remove()
+
+  const root = document.createElement('div')
+  root.id = ROOT_ID
+  root.setAttribute('aria-hidden', 'true')
+  root.innerHTML = node.outerHTML
+
+  const style = document.createElement('style')
+  style.id = STYLE_ID
+  style.textContent = buildReceiptPrintCss(paperWidth)
+
+  const cleanup = () => {
+    root.remove()
+    style.remove()
+  }
+
+  document.head.appendChild(style)
+  document.body.appendChild(root)
+
+  try {
+    await waitForImages(root)
+    window.addEventListener('afterprint', () => setTimeout(cleanup, 500), { once: true })
+    setTimeout(cleanup, CLEANUP_MS)
+    window.print()
+  } catch (error) {
+    cleanup()
+    throw error
+  }
 }
