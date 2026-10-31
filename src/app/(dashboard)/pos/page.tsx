@@ -16,6 +16,8 @@ import { format } from 'date-fns'
 import { enqueue } from '@/lib/pos/offlineQueue'
 import { useOfflineCheckoutSync } from '@/lib/pos/useOfflineCheckoutSync'
 import { getCurrentUserRole, canAccess } from '@/lib/auth/canAccess'
+import { suggestCashAmounts } from '@/lib/pos/cashSuggestions'
+import { printReceiptElement } from '@/lib/pos/printReceipt'
 import { ReceiptLayout, type ReceiptOrderData, type ReceiptLine, type ReceiptPayment, type ReceiptOrg, type ReceiptOutlet } from '@/components/pos/ReceiptLayout'
 import { VoidOrderDialog } from '@/components/pos/VoidOrderDialog'
 import { captureElementAsPngBlob, downloadBlob, shareReceiptImage, blobToBase64 } from '@/lib/pos/receiptImage'
@@ -558,7 +560,17 @@ export default function POSPage() {
     }
   }
 
-  const handlePrintReceipt = () => {
+  // Prints just the receipt (hidden iframe), not the dashboard page. Falls
+  // back to the standalone receipt page only if the in-page print fails.
+  const handlePrintReceipt = async () => {
+    if (receiptImageRef.current) {
+      try {
+        await printReceiptElement(receiptImageRef.current, receiptPaperWidth)
+        return
+      } catch (error) {
+        console.error('In-page receipt print failed, opening receipt page', error)
+      }
+    }
     if (lastOrderId) window.open(`/pos/receipt/${lastOrderId}`, '_blank')
   }
 
@@ -1276,6 +1288,24 @@ export default function POSPage() {
                             value={t.cashReceived || ''}
                             onChange={(e) => updateTenderCashReceived(t.id, Number(e.target.value))}
                           />
+                          {t.id === cashTender?.id && remainingForCash > 0 && (
+                            <div className="flex flex-wrap gap-1.5 pt-0.5" aria-label="Saran nominal tunai">
+                              {suggestCashAmounts(remainingForCash).map((amount, i) => (
+                                <button
+                                  key={amount}
+                                  type="button"
+                                  onClick={() => updateTenderCashReceived(t.id, amount)}
+                                  className={`min-h-9 rounded-lg border px-3 text-sm font-medium transition-colors duration-150 active:scale-[0.97] ${
+                                    t.cashReceived === amount
+                                      ? 'border-indigo-500 bg-indigo-600/20 text-indigo-200'
+                                      : 'border-zinc-700 bg-zinc-900 text-zinc-300 hover:border-zinc-500 hover:bg-zinc-800'
+                                  }`}
+                                >
+                                  {i === 0 ? `Uang Pas · ${formatRp(amount)}` : formatRp(amount)}
+                                </button>
+                              ))}
+                            </div>
+                          )}
                           {t.cashReceived > 0 && (
                             <div className="flex justify-between text-xs text-zinc-500 pt-1">
                               <span>Diterapkan: {formatRp(t.id === cashTender?.id ? cashApplied : 0)}</span>
