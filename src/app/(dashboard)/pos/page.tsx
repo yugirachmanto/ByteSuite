@@ -17,7 +17,7 @@ import { enqueue } from '@/lib/pos/offlineQueue'
 import { useOfflineCheckoutSync } from '@/lib/pos/useOfflineCheckoutSync'
 import { getCurrentUserRole, canAccess } from '@/lib/auth/canAccess'
 import { suggestCashAmounts } from '@/lib/pos/cashSuggestions'
-import { printReceiptElement } from '@/lib/pos/printReceipt'
+import { openReceiptPrintPage } from '@/lib/pos/printReceipt'
 import { ReceiptLayout, type ReceiptOrderData, type ReceiptLine, type ReceiptPayment, type ReceiptOrg, type ReceiptOutlet } from '@/components/pos/ReceiptLayout'
 import { VoidOrderDialog } from '@/components/pos/VoidOrderDialog'
 import { captureElementAsPngBlob, downloadBlob, shareReceiptImage, blobToBase64 } from '@/lib/pos/receiptImage'
@@ -560,18 +560,11 @@ export default function POSPage() {
     }
   }
 
-  // Prints just the receipt (hidden iframe), not the dashboard page. Falls
-  // back to the standalone receipt page only if the in-page print fails.
-  const handlePrintReceipt = async () => {
-    if (receiptImageRef.current) {
-      try {
-        await printReceiptElement(receiptImageRef.current, receiptPaperWidth)
-        return
-      } catch (error) {
-        console.error('In-page receipt print failed, opening receipt page', error)
-      }
-    }
-    if (lastOrderId) window.open(`/pos/receipt/${lastOrderId}`, '_blank')
+  // Opens the bare print page (just the receipt) in this tab; it prints and
+  // returns to the POS. The POS terminal's print service prints whatever is on
+  // screen, so the receipt has to be the only thing on the page.
+  const handlePrintReceipt = () => {
+    if (lastOrderId) openReceiptPrintPage(lastOrderId, receiptPaperWidth, '/pos')
   }
 
   // Same query shape as the standalone receipt page — kept here too so the
